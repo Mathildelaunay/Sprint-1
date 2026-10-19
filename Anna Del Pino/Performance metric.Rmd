@@ -1,0 +1,98 @@
+---
+title: "Performance metric"
+output: html_document
+date: "2026-10-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The **idea** is to build a performance metric which will be used to compare everyone's models when these will be completed. We agreed that our models will output the final ranking of teams of the Premier League season we will be predicting.
+
+## Performance metric
+
+Our **idea** is to build a performance metric which will add weights as:
+
+| Actual, $a_i$ | Prediction, $p_i$                     | Weight, $w_i$     |
+|---------------|---------------------------------------|-------------------|
+| Top 5         | correct in top 5                      | 1                 |
+| Top 5         | incorrect in top 5                    | 0.7               |
+| Top 5         | incorrect within 2 positions of top 5 | 0.4               |
+| Top 5         | incorrect outside of top 5            | $-\frac{d_i}{19}$ |
+| Outside top 5 | correct outside top 5                 | 0.4               |
+| Outside top 5 | incorrect outside top 5               | $-\frac{d_i}{14}$ |
+
+The reason why we add greater weight to the first 5 observations is because, we assume that the teams that fall into the first 5 positions at the end of the league will pass to the next championship (so focusing on this will also help us have an idea on how to continue the prediction).
+
+Note: The reason why we are dividing the distance by 19 for an incorrect prediction outside of top 5 is because $\text{max}\{a_i,p_i\} = 19$ and similarly for an incorrect prediction outside top 5 we have $\text{max}\{a_i,p_i\} = 14$.
+
+Here is the code for the total weight we give to our model:
+
+```{r}
+pm <- function(predicted, actual) {
+  wt <- c()
+
+  for (i in 1:length(predicted)) {
+    p <- predicted[i]  # predicted position
+    a <- actual[i]     # actual position
+    d <- abs(p - a)    # distance between predicted and actual i.e. residual
+
+    if (a <= 5) {  # team actually finished in the top five
+
+      if (p == a) { # actual and predicted teams are in the same position within the first 5
+        w <- 1
+      } else if (p <= 5) { # actual and predicted teams aren't in the same position but are within the first 5
+        w <- 0.7
+      } else if (d <= 2) { # actual and predicted teams aren't in the same position but predicted are 1 or 2 spaces from actual
+        w <- 0.4
+      } else { # predicted takes values in position 8+ while predicted takes position within first 5
+        w <- -(d / 19) #  i.e. for each position further apart, then the weight becomes smaller
+      }
+
+    } else {  # team actually finished outside the top five
+
+      if (p <= 5) { # incorrectly predicted in the top five
+        w <- 0  
+      } else if (p == a) { # correctly predicted outside of top 5
+        w <- 0.4
+      } else { # incorrectly predicted outside of top 5
+        w <- -(d / 14) # notice for one space wrong w = -0.07, for 14 spaces wrong (max distance) w = -1
+      }
+    }
+
+    wt <- c(wt, w)
+  }
+
+  sum(wt)
+}
+
+```
+
+Notice that the weights range from $[0,1]$. We now need to add a penalisation for number of parameters used in the model. We want to keep this penalisation smaller then our total number of weights so maybe using a log scale for number of parameters would be a good idea.
+
+`pm(predicted, actual)` - $\frac{1}{2} \log (\text{#of parameters})$ ??
+
+## Spearman's rank correlation coefficient
+
+### Intuition
+
+Spearman's rank correlation coefficient, $\rho$, is a number ranging from −1 to 1 that indicates how strongly two sets of ranks are correlated (in our case `predicted` vs `actual`). It is a nonparametric measure of rank correlation. It assesses how well the relationship between two variables (`predicted` and `actual`) can be described using a monotonic function (i.e. \$f(x_i) \leq f(x\_{i+1}) \$ or \$f(x_i) \geq f(x\_{i+1}) \$). It is used in situations where the ranking of a dataset is important, for instance in sports.
+
+A perfect Spearman correlation of +1 or −1 occurs when each of the variables is a perfect monotone function of the other.
+
+(eg. $f($`actual[i]`$) = f($`predicted[i]`$) \leq f($`actual[i+1]`$) = f($`predicted[i+1]`$)$ eg.`predicted` = (3,2,4,1) and `actual` = (1,2,3,4)).
+
+Intuitively, the Spearman correlation between two variables will be high when observations have a similar (or equal with correlation = 1) rank between the two variables, and low when observations have a dissimilar(or fully opposed with correlation = -1) rank between the two variables.
+
+### Formula
+
+For a sample size $n$, the $n$ pairs of raw scores $(X_i,Y_i)$ are converted to ranks $(\text{R}[X_i],\text{R}[Y_i])$ and the Spearman rank correlation, $\rho$, is calculated as $$\rho [ \text{R}[X] \ ,\text{R}[Y] \ ] = \frac{\text{cov}[ \text{R}[X] \ ,\text{R}[Y]]}{\sigma_{\text{R}[X]}\sigma_{\text{R[Y]}}}, $$ where:
+
+- $\text{cov}[ \text{R}[X] \ ,\text{R}[Y]]$ is the covariance of the rank variables,
+
+- $\sigma_{\text{R}[X]}$ and $\sigma_{\text{R[Y]}}$ are the standard deviations of the rank variables.
+
+### Conclusion
+
+This tells us how well our model predicted the rank of teams at the end of the season. However, to compare different models this might not be ideal since it doesn't consider the complexity of the model. I can use this method instead to test how well my model performs when predicting the rank.
