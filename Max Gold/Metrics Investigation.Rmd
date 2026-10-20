@@ -1,0 +1,17 @@
+---
+title: "Metric Options"
+author: "Max Gold"
+date: "2026-10-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1) Relative ordering: We can use a weighted Kendall ranking score: for teams $i$ and $j$, create the error indicator as $$I_{ij} = \begin{cases}1&(r_i-r_j)(\hat{r}_i-\hat{r}_j)<0\\0&\text{otherwise}\end{cases}$$ so it is 1 when the order is wrong, also define $$g_i=\begin{cases}1&r_i\leq 5\\2&6\leq r_i\leq 17\\3&r_i\geq 18\end{cases}$$$$w_{ij} = \begin{cases}3&g_i\neq g_j\\1&g_i=g_j\end{cases}$$and the score is $$S_w=100\bigg(1-\frac{\sum_{i=1}^{19}\sum_{j=i+1}^{20}w_{ij}I_{ij}}{412}\bigg)$$ $412 = N_\text{same} + (3\times N_{\text{different}} )= 79+(3\times 111)$ 
+2) Absolute ordering: We can look at the overall ranking score $$s_w=1-\frac{1}{200}\sum_{i=1}^{20}|\hat{r}_i-r_i|$$ where the 200 is the maximum total absolute ranking error. We could also investigate the proportion of top 5 and bottom 3 that are correct, so $$P_{EUR} = \frac{|\hat{T}_5\cap T_5|}{5}$$ and same for $P_{REG}$ and $B_3$. We aim to look at number of false positives and false negatives, so we need a metric that can analyse both. So we can get a weighting of these 3 values and turn them into scores: $S = 100(a_w s_w + a_{EUR}P_{EUR} + a_{REG}P_{REG})$ with our chosen weights of importance $a$ for each category and $\sum a = 1$. However, this does lead to overlap between the scores.
+
+3) We can look at the AIC of each model, looking to see the parsimony of each model
+4) A team that ranks well does not necessarily predict individual match outcomes well, so we can have a metric that also looks to see the mean absolute error across the points scored in teams: $$MAE = \frac{1}{20}\sum_{i=1}^{20}|\hat{p}_i-p_i|$$
+5) We could also do match accuracy, so the percentage of correctly predicted match outcomes?
