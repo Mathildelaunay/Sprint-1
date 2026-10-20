@@ -1,0 +1,135 @@
+---
+title: 'SSIG: Example Usage'
+author: "J. Heffaran"
+date: "`r Sys.Date()`"
+output: html_document
+---
+# Season Simulator Independent Games
+
+## (SSIG)
+
+
+
+The SSIG function allows a common interface for the testing of different models under the assumption of independent games.
+
+
+
+Precisely: we assume that a games result is dependent only on the model specified, and the team ratings. The team ratings are constant throughout a season.  
+
+
+
+The simulator does not prescribe how game outcomes or goals are generated. This is determined entirely by the supplied game model.
+
+
+
+Run the following code / source the below scripts in order to call the required helper functions when you are using SSIG:
+
+
+```{r}
+source("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/TB1/Tool box/Sprint_1 individual/(SSIG) Season Simulator Independent Games/SSIG_function.R")
+source("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/TB1/Tool box/Sprint_1 individual/(SSIG) Season Simulator Independent Games/season_sim_helper_function.R")
+source("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/TB1/Tool box/Sprint_1 individual/(SSIG) Season Simulator Independent Games/table_functions.R")
+```
+
+
+##### Inputs
+
+SSIG takes as input a specified model function and a named list I.e: 
+
+
+
+```{r}
+team_ratings = list(Arsenal = 1, Brighton = 2, 
+                    Palace = 1, Dynamo_Bristol = 1,
+                    ManU =1, ManC =1, NewC =1, Chels =1,
+                    Brentford = 1, Bournemouth =1, Coventry=1)
+```
+
+
+
+Note that we can use this to input attack and defence ratings for each team, or any other ratings, even ratings by player if you fancy, this is determined by the model you want to test.
+
+
+```{r}
+pois_game_model <- function(team_ratings, home_team, away_team){
+  home_goals <- rpois(1, lambda=team_ratings[[home_team]])
+  away_goals <- rpois(1, lambda = team_ratings[[away_team]])
+  
+  return(c(home_goals, away_goals))
+}
+```
+
+
+. It is imperative that the game model function returns results in form c(home\_goals\_scored, away\_goals\_scored).
+
+
+
+##### Outputs
+
+SSIG returns a tibble representing the final league table after simulating a season of games using the specified game model. 
+
+&#x09;
+
+This league table includes columns Team, P, W, D, L, GF, GA, GD, Pts. This is the team name, games played, games won, drawn, lost, goals for, goals against, goal difference, and accumulated points. 
+
+&#x09;
+
+The tibble is sorted by Pts in descending order, ties are broken by GD, and failing that GF, as per premier league regulation. 
+
+
+
+
+##### Example
+
+Suppose we use the team rankings, and game model as proposed above. Then the output of the SSIG function is the following:
+
+```{r}
+league_table = SSIG(team_ratings, pois_game_model)
+print(league_table)
+```
+We will now run multiple simulations of the same season, achieving an estimated probability distribution for each teams end league position. 
+
+```{r}
+n_sim = 100
+# Init a list of team names
+teams <- names(team_ratings)
+
+# Create history mtx
+positions <- matrix(
+    NA_integer_, 
+    nrow = n_sim,
+    ncol = length(teams),
+    dimnames = list(NULL, teams)
+  )
+
+ for (i in seq_len(n_sim)) {
+
+    league_table <- SSIG(team_ratings, pois_game_model)
+
+    # SSIG returns the table sorted from 1st to last
+    positions[i, league_table$Team] <- seq_len(nrow(league_table))
+ }
+
+ # Convert finishing positions into empirical probabilities
+  position_probs <- do.call(
+    rbind,
+    lapply(teams, function(team) {
+      tabulate(
+        positions[, team],
+        nbins = length(teams)
+      ) / n_sim
+    })
+  ) 
+  
+  
+  rownames(position_probs) <- teams
+  colnames(position_probs) <- seq_len(length(teams))
+  as.data.frame(position_probs) |>
+    tibble::rownames_to_column("Team")
+  
+
+```
+
+
+
+
