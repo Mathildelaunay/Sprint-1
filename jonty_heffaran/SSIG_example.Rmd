@@ -9,22 +9,16 @@ output: html_document
 # Season Simulator Independent Games
 
 ## (SSIG)
-
-
-
-The SSIG function allows a common interface for the testing of different models under the assumption of independent games.
-
-
-
-Precisely: we assume that a games result is dependent only on the model specified, and the team ratings. The team ratings are constant throughout a season.  
-
-
-
-The simulator does not prescribe how game outcomes or goals are generated. This is determined entirely by the supplied game model.
+Please see the documentation file for details on the SSIG function. In short, 
+SSIG allows us to have a common interface to simulate a season of fixtures under
+a given game model. SSIG takes as input a named list of the teams playing in the 
+season, along with some rating of each team. It outputs a league table simulated
+under the assumption of independent games.
 
 
 
 Run the following code / source the below scripts in order to call the required helper functions when you are using SSIG:
+
 
 
 ```{r}
@@ -34,22 +28,18 @@ source("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/TB1/Too
 ```
 
 
+
 ##### Inputs
 
-SSIG takes as input a specified model function and a named list I.e: 
-
-
+Below we have example inputs for SSIG function.
 
 ```{r}
-z = 1/2
+z = 1/2 #Note: z is some common scale factor used for illustrative purposes
 
 team_ratings = list(Liv = 5*z, Ars = 4.8*z, Manc = 4.6*z, Chels =4.4*z, Newc = 4.2*z, Vil=4*z, For= 3.8*z, BHA= 3.6*z, Bou= 3.4*z, Brt=3.2*z, Ful=3*z, Pal =2.8*z, 
 Eve =2.6*z, WHU= 2.4*z, Manu =2.2*z, Wol = 2*z, Tot = 1.8*z, Lei = 1.6*z, Ips = 1.4*z, Sot = 1.2*z)
 ```
 
-
-
-Note that we can use this to input attack and defence ratings for each team, or any other ratings, even ratings by player if you fancy, this is determined by the model you want to test.
 
 
 ```{r}
@@ -70,18 +60,17 @@ pois_game_model <- function(team_ratings, home_team, away_team){
 
 SSIG returns a tibble representing the final league table after simulating a season of games using the specified game model. 
 
-&#x09;
+
 
 This league table includes columns Team, P, W, D, L, GF, GA, GD, Pts. This is the team name, games played, games won, drawn, lost, goals for, goals against, goal difference, and accumulated points. 
 
-&#x09;
+
 
 The tibble is sorted by Pts in descending order, ties are broken by GD, and failing that GF, as per premier league regulation. 
 
 
 
-
-##### Example
+##### Example 1:
 
 Suppose we use the team rankings, and game model as proposed above. Then the output of the SSIG function is the following:
 
@@ -89,116 +78,62 @@ Suppose we use the team rankings, and game model as proposed above. Then the out
 league_table = SSIG(team_ratings, pois_game_model)
 print(league_table)
 ```
-We will now run multiple simulations of the same season, achieving an estimated probability distribution for each teams end league position. 
+##### Example 2:
+
+Let us now source our Dixon Cole's based game model:
 
 ```{r}
-n_sim = 100
-# Init a list of team names
-teams <- names(team_ratings)
-
-# Create history mtx
-positions <- matrix(
-    NA_integer_, 
-    nrow = n_sim,
-    ncol = length(teams),
-    dimnames = list(NULL, teams)
-  )
-
- for (i in seq_len(n_sim)) {
-
-    league_table <- SSIG(team_ratings, pois_game_model)
-
-    # SSIG returns the table sorted from 1st to last
-    positions[i, league_table$Team] <- seq_len(nrow(league_table))
- }
-
- # Convert finishing positions into empirical probabilities
-  position_probs <- do.call(
-    rbind,
-    lapply(teams, function(team) {
-      tabulate(
-        positions[, team],
-        nbins = length(teams)
-      ) / n_sim
-    })
-  ) 
-  
-  
-  rownames(position_probs) <- teams
-  colnames(position_probs) <- seq_len(length(teams))
-  as.data.frame(position_probs) |>
-    tibble::rownames_to_column("Team")
-  
-
+source("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/dixon_coles_game_model.R")
 ```
 
 
-
+We will use the following team ratings as an example:
 
 ```{r}
-library(tibble)
-library(ggplot2)
-
-# Convert probability matrix to data frame and retain team names
-position_probs_df <- as.data.frame(position_probs) %>%
-  rownames_to_column(var = "Team")
-
-# Convert column names (finishing positions) to long format
-positions_long <- position_probs_df %>%
-  pivot_longer(
-    cols = -Team,
-    names_to = "Position",
-    values_to = "Probability"
-  ) %>%
-  mutate(Position = as.integer(Position))
-
-team_order <- position_probs_df %>%
-  arrange(desc(`1`)) %>%
-  pull(Team)
-
-positions_long <- positions_long %>%
-  mutate(Team = factor(Team, levels = team_order))
-
-ggplot(positions_long, aes(
-  x = Position,
-  y = Team,
-  fill = Probability
-)) +
-  geom_tile(colour = "white", linewidth = 0.4) +
-  scale_fill_viridis_c(
-    name = "Probability",
-    labels = scales::label_percent(),
-    option = "C"
-  ) +
-  scale_x_continuous(
-    breaks = seq_along(teams),
-    expand = c(0, 0)
-  ) +
-  labs(
-    title = "Predicted distribution of league positions",
-    subtitle = paste(n_sim, "simulated seasons"),
-    x = "Final league position",
-    y = NULL
-  ) +
-  theme_minimal(base_size = 12) +
-  theme(
-    panel.grid = element_blank(),
-    legend.position = "bottom",
-    plot.title = element_text(face = "bold")
-  )
+team_ratings <- list(
+  Arsenal = list(attack_rating = 1.15, def_rating = 0.70),
+  Aston_Villa = list(attack_rating = 1.00, def_rating = 1.00),
+  Bournemouth = list(attack_rating = 1.00, def_rating = 1.05),
+  Brentford = list(attack_rating = 1.00, def_rating = 1.00),
+  Brighton = list(attack_rating = 1.55, def_rating = 0.65),
+  Chelsea = list(attack_rating = 1.05, def_rating = 0.95),
+  Coventry = list(attack_rating = 0.80, def_rating = 1.30),
+  Palace = list(attack_rating = 0.90, def_rating = 1.10),
+  Everton = list(attack_rating = 0.85, def_rating = 0.95),
+  Fulham = list(attack_rating = 0.90, def_rating = 1.05),
+  Hull = list(attack_rating = 0.75, def_rating = 1.30),
+  Ipswich = list(attack_rating = 0.80, def_rating = 1.25),
+  Leeds = list(attack_rating = 0.85, def_rating = 1.15),
+  Liverpool = list(attack_rating = 1.10, def_rating = 0.95),
+  Man_City = list(attack_rating = 1.20, def_rating = 0.80),
+  Man_United = list(attack_rating = 1.05, def_rating = 1.10),
+  Newcastle = list(attack_rating = 1.00, def_rating = 1.05),
+  Nottingham_Forest = list(attack_rating = 0.85, def_rating = 1.05),
+  Sunderland = list(attack_rating = 0.80, def_rating = 1.10),
+  Spurs = list(attack_rating = 0.90, def_rating = 1.15)
+)
 ```
 
-```{r}
-expected_positions <- positions_long %>%
-  group_by(Team) %>%
-  summarise(
-    Expected_position = sum(Position * Probability),
-    .groups = "drop"
-  ) %>%
-  arrange(Expected_position) %>%
-  mutate(Predicted_position = row_number()) %>%
-  select(Predicted_position, Team, Expected_position)
+We have that the dixon coles model has many parameters, so we use a wrapping 
+function to allow it to be usable with SSIG
 
-print(expected_positions)
+```{r}
+dc_game_model = function(team_ratings, home_team, away_team) {
+  rho = 0.09
+  home_advantage = 0.05
+  max_goals = 6
+  
+  return(dixon_coles_game_model(team_ratings= team_ratings, rho = rho,
+                                home_advantage = home_advantage,
+                                home_team = home_team,
+                                away_team = away_team,
+                                max_goals = max_goals))
+}
+```
+
+
+```{r}
+league_table = SSIG(team_ratings= team_ratings, game_model= dc_game_model)
+print(league_table)
 ```
 

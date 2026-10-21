@@ -1,30 +1,31 @@
-"""DIXON - COLES  GAME MODEL: # nolint
-   We define game model, as proposed in M.J. Dixon, and S.J. Coles' 1996 paper.
-   This paper is a cornerstone of modern football scoreline prediction. It builds # nolint
-   upon work by Maher (1982), introducing a correction to the poisson model to
-   address the prevelance of common low scorelines.
+#DIXON - COLES  GAME MODEL: # nolint
    
-   This game model takes as input:
-   (team_ratings, home_team, away_team, home_advantage, rho, max_goals)
+   #We define game model, as proposed in M.J. Dixon, and S.J. Coles' 1996 paper.
+   #This paper is a cornerstone of modern football scoreline prediction. It builds # nolint
+   #upon work by Maher (1982), introducing a correction to the poisson model to
+   #address the prevelance of common low scorelines.
    
-   The model returns:
-   c(home_goals = scores$home_goals[i], away_goals = scores$away_goals[i])
+   #This game model takes as input:
+   #(team_ratings, home_team, away_team, home_advantage, rho, max_goals)
    
-   Note that team ratings must be supplied as a name list of the form shown
-   in the example below:
+   #The model returns:
+   #c(home_goals = scores$home_goals[i], away_goals = scores$away_goals[i])
    
-   team_ratings <- list(
-    Arsenal = list(attack_rating = .8, def_rating =1 ),
-    Chelsea = list(attack_rating = 1.1, def_rating =.2 ),
-    ...,
-   )
+   #Note that team ratings must be supplied as a name list of the form shown
+   #in the example below:
+   
+   #team_ratings <- list(
+   # Arsenal = list(attack_rating = .8, def_rating =1 ),
+   # Chelsea = list(attack_rating = 1.1, def_rating =.2 ),
+   # ...,
+   #)
     
-   Here, a high attack rating indicates a strong attack, and a low defence rating
-   indicates a strong defence.
+   #Here, a high attack rating indicates a strong attack, and a low defence rating
+   #indicates a strong defence.
    
-   This model is to be used in combination with the SSIG function as previously 
-   defined.
-"""
+   #This model is to be used in combination with the SSIG function as previously 
+   #defined.
+
 
 dixon_coles_game_model <- function(team_ratings, home_team, away_team,
 home_advantage, rho, max_goals = 5) {
