@@ -4,6 +4,8 @@ author: "J. Heffaran"
 date: "`r Sys.Date()`"
 output: html_document
 ---
+
+
 # Season Simulator Independent Games
 
 ## (SSIG)
@@ -39,10 +41,10 @@ SSIG takes as input a specified model function and a named list I.e:
 
 
 ```{r}
-team_ratings = list(Arsenal = 1, Brighton = 2, 
-                    Palace = 1, Dynamo_Bristol = 1,
-                    ManU =1, ManC =1, NewC =1, Chels =1,
-                    Brentford = 1, Bournemouth =1, Coventry=1)
+z = 1/2
+
+team_ratings = list(Liv = 5*z, Ars = 4.8*z, Manc = 4.6*z, Chels =4.4*z, Newc = 4.2*z, Vil=4*z, For= 3.8*z, BHA= 3.6*z, Bou= 3.4*z, Brt=3.2*z, Ful=3*z, Pal =2.8*z, 
+Eve =2.6*z, WHU= 2.4*z, Manu =2.2*z, Wol = 2*z, Tot = 1.8*z, Lei = 1.6*z, Ips = 1.4*z, Sot = 1.2*z)
 ```
 
 
@@ -132,4 +134,71 @@ positions <- matrix(
 
 
 
+
+```{r}
+library(tibble)
+library(ggplot2)
+
+# Convert probability matrix to data frame and retain team names
+position_probs_df <- as.data.frame(position_probs) %>%
+  rownames_to_column(var = "Team")
+
+# Convert column names (finishing positions) to long format
+positions_long <- position_probs_df %>%
+  pivot_longer(
+    cols = -Team,
+    names_to = "Position",
+    values_to = "Probability"
+  ) %>%
+  mutate(Position = as.integer(Position))
+
+team_order <- position_probs_df %>%
+  arrange(desc(`1`)) %>%
+  pull(Team)
+
+positions_long <- positions_long %>%
+  mutate(Team = factor(Team, levels = team_order))
+
+ggplot(positions_long, aes(
+  x = Position,
+  y = Team,
+  fill = Probability
+)) +
+  geom_tile(colour = "white", linewidth = 0.4) +
+  scale_fill_viridis_c(
+    name = "Probability",
+    labels = scales::label_percent(),
+    option = "C"
+  ) +
+  scale_x_continuous(
+    breaks = seq_along(teams),
+    expand = c(0, 0)
+  ) +
+  labs(
+    title = "Predicted distribution of league positions",
+    subtitle = paste(n_sim, "simulated seasons"),
+    x = "Final league position",
+    y = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    legend.position = "bottom",
+    plot.title = element_text(face = "bold")
+  )
+```
+
+```{r}
+expected_positions <- positions_long %>%
+  group_by(Team) %>%
+  summarise(
+    Expected_position = sum(Position * Probability),
+    .groups = "drop"
+  ) %>%
+  arrange(Expected_position) %>%
+  mutate(Predicted_position = row_number()) %>%
+  select(Predicted_position, Team, Expected_position)
+
+print(expected_positions)
+```
 
