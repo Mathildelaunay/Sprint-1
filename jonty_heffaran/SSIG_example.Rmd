@@ -1,0 +1,139 @@
+---
+title: 'SSIG: Example Usage'
+author: "J. Heffaran"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+# Season Simulator Independent Games
+
+## (SSIG)
+Please see the documentation file for details on the SSIG function. In short, 
+SSIG allows us to have a common interface to simulate a season of fixtures under
+a given game model. SSIG takes as input a named list of the teams playing in the 
+season, along with some rating of each team. It outputs a league table simulated
+under the assumption of independent games.
+
+
+
+Run the following code / source the below scripts in order to call the required helper functions when you are using SSIG:
+
+
+
+```{r}
+source("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/TB1/Tool box/Sprint_1 individual/(SSIG) Season Simulator Independent Games/SSIG_function.R")
+source("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/TB1/Tool box/Sprint_1 individual/(SSIG) Season Simulator Independent Games/season_sim_helper_function.R")
+source("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/TB1/Tool box/Sprint_1 individual/(SSIG) Season Simulator Independent Games/table_functions.R")
+```
+
+
+
+##### Inputs
+
+Below we have example inputs for SSIG function.
+
+```{r}
+z = 1/2 #Note: z is some common scale factor used for illustrative purposes
+
+team_ratings = list(Liv = 5*z, Ars = 4.8*z, Manc = 4.6*z, Chels =4.4*z, Newc = 4.2*z, Vil=4*z, For= 3.8*z, BHA= 3.6*z, Bou= 3.4*z, Brt=3.2*z, Ful=3*z, Pal =2.8*z, 
+Eve =2.6*z, WHU= 2.4*z, Manu =2.2*z, Wol = 2*z, Tot = 1.8*z, Lei = 1.6*z, Ips = 1.4*z, Sot = 1.2*z)
+```
+
+
+
+```{r}
+pois_game_model <- function(team_ratings, home_team, away_team){
+  home_goals <- rpois(1, lambda=team_ratings[[home_team]])
+  away_goals <- rpois(1, lambda = team_ratings[[away_team]])
+  
+  return(c(home_goals, away_goals))
+}
+```
+
+
+. It is imperative that the game model function returns results in form c(home\_goals\_scored, away\_goals\_scored).
+
+
+
+##### Outputs
+
+SSIG returns a tibble representing the final league table after simulating a season of games using the specified game model. 
+
+
+
+This league table includes columns Team, P, W, D, L, GF, GA, GD, Pts. This is the team name, games played, games won, drawn, lost, goals for, goals against, goal difference, and accumulated points. 
+
+
+
+The tibble is sorted by Pts in descending order, ties are broken by GD, and failing that GF, as per premier league regulation. 
+
+
+
+##### Example 1:
+
+Suppose we use the team rankings, and game model as proposed above. Then the output of the SSIG function is the following:
+
+```{r}
+league_table = SSIG(team_ratings, pois_game_model)
+print(league_table)
+```
+##### Example 2:
+
+Let us now source our Dixon Cole's based game model:
+
+```{r}
+source("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/dixon_coles_game_model.R")
+```
+
+
+We will use the following team ratings as an example:
+
+```{r}
+team_ratings <- list(
+  Arsenal = list(attack_rating = 1.15, def_rating = 0.70),
+  Aston_Villa = list(attack_rating = 1.00, def_rating = 1.00),
+  Bournemouth = list(attack_rating = 1.00, def_rating = 1.05),
+  Brentford = list(attack_rating = 1.00, def_rating = 1.00),
+  Brighton = list(attack_rating = 1.55, def_rating = 0.65),
+  Chelsea = list(attack_rating = 1.05, def_rating = 0.95),
+  Coventry = list(attack_rating = 0.80, def_rating = 1.30),
+  Palace = list(attack_rating = 0.90, def_rating = 1.10),
+  Everton = list(attack_rating = 0.85, def_rating = 0.95),
+  Fulham = list(attack_rating = 0.90, def_rating = 1.05),
+  Hull = list(attack_rating = 0.75, def_rating = 1.30),
+  Ipswich = list(attack_rating = 0.80, def_rating = 1.25),
+  Leeds = list(attack_rating = 0.85, def_rating = 1.15),
+  Liverpool = list(attack_rating = 1.10, def_rating = 0.95),
+  Man_City = list(attack_rating = 1.20, def_rating = 0.80),
+  Man_United = list(attack_rating = 1.05, def_rating = 1.10),
+  Newcastle = list(attack_rating = 1.00, def_rating = 1.05),
+  Nottingham_Forest = list(attack_rating = 0.85, def_rating = 1.05),
+  Sunderland = list(attack_rating = 0.80, def_rating = 1.10),
+  Spurs = list(attack_rating = 0.90, def_rating = 1.15)
+)
+```
+
+We have that the dixon coles model has many parameters, so we use a wrapping 
+function to allow it to be usable with SSIG
+
+```{r}
+dc_game_model = function(team_ratings, home_team, away_team) {
+  rho = 0.09
+  home_advantage = 0.05
+  max_goals = 6
+  
+  return(dixon_coles_game_model(team_ratings= team_ratings, rho = rho,
+                                home_advantage = home_advantage,
+                                home_team = home_team,
+                                away_team = away_team,
+                                max_goals = max_goals))
+}
+```
+
+
+```{r}
+league_table = SSIG(team_ratings= team_ratings, game_model= dc_game_model)
+print(league_table)
+```
+
