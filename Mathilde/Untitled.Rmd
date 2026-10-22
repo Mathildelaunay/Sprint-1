@@ -1,0 +1,45 @@
+---
+title: "Football predictions"
+author: "Mathilde Launay"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Initial ideas:
+- Football scores are counts. Use some sort of Poisson regression model
+- Two models: one predicting home team scores, the other away team score
+- One model combining the two above to make a final prediction.
+- Clustering teams based on historical performance?
+- Covariates:
+  - Team strength:
+    - Historical goals scored
+    - Recent performance
+    - Opponent strength
+    - Home advantage
+    - Matches played and rest time
+  - Team variations:
+    - Squad turnover
+    - Experience
+    - Previous season goals/League performance
+    - Some sort of metric for new players
+  - Individual player stats:
+    - Previous season scored goals
+    - Assists
+    - Minutes played
+    - Premier League history
+    - Age
+    - Position
+    
+
+
+  
+  
+  
+  
+  
+    
+    
