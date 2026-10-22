@@ -1,0 +1,127 @@
+---
+title: "Sprint 1 data"
+output: html_document
+date: "2026-10-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import data
+
+```{r}
+setwd("/Users/oy23975/OneDrive - University of Bristol/Documents/GitHub/Sprint-1/Anna Del Pino")
+
+data24_25 <-read.csv("./Premier League Train Data/24_25.csv")
+data23_24 <-read.csv("./Premier League Train Data/23_24.csv")
+data22_23 <-read.csv("./Premier League Train Data/22_23.csv")
+data21_22 <-read.csv("./Premier League Train Data/21_22.csv")
+data20_21 <-read.csv("./Premier League Train Data/20_21.csv")
+data19_20 <-read.csv("./Premier League Train Data/19_20.csv")
+data18_19 <-read.csv("./Premier League Train Data/18_19.csv")
+data17_18 <-read.csv("./Premier League Train Data/17_18.csv")
+data16_17 <-read.csv("./Premier League Train Data/16_17.csv")
+data15_16 <-read.csv("./Premier League Train Data/15_16.csv")
+data14_15 <-read.csv("./Premier League Train Data/14_15.csv")
+```
+We can see that this data contains 120 features. To predict the ranking of the next premier league's season I will not use all of this data. However, we fist start by combining all of the different datasets into one large one. Since all of the observations are recorded in cronological order it is easy to understand why we will just merge the observations following a cronological order.
+
+
+
+To do:
+Idea1)
+1.check which dataset has the maximum number of columns
+2.merge the datasets wrt the number of columns in this maxcoldataset (i.e. it'll appear NA for all the observations without that feature recorded)
+Idea2)
+1.check which dataset has the minimum number of columns
+2. check what coulmns this mincoldataset contains
+3. if {the columns make sense then merge wrt the columns of this micoldataset
+      {the columns don't make sense to apply to the model then use idea 2 and do missingness (5.3 workshop)
+
+
+Idea1)
+
+```{r}
+vectordata<-list(data24_25 = data24_25, data23_24 = data23_24, data22_23 = data22_23, data21_22 = data21_22, data20_21 = data20_21, data19_20 = data19_20, data18_19 = data18_19, data17_18 = data17_18, data16_17 = data16_17, data15_16 = data15_16, data14_15 = data14_15)
+
+columncheck <- function(a) {
+  coln <- sapply(a, ncol)
+  names(coln)[which.max(coln)]
+}
+
+print(columncheck(vectordata))
+
+```
+Now we know that the latest observations are the ones containing the larger number of features.
+```{r}
+ncol(data24_25)
+```
+Hence we now merge the datasets wrt the columns of the `data24_25` dataset.
+```{r}
+matches<-c()
+for (i in seq_along(vectordata)) {
+  matches[i] <-sum(colnames(data24_25) %in% colnames(vectordata[[i]]))
+}
+names(matches) <- names(vectordata)
+print(matches) 
+```
+Here we now know that `data18_19`,`data17_18`,`data16_17`,`data15_16`,`data14_15` have the least number of feature matches wrt `data24_25`. We want to check which columns of these datasets are different to the ones of `data24_25`.
+```{r}
+colnames(data18_19)[which(!colnames(data18_19) %in% colnames(data24_25))]
+```
+IWH = Interwetten home win odds
+IWD = Interwetten draw odds
+IWA = Interwetten away win odds
+VCH = VC Bet home win odds (now BetVictor)
+VCD = VC Bet draw odds (now BetVictor)
+VCA = VC Bet away win odds (now BetVictor)
+Bb1X2 = Number of BetBrain bookmakers used to calculate match odds averages and maximums
+BbMxH = Betbrain maximum home win odds
+BbAvH = Betbrain average home win odds
+BbMxD = Betbrain maximum draw odds
+BbAvD = Betbrain average draw win odds
+BbMxA = Betbrain maximum away win odds
+BbAvA = Betbrain average away win odds
+BbOU = Number of BetBrain bookmakers used to calculate over/under 2.5 goals (total goals) averages and maximums
+BbMx>2.5 = Betbrain maximum over 2.5 goals
+BbAv>2.5 = Betbrain average over 2.5 goals
+BbMx<2.5 = Betbrain maximum under 2.5 goals
+BbAv<2.5 = Betbrain average under 2.5 goals
+BbAH = Number of BetBrain bookmakers used to Asian handicap averages and maximums
+BbAHh = Betbrain size of handicap (home team)
+BbMxAHH = Betbrain maximum Asian handicap home team odds
+BbAvAHH = Betbrain average Asian handicap home team odds
+BbMxAHA = Betbrain maximum Asian handicap away team odds
+BbAvAHA = Betbrain average Asian handicap away team odds
+
+Notice that all of these variables represent the odds of a match. Since these features depend on people's perception, I will not be using these in my model as I only want to train my model on match statistics.
+
+To clean the data I will now just delete all the odds columns from all of the datasets and only keep match statistics.
+
+```{r}
+#create a vector of columns to remove
+odds_columns <- c("1XBH", "1XBD", "1XBA","B365H", "B365D", "B365A","BFH", "BFD", "BFA","BFDH", "BFDD", "BFDA","BMGMH", "BMGMD", "BMGMA","BVH", "BVD", "BVA","BSH", "BSD", "BSA","BWH", "BWD", "BWA","CLH", "CLD", "CLA","GBH", "GBD", "GBA","IWH", "IWD", "IWA","LBH", "LBD", "LBA","PPH", "PPD", "PPA","PSH", "PH", "PSD", "PD", "PSA", "PA","SKH", "SKD", "SKA","SOH", "SOD", "SOA","SBH", "SBD", "SBA","SJH", "SJD", "SJA","SYH", "SYD", "SYA","VCH", "VCD", "VCA","WHH", "WHD", "WHA","Bb1X2","BbMxH", "BbAvH","BbMxD", "BbAvD","BbMxA", "BbAvA","MaxH", "MaxD", "MaxA","AvgH", "AvgD", "AvgA","BFEH", "BFED", "BFEA","BbOU","BbMx>2.5", "BbAv>2.5","BbMx<2.5", "BbAv<2.5","GB>2.5", "GB<2.5","B365>2.5", "B365<2.5","P>2.5", "P<2.5","Max>2.5", "Max<2.5","Avg>2.5", "Avg<2.5","BbAH", "BbAHh", "AHh","BbMxAHH", "BbAvAHH","BbMxAHA", "BbAvAHA","GBAHH", "GBAHA", "GBAH","LBAHH", "LBAHA", "LBAH","B365AHH", "B365AHA", "B365AH","PAHH", "PAHA","MaxAHH", "MaxAHA","AvgAHH", "AvgAHA")
+
+for (i in seq_along(vectordata)) {
+  cols_to_remove <- intersect(colnames(vectordata[[i]]),odds_columns) #
+  vectordata[[i]] <- vectordata[[i]][
+    , !colnames(vectordata[[i]]) %in% cols_to_remove,
+    drop = FALSE
+  ]
+}
+
+for (i in seq_along(vectordata)) {
+  cat(
+    names(vectordata)[i],
+    "-",
+    ncol(vectordata[[i]]),
+    "columns remaining\n"
+  )
+}
+
+```
+
+
+
+

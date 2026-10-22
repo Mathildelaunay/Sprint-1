@@ -1,0 +1,36 @@
+---
+title: "Sprint 1 model"
+output: html_document
+date: "2026-10-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Idea
+
+To start with, I have the broad idea of firstly, recording and predicting the total goals at the end of the season of each team (time dependent). 
+Through this I want the model to follow certain conditions(can add this at the end): (this can be an if else statement)
+- the team with most points at the end ends up top and record the rest of the list  depending on the number of points of the team at time t=end
+- we also want the team to record the total number of goals of each team at the end of the season to calculate its goal difference(this is the total goals scored across the season minus the total goals conceded). We want the top team to have the lasrgest number of goal difference (max(gd)).
+-if two teams finish with same number of points and goal difference, then the model should simulate a match between the two top teams and the winner comes up as top. (if there are more than two teams in this position they they should all play eachother until we get another ranking of who's the winnner until convergence)
+
+## Time dependent observations
+
+Given a set of data, we want to determine the ranking at the end of the season with data that starts at the beginning of the season. 
+Train/Validation split will be each year at random???
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
