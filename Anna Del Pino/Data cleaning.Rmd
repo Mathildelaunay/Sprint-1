@@ -27,7 +27,7 @@ data14_15 <-read.csv("./Premier League Train Data/14_15.csv")
 ```
 We can see that this data contains 120 features. To predict the ranking of the next premier league's season I will not use all of this data. However, we fist start by combining all of the different datasets into one large one. Since all of the observations are recorded in cronological order it is easy to understand why we will just merge the observations following a cronological order.
 
-
+We won't use all of the features of this data so now we want to clean the data.
 
 To do:
 Idea1)
@@ -104,20 +104,12 @@ To clean the data I will now just delete all the odds columns from all of the da
 odds_columns <- c("1XBH", "1XBD", "1XBA","B365H", "B365D", "B365A","BFH", "BFD", "BFA","BFDH", "BFDD", "BFDA","BMGMH", "BMGMD", "BMGMA","BVH", "BVD", "BVA","BSH", "BSD", "BSA","BWH", "BWD", "BWA","CLH", "CLD", "CLA","GBH", "GBD", "GBA","IWH", "IWD", "IWA","LBH", "LBD", "LBA","PPH", "PPD", "PPA","PSH", "PH", "PSD", "PD", "PSA", "PA","SKH", "SKD", "SKA","SOH", "SOD", "SOA","SBH", "SBD", "SBA","SJH", "SJD", "SJA","SYH", "SYD", "SYA","VCH", "VCD", "VCA","WHH", "WHD", "WHA","Bb1X2","BbMxH", "BbAvH","BbMxD", "BbAvD","BbMxA", "BbAvA","MaxH", "MaxD", "MaxA","AvgH", "AvgD", "AvgA","BFEH", "BFED", "BFEA","BbOU","BbMx>2.5", "BbAv>2.5","BbMx<2.5", "BbAv<2.5","GB>2.5", "GB<2.5","B365>2.5", "B365<2.5","P>2.5", "P<2.5","Max>2.5", "Max<2.5","Avg>2.5", "Avg<2.5","BbAH", "BbAHh", "AHh","BbMxAHH", "BbAvAHH","BbMxAHA", "BbAvAHA","GBAHH", "GBAHA", "GBAH","LBAHH", "LBAHA", "LBAH","B365AHH", "B365AHA", "B365AH","PAHH", "PAHA","MaxAHH", "MaxAHA","AvgAHH", "AvgAHA")
 
 for (i in seq_along(vectordata)) {
-  cols_to_remove <- intersect(colnames(vectordata[[i]]),odds_columns) #
-  vectordata[[i]] <- vectordata[[i]][
-    , !colnames(vectordata[[i]]) %in% cols_to_remove,
-    drop = FALSE
-  ]
+  cols_to_remove <- intersect(colnames(vectordata[[i]]),odds_columns) 
+  vectordata[[i]] <- vectordata[[i]][, !colnames(vectordata[[i]]) %in% cols_to_remove,drop = FALSE]
 }
 
 for (i in seq_along(vectordata)) {
-  cat(
-    names(vectordata)[i],
-    "-",
-    ncol(vectordata[[i]]),
-    "columns remaining\n"
-  )
+  cat(names(vectordata)[i],"-",ncol(vectordata[[i]]),"columns remaining\n")
 }
 
 ```
