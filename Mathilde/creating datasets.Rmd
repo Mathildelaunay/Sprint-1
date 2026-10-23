@@ -1,0 +1,341 @@
+---
+title: "Football predictions"
+author: "Mathilde Launay"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Initial ideas:
+- Football scores are counts. Use some sort of Poisson regression model
+- Two models: one predicting home team scores, the other away team score
+- One model combining the two above to make a final prediction.
+- Clustering teams based on historical performance?
+- Covariates:
+  - Team strength:
+    - Historical goals scored (how many goals have been scored by that team so far - issue is that we start with data from 2014)
+    - Recent performance (what ranking this team had in the previous year and how many goals they scored in total)
+    - Opponent strength (opponent historical goals and previous ranking and goals)
+    - Home advantage 
+    - Matches played and rest time (how many matches has this team played so far and when was the last match)
+  - Team variations:
+    - Squad turnover (which players are in this team)
+    - Experience 
+    - Previous season goals/League performance
+    - Some sort of metric for new players
+  - Individual player stats:
+    - Premier League history
+    - Age
+    - Position
+    
+- For new players who have not played before, use a technique for dealing with missing data to get a "strength score" for that player.
+- Assign each player a score based on FPL data, and see how that score changes over the years (is there a trend?) so then the model will predict that score for the next year. 
+- Compare scores of different positions in any match and get an overall team score (defense and attack?)
+- Make a model which predicts match outcomes based on these scores (Poisson?, Cubist?)
+
+
+
+Calculations from historical matches: 
+- Attacking strength: how many goals a team scores relative to the league average.
+- Defensive strength: how many goals a team concedes relative to the league average. A lower goals-conceded rate indicates a stronger defence.
+
+```{r} 
+keep_cols <- names(X14_15)[1:23]
+
+match_data <- c("X14_15", "X15_16", "X16_17", "X17_18", "X18_19",
+                "X19_20", "X20_21", "X21_22", "X22_23", "X23_24", "X24_25")
+
+for (nm in match_data) {
+  assign(nm, get(nm)[, keep_cols])
+}
+X14_15 <- X14_15[-381,]
+```
+
+Could have a dataset like 
+Year 
+Home Team | Away Team 
+Home result | Away result 
+Home Team Historical Attack Score | Away Team Historical Attack Score 
+Home Historical Defense Score | Away Historical Defense Score  
+Home Previous Year Ranking | Away Previous Year Ranking 
+Home Current-season matches played | Away Current-season matches played
+Home win frequency | Away win frequency
+Home loss frequency | Away loss frequency 
+Home draw frequency | Away draw frequency
+Home Current-season goals scored per match | Away Current-season goals scored per match
+Home Current-season goals conceded per match | Away Current-season goals conceded per match
+Home frequency of red cards per match | Away frequency of red cards per match 
+Home frequency of yellow cards per match | Away frequency of yellow cards per match
+
+If a team doesnt have any info, then let the model learn from how the new teams perform every year
+The historical scores column for the teams competing in 2015/16 could be calculated based on the X14_15 data. 
+Then, the scores could be updated in another column. At the end of the season, so the last row for that year which represents a specific team could be combined with the score from the previous year in an equation which would put more weight on the scores from that year. Then, those scores could move onto the next year's historical scores column.
+For the teams that are new in any season, give them a neutral starting score. 
+
+The model will be using the dataset that I build with the scores to then predict goals.
+
+The thing i need to figure out now is how to make those scores...
+
+Attack score = Goals scored by team i per match / League average score per team per match.   (higher is better)
+Defense score = Goals conceded by team i per match / League average score per team per match.   (lower is better)
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+
+matches <- X14_15 %>%
+  mutate(
+    Date = dmy(as.character(Date)),
+    Year = "2014/15",
+    match_id = row_number()
+  ) %>%
+  arrange(Date, match_id)
+```
+
+```{r}
+home_data <- matches %>%
+  transmute(
+    match_id, Date, Year,
+    Team = HomeTeam,
+    side = "Home",
+    goals_for = FTHG,
+    goals_against = FTAG,
+    result = case_when(
+      FTHG > FTAG ~ "W",
+      FTHG < FTAG ~ "L",
+      TRUE ~ "D"
+    ),
+    red_cards = HR,
+    yellow_cards = HY
+  )
+
+away_data <- matches %>%
+  transmute(
+    match_id, Date, Year,
+    Team = AwayTeam,
+    side = "Away",
+    goals_for = FTAG,
+    goals_against = FTHG,
+    result = case_when(
+      FTAG > FTHG ~ "W",
+      FTAG < FTHG ~ "L",
+      TRUE ~ "D"
+    ),
+    red_cards = AR,
+    yellow_cards = AY
+  )
+
+team_matches <- bind_rows(home_data, away_data) %>%
+  arrange(Date, match_id, side)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+
+# Combine home and away performances from 2013/14
+previous_season_matches <- bind_rows(
+  # Home team perspective
+  X13_14 %>%
+    transmute(
+      Team = HomeTeam,
+      goals_for = FTHG,
+      goals_against = FTAG,
+      result = case_when(
+        FTR == "H" ~ "W",
+        FTR == "A" ~ "L",
+        FTR == "D" ~ "D"
+      )
+    ),
+
+  # Away team perspective
+  X13_14 %>%
+    transmute(
+      Team = AwayTeam,
+      goals_for = FTAG,
+      goals_against = FTHG,
+      result = case_when(
+        FTR == "A" ~ "W",
+        FTR == "H" ~ "L",
+        FTR == "D" ~ "D"
+      )
+    )
+)
+
+# Summarise the 2013/14 season for each team
+previous_season_stats <- previous_season_matches %>%
+  group_by(Team) %>%
+  summarise(
+    previous_season_goals_scored_per_match =
+      mean(goals_for),
+
+    previous_season_goals_conceded_per_match =
+      mean(goals_against),
+
+    previous_season_wins = sum(result == "W"),
+
+    previous_season_draws = sum(result == "D"),
+
+    previous_season_losses = sum(result == "L"),
+
+    previous_season_points =
+      sum(if_else(result == "W", 3,
+                  if_else(result == "D", 1, 0))),
+
+    previous_season_goal_difference =
+      sum(goals_for - goals_against),
+
+    previous_season_goals_scored =
+      sum(goals_for),
+
+    .groups = "drop"
+  )
+
+previous_season_stats <- previous_season_stats %>%
+  arrange(
+    desc(previous_season_points),
+    desc(previous_season_goal_difference),
+    desc(previous_season_goals_scored)
+  ) %>%
+  mutate(
+    previous_season_ranking = row_number()
+  )
+```
+
+
+```{r}
+team_features <- team_matches %>%
+  group_by(Team) %>%
+  arrange(Date, match_id, .by_group = TRUE) %>%
+  mutate(
+    # Number of matches played BEFORE this match
+    matches_played = row_number() - 1L,
+
+    # Previous results only
+    wins = lag(cumsum(result == "W"), default = 0L),
+    draws = lag(cumsum(result == "D"), default = 0L),
+    losses = lag(cumsum(result == "L"), default = 0L),
+
+    # Goals from previous matches only
+    goals_scored_total = lag(cumsum(goals_for), default = 0),
+    goals_conceded_total = lag(cumsum(goals_against), default = 0),
+
+    # Cards from previous matches only
+    red_cards_total = lag(cumsum(red_cards), default = 0),
+    yellow_cards_total = lag(cumsum(yellow_cards), default = 0)
+  ) %>%
+  mutate(
+    win_frequency = wins / pmax(matches_played, 1),
+    draw_frequency = draws / pmax(matches_played, 1),
+    loss_frequency = losses / pmax(matches_played, 1),
+
+    goals_scored_per_match = if_else(
+      matches_played > 0,
+      goals_scored_total / matches_played,
+      NA_real_
+    ),
+
+    goals_conceded_per_match = if_else(
+      matches_played > 0,
+      goals_conceded_total / matches_played,
+      NA_real_
+    ),
+
+    red_cards_per_match = if_else(
+      matches_played > 0,
+      red_cards_total / matches_played,
+      NA_real_
+    ),
+
+    yellow_cards_per_match = if_else(
+      matches_played > 0,
+      yellow_cards_total / matches_played,
+      NA_real_
+    ),
+  ) %>%
+  ungroup()
+
+team_features <- team_features %>%
+  left_join(
+    previous_season_stats %>%
+      select(
+        Team,
+        previous_season_goals_scored_per_match,
+        previous_season_goals_conceded_per_match,
+        previous_season_wins,
+        previous_season_draws,
+        previous_season_losses,
+        previous_season_ranking
+      ),
+    by = "Team"
+  )
+```
+
+
+```{r}
+features_wide <- team_features %>%
+  select(
+    match_id, side,
+
+    # Previous-season statistics (2013/14)
+    previous_season_goals_scored_per_match,
+    previous_season_goals_conceded_per_match,
+    previous_season_wins,
+    previous_season_draws,
+    previous_season_losses,
+    previous_season_ranking,
+
+    # Current-season statistics (2014/15, before each match)
+    matches_played,
+    win_frequency,
+    loss_frequency,
+    draw_frequency,
+    goals_scored_per_match,
+    goals_conceded_per_match,
+    red_cards_per_match,
+    yellow_cards_per_match
+  ) %>%
+  pivot_wider(
+    names_from = side,
+    values_from = -c(match_id, side),
+    names_glue = "{side}_{.value}"
+  )
+```
+
+```{r}
+previous_match_results <- X13_14 %>%
+  select(
+    HomeTeam,
+    AwayTeam,
+    previous_match_result = FTR
+  )
+```
+
+
+```{r}
+dataset_2014 <- matches %>%
+  select(
+    match_id, Year, Date, HomeTeam, AwayTeam,
+    FTHG, FTAG
+  ) %>%
+  left_join(
+    features_wide,
+    by = "match_id"
+  ) %>%
+  left_join(
+    previous_match_results,
+    by = c("HomeTeam", "AwayTeam")
+  ) %>%
+  rename(
+    HomeGoals = FTHG,
+    AwayGoals = FTAG
+  )
+```
+
+
