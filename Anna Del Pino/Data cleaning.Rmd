@@ -28,7 +28,95 @@ data15_16 <-read.csv("./Premier League match events data/15_16.csv")
 data14_15 <-read.csv("./Premier League match events data/14_15.csv")
 ```
 We can see that this data contains 120 features. To predict the ranking of the next premier league's season I will not use all of this data. However, we fist start by combining all of the different datasets into one large one. Since all of the observations are recorded in cronological order it is easy to understand why we will just merge the observations following a cronological order.
+```{r}
+library(dplyr)
 
+vectordata<-list(data26_27 = data26_27, data25_26 = data25_26, data24_25 = data24_25, data23_24 = data23_24, data22_23 = data22_23, data21_22 = data21_22, data20_21 = data20_21, data19_20 = data19_20, data18_19 = data18_19, data17_18 = data17_18, data16_17 = data16_17, data15_16 = data15_16, data14_15 = data14_15)
+
+add_cumulative_points <- function(df) {
+  df <- df %>%
+    mutate(
+      .match_id = row_number(),
+      .date_order = as.Date(
+        Date,
+        tryFormats = c("%d/%m/%Y", "%d/%m/%y")
+      ),
+      HomeMatchPoints = case_when(
+        FTR == "H" ~ 3L,
+        FTR == "D" ~ 1L,
+        FTR == "A" ~ 0L,
+        TRUE ~ NA_integer_
+      ),
+      AwayMatchPoints = case_when(
+        FTR == "H" ~ 0L,
+        FTR == "D" ~ 1L,
+        FTR == "A" ~ 3L,
+        TRUE ~ NA_integer_
+      )
+    )
+
+  # Use matches with a recorded result to calculate cumulative points
+  played_matches <- df %>%
+    filter(
+      !is.na(.date_order),
+      !is.na(HomeTeam),
+      !is.na(AwayTeam),
+      FTR %in% c("H", "D", "A")
+    )
+
+  # Put each match into a home-team row and an away-team row
+  points_long <- bind_rows(
+    played_matches %>%
+      transmute(
+        .match_id, .date_order,
+        Team = HomeTeam,
+        Side = "Home",
+        MatchPoints = HomeMatchPoints
+      ),
+    played_matches %>%
+      transmute(
+        .match_id, .date_order,
+        Team = AwayTeam,
+        Side = "Away",
+        MatchPoints = AwayMatchPoints
+      )
+  ) %>%
+    arrange(Team, .date_order, .match_id) %>%
+    group_by(Team) %>%
+    mutate(
+      PointsBeforeMatch = cumsum(MatchPoints) - MatchPoints,
+      PointsAfterMatch = cumsum(MatchPoints)
+    ) %>%
+    ungroup()
+
+  home_points <- points_long %>%
+    filter(Side == "Home") %>%
+    select(
+      .match_id,
+      HomePointsBeforeMatch = PointsBeforeMatch,
+      HomePointsAfterMatch = PointsAfterMatch
+    )
+
+  away_points <- points_long %>%
+    filter(Side == "Away") %>%
+    select(
+      .match_id,
+      AwayPointsBeforeMatch = PointsBeforeMatch,
+      AwayPointsAfterMatch = PointsAfterMatch
+    )
+
+  df %>%
+    left_join(home_points, by = ".match_id") %>%
+    left_join(away_points, by = ".match_id") %>%
+    select(-.match_id, -.date_order)
+}
+
+# Add the points columns to every season in vectordata
+vectordata <- lapply(vectordata, add_cumulative_points)
+
+# Update the individual data14_15, data15_16, etc. objects too
+list2env(vectordata, envir = .GlobalEnv)
+```
 We won't use all of the features of this data so now we want to clean the data.
 
 To do:
@@ -45,7 +133,6 @@ Idea2)
 Idea1)
 
 ```{r}
-vectordata<-list(data26_27 = data26_27, data25_26 = data25_26, data24_25 = data24_25, data23_24 = data23_24, data22_23 = data22_23, data21_22 = data21_22, data20_21 = data20_21, data19_20 = data19_20, data18_19 = data18_19, data17_18 = data17_18, data16_17 = data16_17, data15_16 = data15_16, data14_15 = data14_15)
 
 columncheck <- function(a) {
   coln <- sapply(a, ncol) #applies the function ncol() to each dataset
@@ -102,18 +189,17 @@ Notice that all of these variables represent the odds of a match. Since these fe
 To clean the data I will now just delete all the odds columns from all of the datasets and only keep match statistics.
 
 ```{r}
-#create a vector of columns to remove
-odds_columns <- c("1XBH", "1XBD", "1XBA","B365H", "B365D", "B365A","BFH", "BFD", "BFA","BFDH", "BFDD", "BFDA","BMGMH", "BMGMD", "BMGMA","BVH", "BVD", "BVA","BSH", "BSD", "BSA","BWH", "BWD", "BWA","CLH", "CLD", "CLA","GBH", "GBD", "GBA","IWH", "IWD", "IWA","LBH", "LBD", "LBA","PPH", "PPD", "PPA","PSH", "PH", "PSD", "PD", "PSA", "PA","SKH", "SKD", "SKA","SOH", "SOD", "SOA","SBH", "SBD", "SBA","SJH", "SJD", "SJA","SYH", "SYD", "SYA","VCH", "VCD", "VCA","WHH", "WHD", "WHA","Bb1X2","BbMxH", "BbAvH","BbMxD", "BbAvD","BbMxA", "BbAvA","MaxH", "MaxD", "MaxA","AvgH", "AvgD", "AvgA","BFEH", "BFED", "BFEA","BbOU","BbMx>2.5", "BbAv>2.5","BbMx<2.5", "BbAv<2.5","GB>2.5", "GB<2.5","B365>2.5", "B365<2.5","P>2.5", "P<2.5","Max>2.5", "Max<2.5","Avg>2.5", "Avg<2.5","BbAH", "BbAHh", "AHh","BbMxAHH", "BbAvAHH","BbMxAHA", "BbAvAHA","GBAHH", "GBAHA", "GBAH","LBAHH", "LBAHA", "LBAH","B365AHH", "B365AHA", "B365AH","PAHH", "PAHA","MaxAHH", "MaxAHA","AvgAHH", "AvgAHA")
+# columns to keep i.e. match information, results and match statistics
+columns_to_keep <- c("Date", "HomeTeam", "AwayTeam","FTHG", "HG", "FTAG", "AG", "FTR", "Res","HTHG", "HTAG", "HTR","Attendance","HS", "AS", "HST", "AST", "HHW", "AHW","HC", "AC", "HF", "AF", "HFKC", "AFKC","HO", "AO", "HY", "AY", "HR", "AR", "HBP", "ABP","HomeMatchPoints","AwayMatchPoints","HomePointsBeforeMatch","HomePointsAfterMatch","AwayPointsBeforeMatch","AwayPointsAfterMatch")
+
 
 for (i in seq_along(vectordata)) {
-  cols_to_remove <- intersect(colnames(vectordata[[i]]),odds_columns) 
-  vectordata[[i]] <- vectordata[[i]][, !colnames(vectordata[[i]]) %in% cols_to_remove,drop = FALSE]
-}
+  columns_removed <- setdiff(names(vectordata[[i]]), columns_to_keep) #odds columns
 
-for (i in seq_along(vectordata)) {
-  cat(names(vectordata)[i],"-",ncol(vectordata[[i]]),"columns remaining\n")
-}
+  vectordata[[i]] <- vectordata[[i]][, intersect(columns_to_keep, names(vectordata[[i]])),drop = FALSE]
 
+  cat(names(vectordata)[i], "- removed",length(columns_removed), "columns;",ncol(vectordata[[i]]), "columns remaining\n")
+}
 ```
 As we can see, the older (or incomplete for `data26_27`) the dataset is, the less features it contains. This will then be spoken about in the limitations section of our report. This means that we want the model to be weighted more strongly for the newer datasets.
 
