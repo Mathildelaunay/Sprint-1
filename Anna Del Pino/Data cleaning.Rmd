@@ -13,17 +13,19 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 setwd("/Users/lenovo/OneDrive - University of Bristol/2026_2027/DST/Sprint-1/Anna Del Pino")
 
-data24_25 <-read.csv("./Premier League Train Data/24_25.csv")
-data23_24 <-read.csv("./Premier League Train Data/23_24.csv")
-data22_23 <-read.csv("./Premier League Train Data/22_23.csv")
-data21_22 <-read.csv("./Premier League Train Data/21_22.csv")
-data20_21 <-read.csv("./Premier League Train Data/20_21.csv")
-data19_20 <-read.csv("./Premier League Train Data/19_20.csv")
-data18_19 <-read.csv("./Premier League Train Data/18_19.csv")
-data17_18 <-read.csv("./Premier League Train Data/17_18.csv")
-data16_17 <-read.csv("./Premier League Train Data/16_17.csv")
-data15_16 <-read.csv("./Premier League Train Data/15_16.csv")
-data14_15 <-read.csv("./Premier League Train Data/14_15.csv")
+data26_27 <-read.csv("./Premier League match events data/26_27.csv")
+data25_26 <-read.csv("./Premier League match events data/25_26.csv")
+data24_25 <-read.csv("./Premier League match events data/24_25.csv")
+data23_24 <-read.csv("./Premier League match events data/23_24.csv")
+data22_23 <-read.csv("./Premier League match events data/22_23.csv")
+data21_22 <-read.csv("./Premier League match events data/21_22.csv")
+data20_21 <-read.csv("./Premier League match events data/20_21.csv")
+data19_20 <-read.csv("./Premier League match events data/19_20.csv")
+data18_19 <-read.csv("./Premier League match events data/18_19.csv")
+data17_18 <-read.csv("./Premier League match events data/17_18.csv")
+data16_17 <-read.csv("./Premier League match events data/16_17.csv")
+data15_16 <-read.csv("./Premier League match events data/15_16.csv")
+data14_15 <-read.csv("./Premier League match events data/14_15.csv")
 ```
 We can see that this data contains 120 features. To predict the ranking of the next premier league's season I will not use all of this data. However, we fist start by combining all of the different datasets into one large one. Since all of the observations are recorded in cronological order it is easy to understand why we will just merge the observations following a cronological order.
 
@@ -43,7 +45,7 @@ Idea2)
 Idea1)
 
 ```{r}
-vectordata<-list(data24_25 = data24_25, data23_24 = data23_24, data22_23 = data22_23, data21_22 = data21_22, data20_21 = data20_21, data19_20 = data19_20, data18_19 = data18_19, data17_18 = data17_18, data16_17 = data16_17, data15_16 = data15_16, data14_15 = data14_15)
+vectordata<-list(data26_27 = data26_27, data25_26 = data25_26, data24_25 = data24_25, data23_24 = data23_24, data22_23 = data22_23, data21_22 = data21_22, data20_21 = data20_21, data19_20 = data19_20, data18_19 = data18_19, data17_18 = data17_18, data16_17 = data16_17, data15_16 = data15_16, data14_15 = data14_15)
 
 columncheck <- function(a) {
   coln <- sapply(a, ncol) #applies the function ncol() to each dataset
@@ -55,20 +57,20 @@ print(columncheck(vectordata))
 ```
 Now we know that the latest observations are the ones containing the larger number of features.
 ```{r}
-ncol(data24_25)
+ncol(data25_26)
 ```
-Hence we now merge the datasets wrt the columns of the `data24_25` dataset.
+Hence we now merge the datasets wrt the columns of the `data25_26` dataset.
 ```{r}
 matches<-c()
 for (i in seq_along(vectordata)) {
-  matches[i] <-sum(colnames(data24_25) %in% colnames(vectordata[[i]]))
+  matches[i] <-sum(colnames(data25_26) %in% colnames(vectordata[[i]]))
 }
 names(matches) <- names(vectordata)
 print(matches) 
 ```
-Here we now know that `data18_19`,`data17_18`,`data16_17`,`data15_16`,`data14_15` have the least number of feature matches wrt `data24_25`. We want to check which columns of these datasets are different to the ones of `data24_25`.
+Here we now know that `data18_19` has the least number of feature matches wrt `data25_26`. We want to check which columns of these datasets are different to the ones of `data25_26`.
 ```{r}
-colnames(data18_19)[which(!colnames(data18_19) %in% colnames(data24_25))]
+colnames(data18_19)[which(!colnames(data18_19) %in% colnames(data25_26))]
 ```
 IWH = Interwetten home win odds
 IWD = Interwetten draw odds
@@ -113,7 +115,20 @@ for (i in seq_along(vectordata)) {
 }
 
 ```
+As we can see, the older (or incomplete for `data26_27`) the dataset is, the less features it contains. This will then be spoken about in the limitations section of our report. This means that we want the model to be weighted more strongly for the newer datasets.
 
+## Test/Train split
 
+```{r}
+library(dplyr)
+
+train_names <- paste0("data",c("14_15", "15_16", "16_17", "17_18", "18_19","19_20", "20_21", "21_22", "22_23", "23_24", "24_25"))
+
+train_data <- bind_rows(vectordata[train_names])
+test_data  <- bind_rows(vectordata["data25_26"])
+
+# Keep 2026/27 separate as the data you'll predict from
+prediction_data <- bind_rows(vectordata["data26_27"])
+```
 
 

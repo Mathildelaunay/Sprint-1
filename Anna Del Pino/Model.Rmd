@@ -7,6 +7,17 @@ date: "2026-10-22"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+TO DO:
+- Choose the forecast point. Forecast the final table after each team has played the same number of matches.
+
+- Choose the target: final points per team, converted into a ranking.
+
+- Decide what you’ll forecast for 2026/27.
+The 2026/27 season is already underway, so a forecast now needs that season’s results and statistics up to a stated cutoff. 
+They aren’t in the folder you shared. If you can’t add them by Wednesday, finish the historical evaluation and clearly label the 2026/27 forecast as pending those inputs.
+Why: Your model needs a clear point in time. That determines which statistics it is fair to use.
+
+
 
 ## Idea
 
