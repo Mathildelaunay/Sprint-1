@@ -27,13 +27,14 @@ Initial ideas:
     - Previous season goals/League performance
     - Some sort of metric for new players
   - Individual player stats:
-    - Previous season scored goals
-    - Assists
-    - Minutes played
     - Premier League history
     - Age
     - Position
     
+- For new players who have not played before, use a technique for dealing with missing data to get a "strength score" for that player.
+- Assign each player a score based on FPL data, and see how that score changes over the years (is there a trend?) so then the model will predict that score for the next year. 
+- Compare scores of different positions in any match and get an overall team score (defense and attack?)
+- Make a model which predicts match outcomes based on these scores (Poisson?, Cubist?)
 
 
   
