@@ -35,59 +35,21 @@ vectordata<-list(data26_27 = data26_27, data25_26 = data25_26, data24_25 = data2
 
 add_cumulative_points <- function(df) {
   df <- df %>%
-    mutate(
-      .match_id = row_number(),
-      .date_order = as.Date(
-        Date,
-        tryFormats = c("%d/%m/%Y", "%d/%m/%y")
-      ),
-      HomeMatchPoints = case_when(
-        FTR == "H" ~ 3L,
-        FTR == "D" ~ 1L,
-        FTR == "A" ~ 0L,
-        TRUE ~ NA_integer_
-      ),
-      AwayMatchPoints = case_when(
-        FTR == "H" ~ 0L,
-        FTR == "D" ~ 1L,
-        FTR == "A" ~ 3L,
-        TRUE ~ NA_integer_
-      )
-    )
+    mutate(.match_id = row_number(),.date_order = as.Date(Date,tryFormats = c("%d/%m/%Y", "%d/%m/%y")),HomeMatchPoints = case_when(FTR == "H" ~ 3L,FTR == "D" ~ 1L,FTR == "A" ~ 0L,TRUE ~ NA_integer_),AwayMatchPoints = case_when(FTR == "H" ~ 0L,FTR == "D" ~ 1L,FTR == "A" ~ 3L,TRUE ~ NA_integer_)) #gives conditions to new columns
 
   # Use matches with a recorded result to calculate cumulative points
-  played_matches <- df %>%
-    filter(
-      !is.na(.date_order),
-      !is.na(HomeTeam),
-      !is.na(AwayTeam),
-      FTR %in% c("H", "D", "A")
-    )
+  played_matches <- df %>%filter(!is.na(.date_order),!is.na(HomeTeam),!is.na(AwayTeam),FTR %in% c("H", "D", "A"))
 
   # Put each match into a home-team row and an away-team row
-  points_long <- bind_rows(
-    played_matches %>%
-      transmute(
-        .match_id, .date_order,
-        Team = HomeTeam,
-        Side = "Home",
-        MatchPoints = HomeMatchPoints
-      ),
-    played_matches %>%
-      transmute(
-        .match_id, .date_order,
-        Team = AwayTeam,
-        Side = "Away",
-        MatchPoints = AwayMatchPoints
-      )
-  ) %>%
-    arrange(Team, .date_order, .match_id) %>%
-    group_by(Team) %>%
-    mutate(
-      PointsBeforeMatch = cumsum(MatchPoints) - MatchPoints,
-      PointsAfterMatch = cumsum(MatchPoints)
-    ) %>%
-    ungroup()
+  points_long <- bind_rows(played_matches %>%transmute(.match_id, .date_order,Team = HomeTeam,Side = "Home",MatchPoints = HomeMatchPoints),played_matches %>%transmute(.match_id, .date_order,Team = AwayTeam,Side = "Away",MatchPoints = AwayMatchPoints))
+  %>% 
+  arrange(Team, .date_order, .match_id)
+  %>%
+  group_by(Team) 
+  %>%
+  mutate(PointsBeforeMatch = cumsum(MatchPoints) - MatchPoints,PointsAfterMatch = cumsum(MatchPoints))
+  %>%
+  ungroup()
 
   home_points <- points_long %>%
     filter(Side == "Home") %>%
@@ -212,8 +174,10 @@ train_names <- paste0("data",c("14_15", "15_16", "16_17", "17_18", "18_19","19_2
 
 train_data <- bind_rows(vectordata[train_names])
 test_data  <- bind_rows(vectordata["data25_26"])
+```
+Keep 2026/27 separate as the data we'll predict from
 
-# Keep 2026/27 separate as the data you'll predict from
+```{r}
 prediction_data <- bind_rows(vectordata["data26_27"])
 ```
 
