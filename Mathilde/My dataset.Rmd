@@ -98,8 +98,7 @@ build_season_dataset <- function(current_data,
     ) %>%
     mutate(previous_season_ranking = row_number())
 
-  # Historical goal-rate medians, based only on
-  # the previous season
+  # Historical goal-rate medians, based only on the previous season
   median_scored <- median(
     previous_season_stats$previous_season_goals_scored_per_match,
     na.rm = TRUE
@@ -111,7 +110,7 @@ build_season_dataset <- function(current_data,
   )
 
   # --------------------------------------------------
-  # C. Represent every match from both perspectives
+  # C. Get two rows for every match
   # --------------------------------------------------
 
   home_data <- matches %>%
