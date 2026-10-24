@@ -1,0 +1,139 @@
+---
+title: "feature selection"
+author: "Mathilde Launay"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Let's look at the linear model output
+
+```{r}
+library(dplyr)
+
+# Select the predictors for the initial model
+model_data <- training_data %>%
+  select(
+    Goals,
+    HomeAway,
+    PDSF,
+    PDSCF,
+    PDR,
+    PDW,
+    PDD,
+    PDL,
+    Round,
+    Days,
+    DWF,
+    DLF,
+    DDF,
+    DGSF,
+    DGCF,
+    DAS,
+    DDS
+  )
+
+# Poisson doesn't know what to do with NA values, so clean the data
+model_data <- na.omit(model_data) 
+
+poisson_model <- glm(
+  Goals ~ .,
+  data = model_data,
+  family = poisson(link = "log")
+)
+
+summary(poisson_model)
+
+model_data$predicted_goals <- predict(
+  poisson_model,
+  newdata = model_data,
+  type = "response"
+)
+
+mae <- mean(
+  abs(model_data$Goals - model_data$predicted_goals)
+)
+
+rmse <- sqrt(
+  mean((model_data$Goals - model_data$predicted_goals)^2)
+)
+
+mae
+rmse
+```
+Pretty far off..
+
+```{r}
+poisson_data <- training_data %>%
+  select(
+    Goals,
+    HomeAway,
+    PDSF,
+    DGCF,
+    DAS,
+    DDS
+  )
+
+# Poisson doesn't know what to do with NA values, so clean the data
+poisson_data <- na.omit(poisson_data) 
+
+poisson_model <- glm(
+  Goals ~ .,
+  data = poisson_data,
+  family = poisson(link = "log")
+)
+
+summary(poisson_model)
+
+poisson_data$predicted_goals <- predict(
+  poisson_model,
+  newdata = poisson_data,
+  type = "response"
+)
+
+mae <- mean(
+  abs(poisson_data$Goals - poisson_data$predicted_goals)
+)
+
+rmse <- sqrt(
+  mean((poisson_data$Goals - poisson_data$predicted_goals)^2)
+)
+
+mae
+rmse
+```
+```{r}
+features <- training_data %>%
+  select(
+    PDSF, PDSCF, PDR, PDW, PDD, PDL,
+    Round, Days,
+    DWF, DLF, DDF, DGSF, DGCF,
+    DAS, DDS
+  )
+
+correlation_matrix <- cor(
+  features,
+  use = "pairwise.complete.obs"
+)
+
+round(correlation_matrix, 2)
+```
+```{r}
+library(ggplot2)
+
+ggplot(
+  training_data,
+  aes(x = HomeAway, y = Goals)
+) +
+  geom_boxplot() +
+  labs(
+    x = "Team's venue",
+    y = "Goals scored",
+    title = "Distribution of goals scored by venue"
+  ) +
+  theme_minimal()
+```
+
