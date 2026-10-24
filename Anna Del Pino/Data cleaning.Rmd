@@ -27,58 +27,9 @@ data16_17 <-read.csv("./Premier League match events data/16_17.csv")
 data15_16 <-read.csv("./Premier League match events data/15_16.csv")
 data14_15 <-read.csv("./Premier League match events data/14_15.csv")
 ```
+
 We can see that this data contains 120 features. To predict the ranking of the next premier league's season I will not use all of this data. However, we fist start by combining all of the different datasets into one large one. Since all of the observations are recorded in cronological order it is easy to understand why we will just merge the observations following a cronological order.
-```{r}
-library(dplyr)
 
-vectordata<-list(data26_27 = data26_27, data25_26 = data25_26, data24_25 = data24_25, data23_24 = data23_24, data22_23 = data22_23, data21_22 = data21_22, data20_21 = data20_21, data19_20 = data19_20, data18_19 = data18_19, data17_18 = data17_18, data16_17 = data16_17, data15_16 = data15_16, data14_15 = data14_15)
-
-add_cumulative_points <- function(df) {
-  df <- df %>%
-    mutate(.match_id = row_number(),.date_order = as.Date(Date,tryFormats = c("%d/%m/%Y", "%d/%m/%y")),HomeMatchPoints = case_when(FTR == "H" ~ 3L,FTR == "D" ~ 1L,FTR == "A" ~ 0L,TRUE ~ NA_integer_),AwayMatchPoints = case_when(FTR == "H" ~ 0L,FTR == "D" ~ 1L,FTR == "A" ~ 3L,TRUE ~ NA_integer_)) #gives conditions to new columns
-
-  # Use matches with a recorded result to calculate cumulative points
-  played_matches <- df %>%filter(!is.na(.date_order),!is.na(HomeTeam),!is.na(AwayTeam),FTR %in% c("H", "D", "A"))
-
-  # Put each match into a home-team row and an away-team row
-  points_long <- bind_rows(played_matches %>%transmute(.match_id, .date_order,Team = HomeTeam,Side = "Home",MatchPoints = HomeMatchPoints),played_matches %>%transmute(.match_id, .date_order,Team = AwayTeam,Side = "Away",MatchPoints = AwayMatchPoints))
-  %>% 
-  arrange(Team, .date_order, .match_id)
-  %>%
-  group_by(Team) 
-  %>%
-  mutate(PointsBeforeMatch = cumsum(MatchPoints) - MatchPoints,PointsAfterMatch = cumsum(MatchPoints))
-  %>%
-  ungroup()
-
-  home_points <- points_long %>%
-    filter(Side == "Home") %>%
-    select(
-      .match_id,
-      HomePointsBeforeMatch = PointsBeforeMatch,
-      HomePointsAfterMatch = PointsAfterMatch
-    )
-
-  away_points <- points_long %>%
-    filter(Side == "Away") %>%
-    select(
-      .match_id,
-      AwayPointsBeforeMatch = PointsBeforeMatch,
-      AwayPointsAfterMatch = PointsAfterMatch
-    )
-
-  df %>%
-    left_join(home_points, by = ".match_id") %>%
-    left_join(away_points, by = ".match_id") %>%
-    select(-.match_id, -.date_order)
-}
-
-# Add the points columns to every season in vectordata
-vectordata <- lapply(vectordata, add_cumulative_points)
-
-# Update the individual data14_15, data15_16, etc. objects too
-list2env(vectordata, envir = .GlobalEnv)
-```
 We won't use all of the features of this data so now we want to clean the data.
 
 To do:
@@ -95,6 +46,8 @@ Idea2)
 Idea1)
 
 ```{r}
+
+vectordata<-list(data26_27 = data26_27, data25_26 = data25_26, data24_25 = data24_25, data23_24 = data23_24, data22_23 = data22_23, data21_22 = data21_22, data20_21 = data20_21, data19_20 = data19_20, data18_19 = data18_19, data17_18 = data17_18, data16_17 = data16_17, data15_16 = data15_16, data14_15 = data14_15)
 
 columncheck <- function(a) {
   coln <- sapply(a, ncol) #applies the function ncol() to each dataset
@@ -181,4 +134,78 @@ Keep 2026/27 separate as the data we'll predict from
 prediction_data <- bind_rows(vectordata["data26_27"])
 ```
 
+We need to add the following columns for our model:
+- Home Team total number of goals before match = HTGB
+- Home Team total number of goals after match = HTGA
+- Away Team total number of goals before match = ATGB
+- Away Team total number of goals after match = ATGA
 
+```{r}
+
+# Create the new columns
+train_data$HTGB <- NA
+train_data$HTGA <- NA
+train_data$ATGB <- NA
+train_data$ATGA <- NA
+
+teams_train <- unique(c(train_data$HomeTeam, train_data$AwayTeam)) # vector of premier league teams (2014/15-2024/25)
+
+for (team in teams_train) {
+  # Goals scored by this team in each row
+  goals_scored <- ifelse(train_data$HomeTeam == team, train_data$FTHG,train_data$FTAG) #if team is home team, return FTHG, otherwise return FTAG
+
+  goals_before <- c(0, head(cumsum(goals_scored), -1))  #team total goals before match
+  goals_after  <- cumsum(goals_scored) #team total goals after match
+
+  # Store the totals in the appropriate home or away columns
+  home_rows <- train_data$HomeTeam == team 
+  away_rows <- train_data$AwayTeam == team
+
+  train_data$HTGB[home_rows] <- goals_before[home_rows]
+  train_data$HTGA[home_rows] <- goals_after[home_rows]
+  train_data$ATGB[away_rows] <- goals_before[away_rows]
+  train_data$ATGA[away_rows] <- goals_after[away_rows]
+}
+```
+Now we also want to add the following columns to our model:
+- Home Team total points before match = HTPB
+- Home team total points after match = HTPA
+- Away Team total points before match = ATPB
+- Away team total points after match = ATPA
+
+```{r}
+# Create the new columns
+train_data$HTPB <- NA  
+train_data$HTPA <- NA  
+train_data$ATPB <- NA  
+train_data$ATPA <- NA 
+
+for (team in teams_train) {
+  # Find every match involving this team
+  rows <- which(train_data$HomeTeam == team | train_data$AwayTeam == team)
+
+  # Points this team earned in each match
+  points <- ifelse(train_data$HomeTeam[rows] == team, #if we are looking at home team
+    ifelse(train_data$FTR[rows] == "H", 3,ifelse(train_data$FTR[rows] == "D", 1, 0)), #if FTR = H then 3, o/w if FTR=D then 1, o/w 0
+    ifelse(train_data$FTR[rows] == "A",#if we're looking at away team and FTR = A 
+           3, #then 3
+           ifelse(train_data$FTR[rows] == "D", 1, 0)) #o/w if FTR = D then 1, o/w 0
+  )
+
+  # Running total before and after each match
+  points_before <- c(0, head(cumsum(points), -1))
+  points_after <- cumsum(points)
+
+  # Store totals in the home or away columns
+  home_rows <- rows[train_data$HomeTeam[rows] == team]
+  away_rows <- rows[train_data$AwayTeam[rows] == team]
+
+  train_data$HTPB[home_rows] <- points_before[train_data$HomeTeam[rows] == team]
+  train_data$HTPA[home_rows] <- points_after[train_data$HomeTeam[rows] == team]
+  train_data$ATPB[away_rows] <- points_before[train_data$AwayTeam[rows] == team]
+  train_data$ATPA[away_rows] <- points_after[train_data$AwayTeam[rows] == team]
+}
+
+```
+
+Okay, now that we have all of the correct teams together we will pass to the next file which is the model building section of my work. Here we will star doing a classification model as I think that to start with, it'll be a good visualization.

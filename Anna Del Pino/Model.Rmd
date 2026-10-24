@@ -42,9 +42,20 @@ glm(Homepointsaftermatch~.,data=train_data)
 ```
 
 
+Instead of directly wanting to predict the rank by giving two conditions (i.e. points and the GD) I can put these two together byt coding something along the lines of:
+- Record the total number of goals of each team
+eg.
 
+match: arsenal v everton ->  if Arsenal goals > Everton goals => Everton loses (pt=0) and Arsenal (pt=3)
+                         ->  elif Arsenal goals = Everton goals => draw so Everton(pt=1) and Arsenal (pt=1)
+                         ->  else Arsenal goals < Everton goals => Everton wins (pt=3) and Arsenal (pt=3)
+To use the total number goals of goals:
 
+match: arsenal v everton ->  if (Total number of goals before match - total number of goals after match)Arsenal > (Total number of goals before match - total number of goals after match)Everton => Everton loses (pt=0) and Arsenal (pt=3)
+                         ->  elif (Total number of goals before match - total number of goals after match)Arsenal = (Total number of goals before match - total number of goals after match)Everton => draw so Everton(pt=1) and Arsenal (pt=1)
+                         ->  else (Total number of goals before match - total number of goals after match)Arsenal  < (Total number of goals before match - total number of goals after match)Everton  => Everton wins (pt=3) and Arsenal (pt=3)
 
+Ranking will consiste of teams with highest number of points 
 
 
 
