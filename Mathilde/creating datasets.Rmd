@@ -37,8 +37,9 @@ Initial ideas:
 - Make a model which predicts match outcomes based on these scores (Poisson?, Cubist?)
 
 
-
-I think it would be better to have a model which looks at two rows per match, so option B. There should be these columns:
+**Update**
+Getting individual player data is too time consuming. Use individual match data instead.
+To build a model which looks at two rows per match, here is a potential structure for a dataset:
 - Match id
 - year
 - Date 
@@ -83,6 +84,10 @@ Having the scores calculated from the previous season avoids the restriction tha
 
 Also, averaging over the goals from the season so far means that we don't constrain ourselves with needing good predictions to get good predictions later on. As in if 5 consecutive predictions are wrong, they'll affect the next 5, affecting the next 5 and so on. Doing it this way may reduce uncertainty, although it may also reduce accuracy. 
 
+This strategy gives me two choices. Either it 
+- uses real results as they become available. This tests how well the model performs when the season is underway and results are known, or it
+- uses predicted goals to update team statistics when actual results are unavailable. This tests how well the model can forecast a season into the future without relying on future results.
+
 ```{r} 
 keep_cols <- names(X14_15)[1:23]
 
@@ -94,35 +99,6 @@ for (nm in match_data) {
 }
 X14_15 <- X14_15[-381,]
 ```
-
-Could have a dataset like 
-Year 
-Home Team | Away Team 
-Home result | Away result 
-Home Team Historical Attack Score | Away Team Historical Attack Score 
-Home Historical Defense Score | Away Historical Defense Score  
-Home Previous Year Ranking | Away Previous Year Ranking 
-Home Current-season matches played | Away Current-season matches played
-Home win frequency | Away win frequency
-Home loss frequency | Away loss frequency 
-Home draw frequency | Away draw frequency
-Home Current-season goals scored per match | Away Current-season goals scored per match
-Home Current-season goals conceded per match | Away Current-season goals conceded per match
-Home frequency of red cards per match | Away frequency of red cards per match 
-Home frequency of yellow cards per match | Away frequency of yellow cards per match
-
-If a team doesnt have any info, then let the model learn from how the new teams perform every year
-The historical scores column for the teams competing in 2015/16 could be calculated based on the X14_15 data. 
-Then, the scores could be updated in another column. At the end of the season, so the last row for that year which represents a specific team could be combined with the score from the previous year in an equation which would put more weight on the scores from that year. Then, those scores could move onto the next year's historical scores column.
-For the teams that are new in any season, give them a neutral starting score. 
-
-The model will be using the dataset that I build with the scores to then predict goals.
-
-The thing i need to figure out now is how to make those scores...
-
-Attack score = Goals scored by team i per match / League average score per team per match.   (higher is better)
-Defense score = Goals conceded by team i per match / League average score per team per match.   (lower is better)
-
 
 ```{r}
 library(dplyr)
