@@ -38,9 +38,50 @@ Initial ideas:
 
 
 
-Calculations from historical matches: 
-- Attacking strength: how many goals a team scores relative to the league average.
-- Defensive strength: how many goals a team concedes relative to the league average. A lower goals-conceded rate indicates a stronger defence.
+I think it would be better to have a model which looks at two rows per match, so option B. There should be these columns:
+- Match id
+- year
+- Date 
+- Team of interest
+- Opponent
+- Home or away (for the "Team of interest")
+- PDSF = Difference in previous season goals per match
+- PDSCF = Difference in previous season goals conceded per match
+- PDR = Difference in previous season ranking 
+- PDW = Difference in previous season wins
+- PDD = Difference in previous season draws
+- PDL = Difference in previous season losses
+- Round = Difference between the round of the game being played during the season
+- Days = Difference in number of days since last match played
+- DWF = Difference in win frequency
+- DLF = Difference in loss frequency
+- DDF = Difference in draw frequency 
+- DGSF = Difference in goals scored per match
+- DGCF = Difference in goals conceded per match
+- DAS = Difference in attack scores
+- DDS = Difference in defense scores
+- DRF = Difference in red cards per match
+- DYF = Difference in yellow cards per match
+- DFF = Difference in fouls per match
+- DCS = Difference in corners per match
+- DSTF = Difference in Shots on Target per match 
+- DSF = Difference in Shots per match
+
+
+DAS and DDS should be calculated like 
+DAS = (goals scored per match in previous season for team of interest * k + goals scored per match in current season for team of interest* number of matches played by team of interest)/(k + number of matches played by team of interest) - (goals scored per match in previous season by opponent * k + goals scored per match in current season by opponent * number of matches played by opponent)/(k + number of matches played by opponent)
+Similar for DDS with goals conceded. 
+The difference calculations come from doing team of interest - opponent. This reduces the numbers of columns and is easier to perform feature engineering/selection.
+
+Want to get rid of DRF, DYF, DFF, DCS, DSTF and DSF after feature selection since the model would not know how to predict matches without that info if it is trained on those predictors. Keep it in for analysis for now.
+
+For the new teams, goals scored and conceded should be calculated from the median of the other teams. This is from the assumption that the level that the new teams are at are about average compared to the teams last year. I decided on making k = 2 as I want the model to quickly forget about the team's attacking and defense strength from the previous year. This is done for 2 reasons:
+- The new teams do not have an accurate attack and defense score due to the unavailability of data.
+- The players change within the teams, so the model quickly needs to be able to update these scores.
+
+Having the scores calculated from the previous season avoids the restriction that the other paper had with having to get rid of the first 5 games. 
+
+Also, averaging over the goals from the season so far means that we don't constrain ourselves with needing good predictions to get good predictions later on. As in if 5 consecutive predictions are wrong, they'll affect the next 5, affecting the next 5 and so on. Doing it this way may reduce uncertainty, although it may also reduce accuracy. 
 
 ```{r} 
 keep_cols <- names(X14_15)[1:23]
@@ -98,43 +139,6 @@ matches <- X14_15 %>%
 ```
 
 ```{r}
-home_data <- matches %>%
-  transmute(
-    match_id, Date, Year,
-    Team = HomeTeam,
-    side = "Home",
-    goals_for = FTHG,
-    goals_against = FTAG,
-    result = case_when(
-      FTHG > FTAG ~ "W",
-      FTHG < FTAG ~ "L",
-      TRUE ~ "D"
-    ),
-    red_cards = HR,
-    yellow_cards = HY
-  )
-
-away_data <- matches %>%
-  transmute(
-    match_id, Date, Year,
-    Team = AwayTeam,
-    side = "Away",
-    goals_for = FTAG,
-    goals_against = FTHG,
-    result = case_when(
-      FTAG > FTHG ~ "W",
-      FTAG < FTHG ~ "L",
-      TRUE ~ "D"
-    ),
-    red_cards = AR,
-    yellow_cards = AY
-  )
-
-team_matches <- bind_rows(home_data, away_data) %>%
-  arrange(Date, match_id, side)
-```
-
-```{r}
 library(dplyr)
 library(tidyr)
 library(lubridate)
@@ -179,44 +183,101 @@ previous_season_stats <- previous_season_matches %>%
       mean(goals_against),
 
     previous_season_wins = sum(result == "W"),
-
     previous_season_draws = sum(result == "D"),
-
     previous_season_losses = sum(result == "L"),
 
     previous_season_points =
-      sum(if_else(result == "W", 3,
-                  if_else(result == "D", 1, 0))),
+      sum(if_else(
+        result == "W", 3,
+        if_else(result == "D", 1, 0)
+      )),
 
     previous_season_goal_difference =
       sum(goals_for - goals_against),
 
-    previous_season_goals_scored =
-      sum(goals_for),
+    previous_season_goals_scored = sum(goals_for),
 
     .groups = "drop"
-  )
-
-previous_season_stats <- previous_season_stats %>%
+  ) %>%
   arrange(
     desc(previous_season_points),
     desc(previous_season_goal_difference),
     desc(previous_season_goals_scored)
   ) %>%
-  mutate(
-    previous_season_ranking = row_number()
-  )
+  mutate(previous_season_ranking = row_number())
 ```
 
+```{r}
+median_previous_goals_scored <- median(
+  previous_season_stats$previous_season_goals_scored_per_match,
+  na.rm = TRUE
+)
+
+median_previous_goals_conceded <- median(
+  previous_season_stats$previous_season_goals_conceded_per_match,
+  na.rm = TRUE
+)
+```
+
+```{r}
+home_data <- matches %>%
+  transmute(
+    match_id, Date, Year,
+    Team = HomeTeam,
+    Opponent = AwayTeam,
+    HomeAway = "Home",
+    goals_for = FTHG,
+    goals_against = FTAG,
+    result = case_when(
+      FTR == "H" ~ "W",
+      FTR == "A" ~ "L",
+      FTR == "D" ~ "D"
+    ),
+    red_cards = HR,
+    yellow_cards = HY, 
+    fouls = HF,
+    corners = HC,
+    shots = HS,
+    shots_on_target = HST
+  )
+
+away_data <- matches %>%
+  transmute(
+    match_id, Date, Year,
+    Team = AwayTeam,
+    Opponent = HomeTeam, 
+    HomeAway = "Away",
+    goals_for = FTAG,
+    goals_against = FTHG,
+    result = case_when(
+      FTR == "A" ~ "W",
+      FTR == "H" ~ "L",
+      FTR == "D" ~ "D"
+    ),
+    red_cards = AR,
+    yellow_cards = AY,
+    fouls = AF,
+    corners = AC,
+    shots = AS,
+    shots_on_target = AST
+  )
+
+team_matches <- bind_rows(home_data, away_data) %>%
+  arrange(Date, match_id, HomeAway)
+```
 
 ```{r}
 team_features <- team_matches %>%
   group_by(Team) %>%
   arrange(Date, match_id, .by_group = TRUE) %>%
   mutate(
-    # Number of matches played BEFORE this match
+    # Number of matches played before this match
     matches_played = row_number() - 1L,
-
+    
+    previous_match_date = lag(Date),
+    days_since_last_match = as.numeric(
+      Date - previous_match_date
+    ),
     # Previous results only
     wins = lag(cumsum(result == "W"), default = 0L),
     draws = lag(cumsum(result == "D"), default = 0L),
@@ -228,7 +289,19 @@ team_features <- team_matches %>%
 
     # Cards from previous matches only
     red_cards_total = lag(cumsum(red_cards), default = 0),
-    yellow_cards_total = lag(cumsum(yellow_cards), default = 0)
+    yellow_cards_total = lag(cumsum(yellow_cards), default = 0), 
+
+    fouls_total =
+      lag(cumsum(fouls), default = 0),
+
+    corners_total =
+      lag(cumsum(corners), default = 0),
+
+    shots_total =
+      lag(cumsum(shots), default = 0),
+
+    shots_on_target_total =
+      lag(cumsum(shots_on_target), default = 0)
   ) %>%
   mutate(
     win_frequency = wins / pmax(matches_played, 1),
@@ -258,9 +331,35 @@ team_features <- team_matches %>%
       yellow_cards_total / matches_played,
       NA_real_
     ),
+
+    fouls_per_match = if_else(
+      matches_played > 0,
+      fouls_total / matches_played,
+      NA_real_
+    ),
+
+    corners_per_match = if_else(
+      matches_played > 0,
+      corners_total / matches_played,
+      NA_real_
+    ),
+
+    shots_per_match = if_else(
+      matches_played > 0,
+      shots_total / matches_played,
+      NA_real_
+    ),
+
+    shots_on_target_per_match = if_else(
+      matches_played > 0,
+      shots_on_target_total / matches_played,
+      NA_real_
+    )
   ) %>%
   ungroup()
+```
 
+```{r}
 team_features <- team_features %>%
   left_join(
     previous_season_stats %>%
@@ -274,68 +373,184 @@ team_features <- team_features %>%
         previous_season_ranking
       ),
     by = "Team"
+  ) %>%
+  mutate(
+    previous_season_goals_scored_per_match = coalesce(
+      previous_season_goals_scored_per_match,
+      median_previous_goals_scored
+    ),
+
+    previous_season_goals_conceded_per_match = coalesce(
+      previous_season_goals_conceded_per_match,
+      median_previous_goals_conceded
+    ),
+
+    # Weighted attacking strength
+    attack_score = if_else(
+      matches_played == 0,
+      previous_season_goals_scored_per_match,
+      (
+        2 * previous_season_goals_scored_per_match +
+          matches_played * goals_scored_per_match
+      ) / (2 + matches_played)
+    ),
+
+    # Weighted defensive strength:
+    # lower goals conceded means stronger defence
+    defence_score = if_else(
+      matches_played == 0,
+      previous_season_goals_conceded_per_match,
+      (
+        2 * previous_season_goals_conceded_per_match +
+          matches_played * goals_conceded_per_match
+      ) / (2 + matches_played)
+    )
   )
 ```
 
 
 ```{r}
-features_wide <- team_features %>%
+opponent_features <- team_features %>%
   select(
-    match_id, side,
+    match_id,
+    Team,
+    matches_played,
+    days_since_last_match,
 
-    # Previous-season statistics (2013/14)
     previous_season_goals_scored_per_match,
     previous_season_goals_conceded_per_match,
+    previous_season_ranking,
     previous_season_wins,
     previous_season_draws,
     previous_season_losses,
-    previous_season_ranking,
 
-    # Current-season statistics (2014/15, before each match)
-    matches_played,
     win_frequency,
     loss_frequency,
     draw_frequency,
     goals_scored_per_match,
     goals_conceded_per_match,
+
+    attack_score,
+    defence_score,
+
     red_cards_per_match,
-    yellow_cards_per_match
+    yellow_cards_per_match,
+    fouls_per_match,
+    corners_per_match,
+    shots_on_target_per_match,
+    shots_per_match
   ) %>%
-  pivot_wider(
-    names_from = side,
-    values_from = -c(match_id, side),
-    names_glue = "{side}_{.value}"
-  )
+  rename_with(
+    ~ paste0("opp_", .x),
+    -c(match_id, Team)
+  ) %>%
+  rename(Opponent = Team)
 ```
 
 ```{r}
-previous_match_results <- X13_14 %>%
-  select(
-    HomeTeam,
-    AwayTeam,
-    previous_match_result = FTR
-  )
-```
-
-
-```{r}
-dataset_2014 <- matches %>%
-  select(
-    match_id, Year, Date, HomeTeam, AwayTeam,
-    FTHG, FTAG
-  ) %>%
+dataset_2014 <- team_features %>%
   left_join(
-    features_wide,
-    by = "match_id"
+    opponent_features,
+    by = c("match_id", "Opponent")
   ) %>%
-  left_join(
-    previous_match_results,
-    by = c("HomeTeam", "AwayTeam")
+  mutate(
+    # Historical differences
+    PDSF = previous_season_goals_scored_per_match -
+      opp_previous_season_goals_scored_per_match,
+
+    PDSCF = previous_season_goals_conceded_per_match -
+      opp_previous_season_goals_conceded_per_match,
+
+    PDR = previous_season_ranking -
+      opp_previous_season_ranking,
+
+    PDW = previous_season_wins -
+      opp_previous_season_wins,
+
+    PDD = previous_season_draws -
+      opp_previous_season_draws,
+
+    PDL = previous_season_losses -
+      opp_previous_season_losses,
+
+    # Round is represented by the difference in matches
+    # already played by the two teams
+    Round = matches_played - opp_matches_played,
+
+    # Difference in days since the previous match
+    Days = days_since_last_match -
+      opp_days_since_last_match,
+
+    # Current-season form differences
+    DWF = win_frequency - opp_win_frequency,
+    DLF = loss_frequency - opp_loss_frequency,
+    DDF = draw_frequency - opp_draw_frequency,
+
+    DGSF = goals_scored_per_match -
+      opp_goals_scored_per_match,
+
+    DGCF = goals_conceded_per_match -
+      opp_goals_conceded_per_match,
+
+    # Weighted strength differences
+    DAS = attack_score - opp_attack_score,
+    DDS = defence_score - opp_defence_score,
+
+    # Additional features retained for feature selection
+    DRF = red_cards_per_match -
+      opp_red_cards_per_match,
+
+    DYF = yellow_cards_per_match -
+      opp_yellow_cards_per_match,
+
+    DFF = fouls_per_match -
+      opp_fouls_per_match,
+
+    DCS = corners_per_match -
+      opp_corners_per_match,
+
+    DSTF = shots_on_target_per_match -
+      opp_shots_on_target_per_match,
+
+    DSF = shots_per_match -
+      opp_shots_per_match
   ) %>%
-  rename(
-    HomeGoals = FTHG,
-    AwayGoals = FTAG
-  )
+  transmute(
+    match_id,
+    Year,
+    Date,
+    Team,
+    Opponent,
+    HomeAway,
+
+    PDSF,
+    PDSCF,
+    PDR,
+    PDW,
+    PDD,
+    PDL,
+
+    Round,
+    Days,
+
+    DWF,
+    DLF,
+    DDF,
+    DGSF,
+    DGCF,
+
+    DAS,
+    DDS,
+
+    DRF,
+    DYF,
+    DFF,
+    DCS,
+    DSTF,
+    DSF,
+
+    # Target: actual goals scored by the team of interest
+    Goals = goals_for
+  ) %>%
+  arrange(match_id, desc(HomeAway == "Home"))
 ```
-
-
