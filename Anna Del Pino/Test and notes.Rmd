@@ -1,0 +1,76 @@
+---
+title: "Test"
+author: "Anna Del Pino"
+date: "2026-10-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Testing the output from test set
+
+This chunk calculates goal error, compare against the training baseline and evaluate the predicted ranking:
+
+```{r}
+test_data$PredHomeGoalMean <- predict(home_selected_model, newdata = test_data, type = "response")
+test_data$PredAwayGoalMean <- predict(away_selected_model, newdata = test_data, type = "response")
+
+MAE_HG <- mean(abs(test_data$FTHG - test_data$PredHomeGoalMean))
+MAE_AG <- mean(abs(test_data$FTAG - test_data$PredAwayGoalMean))
+train_MAE_HG <- mean(abs(test_data$FTHG - mean(train_data$FTHG)))
+train_MAE_AG <- mean(abs(test_data$FTAG - mean(train_data$FTAG)))
+MAE_pos <- mean(abs(table_comparison$PositionDifference))
+rank_corr <- cor(table_comparison$Position_Predicted,table_comparison$Position_Actual,method = "spearman", use = "complete.obs")
+
+print(c(MAE_HG, MAE_AG, train_MAE_HG, train_MAE_AG, MAE_pos, rank_corr))
+```
+These results taht the model performs better than the training baseline.
+- Home goal MAE: 0.953 goals, compared with 0.996 for the baseline so a 4.3% reduction.
+- Away goal MAE: 0.846 goals, compared with 0.875 for the baseline so a 3.3% reduction.
+- Mean position error: 2.1 places. On average, a team’s predicted position was about two places away from its actual position.
+- Spearman rank correlation: 0.862, indicating the predicted and actual league orders were fairly similar.
+The model improved goal predictions over the baseline and reproduced the overall team ranking reasonably well on the test season.
+
+## Why GLM?
+
+The response variables (home goals and away goals) are non negative counts. A Poisson GLM models counts and uses a log link, so it predicts a positive expected goal rate, $\lambda$. The Poisson assumption also implies that the conditional mean and variance are equal.
+
+Football-score research has used separate Poisson models for home and away goals as a baseline. More advanced models can account for dependence between the two scores, so Poisson is a defensible starting point, not a claim that it is the best possible model. Maher (1982)
+
+Your own checks give you some support for it: the Pearson dispersion ratios were close to 1. Your test-season MAEs were also lower than the training-average baseline, although only modestly: about 0.953 versus 0.996 home goals, and 0.846 versus 0.875 away goals.
+
+A concise way to present the choice:
+I use separate Poisson GLMs for home and away goals because goals are count outcomes, and the log link gives positive expected goal counts. I use previous-match statistics as predictors and assess the models on a later season. The dispersion checks and baseline comparison make Poisson a reasonable starting point, while leaving room to compare it with more complex models.
+
+##Questions
+
+Why use a Poisson model instead of linear regression?
+A linear model can predict negative or fractional goals. A Poisson GLM is designed for non-negative count outcomes and returns an expected goal rate.
+
+What assumptions does Poisson make?
+It assumes that, conditional on the predictors, goal-count variance equals the expected goal count. Your dispersion ratios are close to 1, which is encouraging, though it doesn’t prove every assumption holds.
+
+Why fit separate home-goal and away-goal models?
+Home and away scoring may behave differently. Separate models let each side have different predictor effects and expected goal rates.
+
+How do you prevent information from the match being predicted leaking into the predictors?
+The predictors should contain only information known before kickoff. Your “before” features are intended to do this; the current match’s result and statistics must not be included.
+
+How did you test whether the model predicts well?
+You trained on earlier seasons and evaluated on the later test season. The model modestly beat a baseline that always predicts the training-set average. You can also compare the predicted and actual final tables.
+
+Does your model use the first months of 2026/27 to refit its coefficients?
+In the code you showed, final_train_data combines train_data and test_data only. So the 2026/27 played matches are not used to refit the model coefficients. They can inform future predictions through the pre-match features if those features are updated using those results.
+
+Does the current prediction code update each team’s form after every predicted fixture?
+No. It predicts all remaining fixtures using the feature values already in prediction_data; it doesn’t add each forecast result to the inputs for the next fixture.
+
+Are the predicted goal values actual predicted scores?
+predict(..., type = "response") returns expected goals, \(\hat{\lambda}\), which can be decimal values. Your table function compares them as though they were scores. That can produce implausible win/draw points—two expected-goal values are rarely exactly equal, so draws may be undercounted. Before presenting the league-table method, decide whether to round forecasts or use score probabilities or simulations to derive match outcomes.
+
+How do you handle teams with little Premier League history?
+Their early-season predictors are based on less information, so their forecasts are less reliable. Coventry is one example in your data. State this as a limitation.
+
+The last two questions are the most important to resolve before presenting your predicted 2026/27 table: the current code doesn’t recursively update future features, and it treats expected goals as if they were match scores.
