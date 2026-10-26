@@ -6,6 +6,7 @@ date: "2026-10-22"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+source("Data Cleaning.R")
 ```
 
 ```{r}

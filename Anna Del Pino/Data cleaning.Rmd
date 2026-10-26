@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Import data
 
 ```{r}
-setwd("/Users/lenovo/OneDrive - University of Bristol/2026_2027/DST/Sprint-1/Anna Del Pino")
+setwd("/Users/oy23975/OneDrive - University of Bristol/Documents/GitHub/Sprint-1/Anna Del Pino")
 
 data26_27 <-read.csv("./Premier League match events data/26_27.csv")
 data25_26 <-read.csv("./Premier League match events data/25_26.csv")
