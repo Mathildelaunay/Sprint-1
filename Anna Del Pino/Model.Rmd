@@ -121,18 +121,17 @@ setdiff(unique(c(prediction_data$HomeTeam, prediction_data$AwayTeam)),train_team
 On the other hand, for our prediction dataset we do not have information for all the teams. This means that we won't have that much information for `Coventry` as the only information that we have is the first three months of the 2026/27 premier league season. This will then be expanded in our Limitations section.
 
 ### Model Fitting
+
 Now we fit our selected models.
 
 ```{r} 
-outcome_columns <- c("FTHG", "FTAG", "HG", "AG", "Date", "Season") #response variable (Full time away/home goals)
-
 text_columns <- names(train_data)[sapply(train_data, is.character)] #names the text columns in the dataset
 train_data[text_columns] <- lapply(train_data[text_columns], factor) #applies factor() to the text columns
 test_data[text_columns] <- lapply(test_data[text_columns], factor) #applies factor() to the text columns
 
 #predict goals for each match in the test season
-test_data$PredHomeGoals <- predict(home_selected_model, newdata = test_data, type = "response") #using home model
-test_data$PredAwayGoals <- predict(away_selected_model, newdata = test_data, type = "response") #using away model
+test_data$PredHomeGoals <- round(predict(home_selected_model, newdata = test_data, type = "response")) #using home model
+test_data$PredAwayGoals <- round(predict(away_selected_model, newdata = test_data, type = "response")) #using away model
 ```
 
 This function turns a set of match scores into a league table:
@@ -171,6 +170,7 @@ make_table <- function(matches, home_goals, away_goals) {
 Use it to make both the predicted and actual tables for the test season, then compare positions:
 
 ```{r}
+set.seed(1)
 predicted_table <- make_table(test_data, test_data$PredHomeGoals, test_data$PredAwayGoals)
 
 actual_table <- make_table(test_data, test_data$FTHG, test_data$FTAG)
@@ -186,39 +186,38 @@ table_comparison
 
 ## 2026/27 season prediction
 
-Once I have evaluated the model, I will fit it using the training and test data together. I will use the actual results for 2026/27 matches that have already been played and predict the remaining fixtures.
-
-This code assumes that unplayed fixtures have `NA` for `FTHG` and `FTAG`, and that their before-match statistics have already been created using results from previous matches only.
+I will use the actual results for 2026/27 matches that have already been played and predict the remaining fixtures. The `prediction_data` has results for up to 19-10-26 so we want to predict the remaining rows. We do so following a similar structure as we did before.
 
 ```{r}
-set.seed(1)
 
 final_train_data <- bind_rows(train_data, test_data)
 
-home_final_model <- glm(formula(home_selected_model),data = final_training_data,family = poisson)
-away_final_model <- glm(formula(away_selected_model),data = final_training_data,family = poisson)
+home_final_model <- glm(formula(home_selected_model),data = final_train_data,family = poisson)
+away_final_model <- glm(formula(away_selected_model),data = final_train_data,family = poisson)
 
-# Identify fixtures without actual results
-unplayed <- is.na(prediction_data$FTHG) |is.na(prediction_data$FTAG) #rows without stats
+unplayed <- prediction_data$Date > as.Date("2026-10-19") #rows of unplayed matches
 
-# Predict goals for unplayed fixtures
+#create new columns for predictions
 prediction_data$PredHomeGoals <- NA
 prediction_data$PredAwayGoals <- NA
 
-prediction_data$PredHomeGoals[unplayed] <- round(predict(home_final_model,newdata = prediction_data[unplayed, ],type = "response"))
+#do prediction in unplayed data
+prediction_data$PredHomeGoals[unplayed] <- predict(home_final_model,newdata = prediction_data[unplayed, ],type = "response")
+prediction_data$PredAwayGoals[unplayed] <- predict(away_final_model,newdata = prediction_data[unplayed, ],type = "response")
 
-prediction_data$PredAwayGoals[unplayed] <- round(predict(away_final_model,newdata = prediction_data[unplayed, ],type = "response"))
-
-# Use actual results for played fixtures and predictions for unplayed fixtures
+#creates a vector of predictions
 final_home_goals <- ifelse(unplayed,prediction_data$PredHomeGoals,prediction_data$FTHG)
-
 final_away_goals <- ifelse(unplayed,prediction_data$PredAwayGoals,prediction_data$FTAG)
 
-# Build the projected final league table
+#builds the prediction table
 predicted_2026_27_table <- make_table(prediction_data,final_home_goals,final_away_goals)
 
 predicted_2026_27_table
 ```
 
+Notice, we have that Manchester City is likely to end up as the winner of the season. However, due to legal reasons, there is a popular thought that this team will get relegated. Hence, it's worth having a look at what the result would be without this team. In the following code chunck there is a data cleaning function which reoves all of th erows containing either Home Team = Man City or Away Team = Man City. This chunck should be copied at the start of this file to produce a prediction excluding Man City from prediction. Note that it's necessary to keep the Man City observations from past datasets.
 
+```{r}
+#prediction_data <- prediction_data[prediction_data$HomeTeam != "Man City" & prediction_data$AwayTeam != "Man City", ]
+```
 
