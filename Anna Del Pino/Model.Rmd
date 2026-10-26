@@ -33,13 +33,6 @@ Given a set of data, we want to determine the ranking at the end of the season w
 Train/Validation split will be each year at random???
   
 
-```{r}
-library(mgcv)
-library(mgcViz)
-
-glm(Homepointsaftermatch~.,data=train_data)
-
-```
 
 
 Instead of directly wanting to predict the rank by giving two conditions (i.e. points and the GD) I can put these two together byt coding something along the lines of:
@@ -56,6 +49,118 @@ match: arsenal v everton ->  if (Total number of goals before match - total numb
                          ->  else (Total number of goals before match - total number of goals after match)Arsenal  < (Total number of goals before match - total number of goals after match)Everton  => Everton wins (pt=3) and Arsenal (pt=3)
 
 Ranking will consiste of teams with highest number of points 
+
+##Rank Regression
+
+As with least squares, the goal of rank-based regression is to estimate the vector of coefficients, $\mathbf{\beta}$, of a general linear model of the form:
+$$y_i = \alpha+\mathbf{x}^T_i \beta +e_i \ \text{for i=1,...n (1)} $$
+where $y_i$ is the response variable, $\mathbf{x}_i$ is the vector of explanatory variables, $\alpha$ is the intercept parameter, and $e_i$ is the error term.
+
+## Predicting c(Goals scored, goals conceded, points) for each team
+
+First we look at the 2014/15 - 2024/25 training set. Here we have the following teams overall:
+```{r}
+train_teams<-unique(c(train_data$HomeTeam, train_data$AwayTeam))
+length(train_teams)
+```
+```{r}
+intersect(train_teams, unique(c(test_data$HomeTeam, test_data$AwayTeam)))
+```
+This tells us that from the train data set we have all the teams data from our test set which is great as this gives us more information for all of our observations.
+```{r}
+intersect(train_teams, unique(c(prediction_data$HomeTeam, prediction_data$AwayTeam)))
+```
+On the other hand, for our prediction dataset we do not have information for all the teams. We will expland on this when we get to the point in which we want to make the prediction.
+
+```{r}
+# Convert the match date and identify each season by its starting year
+
+train_data$Date <- as.Date(as.character(train_data$Date), format = "%d/%m/%Y")
+
+train_data$SeasonStart <- as.integer(format(train_data$Date, "%Y")) 
+
+before_july <- as.integer(format(train_data$Date, "%m")) < 7
+
+train_data$SeasonStart[before_july] <- train_data$SeasonStart[before_july] - 1
+
+
+
+outcome_columns <- c("FTHG", "FTAG", "HG", "AG", "Date", "SeasonStart") #response variable
+
+predictor_columns <- setdiff(names(train_data), outcome_columns)
+predictor_columns <- setdiff(predictor_columns,c("HomeTeam", "AwayTeam", "FTR", "HS", "HTPA")) #variables CAN SIMPLIFY THIS
+
+
+# Turn text columns into factors, keeping consistent levels across seasons
+text_columns <- names(train_data)[sapply(train_data, is.character)] #names the text columns in the dataset
+train_data[text_columns] <- lapply(train_data[text_columns], factor) #applies factor() to the text columns
+
+
+
+# Store predicted tables here, one for each test season
+season_tables <- list()
+
+# Test each season using only seasons before it for training IS THE YEAR RANGE CORRECT??????
+for (year in 2015:2024) {
+
+  training_seasons <- train_data[train_data$SeasonStart < year, ] #trains the model with data from previous year
+  test_season <- train_data[train_data$SeasonStart == year, ] #tests the model with data of selected year
+  
+  if (nrow(training_seasons) == 0 || nrow(test_season) == 0) {
+    next
+  }
+
+#I CAN REWRITE THE FOLLOWING IN SIMPLER WORDS:
+  home_formula <- reformulate(predictor_columns, response = "FTHG") # creates a formula such as FTHG~., variables = predictor_columns
+  away_formula <- reformulate(predictor_columns, response = "FTAG") # creates a formula such as FTHG~., variables = predictor_columns
+
+  home_model <- glm(home_formula, data = training_seasons, family = poisson)
+  away_model <- glm(away_formula, data = training_seasons, family = poisson)
+
+  # Predict the held-out season's match goals : WRITE THIS IN MATHEMATICS
+  test_season$PredHomeGoals <- round(predict(home_model, newdata = test_season, type = "response")) # predicting Y_homegoals
+
+  test_season$PredAwayGoals <- round(predict(away_model, newdata = test_season, type = "response")) # predicting Y_awaygoals
+
+  # Turn the predicted scores into points and goals for each team
+  
+  home_table <- data.frame(Team = test_season$HomeTeam,Points = ifelse(test_season$PredHomeGoals > test_season$PredAwayGoals,
+                                                                       3,
+                                                                       ifelse(test_season$PredHomeGoals == test_season$PredAwayGoals,
+                                                                              1,
+                                                                              0)),
+                            GF = test_season$PredHomeGoals, GA = test_season$PredAwayGoals) #GF = goals home, GA= goals away
+
+  away_table <- data.frame(Team = test_season$AwayTeam,Points = ifelse(test_season$PredAwayGoals > test_season$PredHomeGoals,
+                                                                       3,
+                                                                       ifelse(test_season$PredAwayGoals == test_season$PredHomeGoals,
+                                                                              1,
+                                                                              0)),
+                            GF = test_season$PredAwayGoals, GA = test_season$PredHomeGoals)
+  
+
+  all_team_matches <- rbind(home_table, away_table)
+  table <- aggregate(cbind(Points, GF, GA) ~ Team, data = all_team_matches, sum) # splits the data into subsets, computes summary statistics for each, and returns the result in a convenient form?? LOOK THIS FUNCTION UP
+
+  table$GD <- table$GF - table$GA  #calculating goal difference
+  table <- table[order(-table$Points, -table$GD, -table$GF), ] #adding the points, gd and gf in increasing order onto the table
+  table$Position <- seq_len(nrow(table)) # labels the position as increasing order from data in the table
+  table <- table[c("Position", "Team", "Points", "GF", "GA", "GD")]
+
+  season_tables[[as.character(year)]] <- table
+}
+
+
+
+# View the predicted table for the 2024/25 test season
+season_tables[["2024"]]
+```
+
+## Adding a ranking condition to the model
+Tell the model to rank the teams by:
+-highest to lowest number of points
+-if two or more teams have the same number of points rank these few teams by highest to lowest goal difference.
+
 
 
 
