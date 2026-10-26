@@ -153,43 +153,44 @@ seasons <- unique(all_data$Season) # length = 13
 teams <- unique(c(all_data$HomeTeam, all_data$AwayTeam))#columns of all teams from 2014-2027 of length = 36
 ```
 
-We need to add the following columns for our model:
-- Home Team total number of goals before match = HTGB
-- Home Team total number of goals after match = HTGA
-- Away Team total number of goals before match = ATGB
-- Away Team total number of goals after match = ATGA
+Since we want our model to use the previous match results to predict the next match result, we need to add a counting column which adds up the previous statistics up to until the previous match so that we can use this statistic for our prediction.
 
 ```{r}
-# Add the goal columns
-all_data$HTGB <- NA
-all_data$HTGA <- NA
-all_data$ATGB <- NA
-all_data$ATGA <- NA
+# Match statistics from earlier matches
+stats <- list(FTGoals= c("FTHG", "FTHG"), HTGoals = c("HTHG", "HTAG"), Shots = c("HS", "AS"), ShotsOnTarget = c("HST", "AST"), Corners = c("HC", "AC"), Fouls = c("HF", "AF"), YellowCards = c("HY", "AY"), RedCards = c("HR", "AR"))
 
-for(season in seasons){
-  for (team in teams) {
-  
-    #find every match involving this team in this season
-    rows <- which(all_data$Season == season & (all_data$HomeTeam == team | all_data$AwayTeam == team))
-  
-    # Goals scored by this team in each match
-    goals_scored <- ifelse(all_data$HomeTeam[rows] == team, all_data$FTHG[rows], all_data$FTAG[rows]) #for this team, the goals scored are FTHG when playing home or FTAG  when playing away
-  
-    # Running total before and after each match
-    goals_before <- c(0, head(cumsum(goals_scored), -1)) #summing up all of the goals up to previous match
-    goals_after  <- cumsum(goals_scored) #summing up all of the goals up to current match
-  
-    # Store the totals in the home or away columns
-    home_rows <- rows[all_data$HomeTeam[rows] == team] #store in HTGB or HTGA if team is home team
-    away_rows <- rows[all_data$AwayTeam[rows] == team] #store in ATGB or ATGA if team is away team
-  
-    all_data$HTGB[home_rows] <- goals_before[all_data$HomeTeam[rows] == team] 
-    all_data$HTGA[home_rows] <- goals_after[all_data$HomeTeam[rows] == team]
-    all_data$ATGB[away_rows] <- goals_before[all_data$AwayTeam[rows] == team]
-    all_data$ATGA[away_rows] <- goals_after[all_data$AwayTeam[rows] == team]
+all_data$.match_id <- seq_len(nrow(all_data)) #starts empty columns
+
+for (stat in names(stats)) {
+  home_stat <- stats[[stat]][1]
+  away_stat <- stats[[stat]][2]
+#creates new counting columns for each stat
+  all_data[[paste0("Home", stat, "Before")]] <- 0 #can try paste()
+  all_data[[paste0("Away", stat, "Before")]] <- 0  
+
+  for (season in unique(all_data$Season)) {
+    for (team in teams) {
+      rows <- which(all_data$Season == season & (all_data$HomeTeam == team | all_data$AwayTeam == team)) # look at the rows where this team has played
+
+      team_stats <- ifelse(all_data$HomeTeam[rows] == team, all_data[[home_stat]][rows], all_data[[away_stat]][rows]) # if team is home, then we look at home_stat, o/w we look at away_stat
+      
+      stat_before <- c(0, head(cumsum(team_stats), -1)) #summing up all of the stats up to previous match
+
+        home_rows <- rows[all_data$HomeTeam[rows] == team]
+        away_rows <- rows[all_data$AwayTeam[rows] == team]
+
+        all_data[[paste0("Home", stat, "Before")]][home_rows] <- stat_before[all_data$HomeTeam[rows] == team]
+
+        all_data[[paste0("Away", stat, "Before")]][away_rows] <- stat_before[all_data$AwayTeam[rows] == team]
+      
+    }
   }
 }
-# Split the datasets back apart
+
+all_data$.match_id <- NULL
+
+
+# Split the datasets back apart again, including the new points columns
 train_data <- all_data[1:nrow(train_data), ]
 
 test_start <- nrow(train_data) + 1
@@ -198,6 +199,7 @@ test_data <- all_data[test_start:test_end, ]
 
 prediction_start <- test_end + 1
 prediction_data <- all_data[prediction_start:nrow(all_data), ]
+
 ```
 
 Now we also want to add the following columns to our model:
@@ -205,6 +207,7 @@ Now we also want to add the following columns to our model:
 - Home team total points after match = HTPA
 - Away Team total points before match = ATPB
 - Away team total points after match = ATPA
+We do this separately since the number of points depends on a different condition.
 
 ```{r}
 # Create the new columns
@@ -246,16 +249,6 @@ for(season in seasons){
     all_data$ATPA[away_rows] <- points_after[all_data$AwayTeam[rows] == team]
   }
 }
-
-# Split the datasets back apart again, including the new points columns
-train_data <- all_data[1:nrow(train_data), ]
-
-test_start <- nrow(train_data) + 1
-test_end <- nrow(train_data) + nrow(test_data)
-test_data <- all_data[test_start:test_end, ]
-
-prediction_start <- test_end + 1
-prediction_data <- all_data[prediction_start:nrow(all_data), ]
 
 ```
 
