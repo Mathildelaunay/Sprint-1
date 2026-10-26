@@ -295,6 +295,7 @@ build_season_dataset <- function(current_data,
         ),
       by = "Team"
     ) %>%
+
     mutate(
       previous_season_goals_scored_per_match =
         coalesce(
@@ -308,31 +309,44 @@ build_season_dataset <- function(current_data,
           median_conceded
         ),
 
-      attack_score = (
-        k * previous_season_goals_scored_per_match +
-          matches_played * goals_scored_per_match
-      ) / (k + matches_played),
-
-      defence_score = (
-        k * previous_season_goals_conceded_per_match +
-          matches_played * goals_conceded_per_match
-      ) / (k + matches_played),
-
-      # Use the historical rate before the first match
-      attack_score = if_else(
-        matches_played == 0,
-        previous_season_goals_scored_per_match,
-        attack_score
-      ),
-
-      defence_score = if_else(
-        matches_played == 0,
-        previous_season_goals_conceded_per_match,
-        defence_score
-      ),
-      
       RankCategory = coalesce(RankCategory, "Promoted")
     )
+
+  # Calculate exponentially weighted attack and defence scores
+  team_features <- team_features %>%
+    group_by(Team) %>%
+    arrange(Date, match_id, .by_group = TRUE) %>%
+    group_modify(~ {
+      d <- .x
+      n <- nrow(d)
+
+      # Initialise scores using previous-season averages
+      attack <- d$previous_season_goals_scored_per_match[1]
+      defence <- d$previous_season_goals_conceded_per_match[1]
+
+      d$attack_score <- numeric(n)
+      d$defence_score <- numeric(n)
+
+      alpha <- 0.1
+
+      for (i in seq_len(n)) {
+
+        # Store scores BEFORE this match takes place
+        d$attack_score[i] <- attack
+        d$defence_score[i] <- defence
+
+        # Update scores using this match for the NEXT match
+        attack <- alpha * d$goals_for[i] +
+          (1 - alpha) * attack
+
+        defence <- alpha * d$goals_against[i] +
+          (1 - alpha) * defence
+      }
+
+      d
+    }) %>%
+    ungroup()
+
 
   # --------------------------------------------------
   # E. Attach each team's opponent features

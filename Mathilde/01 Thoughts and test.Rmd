@@ -70,11 +70,9 @@ To build a model which looks at two rows per match, here is a potential structur
 
 
 DAS and DDS should be calculated like 
-DAS = (goals scored per match in previous season for team of interest * k + goals scored per match in current season for team of interest* number of matches played by team of interest)/(k + number of matches played by team of interest) - (goals scored per match in previous season by opponent * k + goals scored per match in current season by opponent * number of matches played by opponent)/(k + number of matches played by opponent)
+The formulas for DAS and DDS (difference in attack and defense scores) come from having created attack and defense scores for both teams. The scores are calculated using an exponentially weighted moving average, favouring recent matches
 Similar for DDS with goals conceded. 
 The difference calculations come from doing team of interest - opponent. This reduces the numbers of columns and is easier to perform feature engineering/selection.
-
-Want to get rid of DRF, DYF, DFF, DCS, DSTF and DSF after feature selection since the model would not know how to predict matches without that info if it is trained on those predictors. Keep it in for analysis for now.
 
 For the new teams, goals scored and conceded should be calculated from the median of the other teams. This is from the assumption that the level that the new teams are at are about average compared to the teams last year. I decided on making k = 2 as I want the model to quickly forget about the team's attacking and defense strength from the previous year. This is done for 2 reasons:
 - The new teams do not have an accurate attack and defense score due to the unavailability of data.

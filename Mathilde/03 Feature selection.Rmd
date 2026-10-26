@@ -9,7 +9,30 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Let's look at the linear model output
+```{r}
+features <- training_data %>%
+  select(
+    Days,
+    DWF,
+    DLF,
+    DDF,
+    DAS,
+    DDS,
+    DRF,
+    DYF,
+    DFF,
+    DCS,
+    DSTF,
+    DSF
+  )
+
+correlation_matrix <- cor(
+  features,
+  use = "pairwise.complete.obs"
+)
+
+round(correlation_matrix, 2)
+```
 
 ```{r}
 library(dplyr)
@@ -19,25 +42,23 @@ model_data <- training_data %>%
   select(
     Goals,
     HomeAway,
-    PDSF,
-    PDSCF,
-    PDR,
-    PDW,
-    PDD,
-    PDL,
+    TeamRankCategory,
+    OpponentRankCategory,
     Round,
+    OpponentRound,
     Days,
     DWF,
     DLF,
     DDF,
-    DGSF,
-    DGCF,
     DAS,
-    DDS
+    DDS,
+    DRF,
+    DYF,
+    DFF,
+    DCS,
+    DSTF,
+    DSF
   )
-
-# Poisson doesn't know what to do with NA values, so clean the data
-model_data <- na.omit(model_data) 
 
 poisson_model <- glm(
   Goals ~ .,
@@ -71,25 +92,25 @@ poisson_data <- training_data %>%
   select(
     Goals,
     HomeAway,
-    PDSF,
-    DGCF,
+    TeamRankCategory,
+    OpponentRankCategory,
     DAS,
-    DDS
+    DDS,
+    DYF,
+    DCS,
+    DSF
   )
 
-# Poisson doesn't know what to do with NA values, so clean the data
-poisson_data <- na.omit(poisson_data) 
-
-poisson_model <- glm(
+reduced_poisson_model <- glm(
   Goals ~ .,
   data = poisson_data,
   family = poisson(link = "log")
 )
 
-summary(poisson_model)
+summary(reduced_poisson_model)
 
 poisson_data$predicted_goals <- predict(
-  poisson_model,
+  reduced_poisson_model,
   newdata = poisson_data,
   type = "response"
 )
@@ -106,34 +127,226 @@ mae
 rmse
 ```
 ```{r}
-features <- training_data %>%
+library(dplyr)
+
+train_data <- training_data %>%
+  filter(Year != "2024/25")
+
+validation_data <- training_data %>%
+  filter(Year == "2024/25")
+```
+
+```{r}
+model_data <- training_data %>%
   select(
-    PDSF, PDSCF, PDR, PDW, PDD, PDL,
-    Round, Days,
-    DWF, DLF, DDF, DGSF, DGCF,
-    DAS, DDS
+    Goals,
+    HomeAway,
+    TeamRankCategory,
+    OpponentRankCategory,
+    Round,
+    OpponentRound,
+    Days,
+    DWF,
+    DLF,
+    DDF,
+    DAS,
+    DDS,
+    DRF,
+    DYF,
+    DFF,
+    DCS,
+    DSF
   )
 
-correlation_matrix <- cor(
-  features,
-  use = "pairwise.complete.obs"
+poisson_model <- glm(
+  Goals ~ .,
+  data = model_data,
+  family = poisson(link = "log")
 )
 
-round(correlation_matrix, 2)
+validation_data <- validation_data %>%
+  mutate(
+    predicted_goals = predict(
+      poisson_model,
+      newdata = validation_data,
+      type = "response"
+    )
+  )
+
+mae <- mean(
+  abs(validation_data$Goals - validation_data$predicted_goals)
+)
+
+rmse <- sqrt(
+  mean((validation_data$Goals - validation_data$predicted_goals)^2)
+)
+
+mae
+rmse
+```
+
+```{r}
+library(xgboost)
+library(dplyr)
+
+predictors <- c(
+  "HomeAway",
+  "TeamRankCategory",
+  "OpponentRankCategory",
+  "Round",
+  "OpponentRound",
+  "Days",
+  "DWF",
+  "DLF",
+  "DDF",
+  "DAS",
+  "DDS",
+  "DRF",
+  "DYF",
+  "DFF",
+  "DCS",
+  "DSF"
+)
+```
+
+```{r}
+categorical_vars <- c(
+  "HomeAway",
+  "TeamRankCategory",
+  "OpponentRankCategory"
+)
+
+for (v in categorical_vars) {
+  train_data[[v]] <- factor(train_data[[v]])
+  validation_data[[v]] <- factor(
+    validation_data[[v]],
+    levels = levels(train_data[[v]])
+  )
+}
+
+x_train <- model.matrix(
+  reformulate(predictors, response = NULL),
+  data = train_data
+)[, -1, drop = FALSE]
+
+# Build validation matrix with the same columns
+x_valid <- model.matrix(
+  reformulate(predictors, response = NULL),
+  data = validation_data
+)[, -1, drop = FALSE]
+```
+
+```{r}
+set.seed(123)
+
+xgb_model <- xgboost(
+  data = x_train,
+  label = train_data$Goals,
+  objective = "count:poisson",
+  nrounds = 400,
+  max_depth = 6,
+  eta = 0.01,
+  subsample = 0.8,
+  colsample_bytree = 0.8,
+  verbose = 0
+)
+
+validation_data$predicted_xgb <- predict(
+  xgb_model,
+  newdata = x_valid
+)
+mae_xgb <- mean(
+  abs(validation_data$Goals - validation_data$predicted_xgb)
+)
+
+rmse_xgb <- sqrt(
+  mean(
+    (validation_data$Goals - validation_data$predicted_xgb)^2
+  )
+)
+
+mae_xgb
+rmse_xgb
 ```
 ```{r}
-library(ggplot2)
+tibble(
+  Model = c("Poisson regression", "XGBoost"),
+  MAE = c(
+    mean(abs(validation_data$Goals -
+               validation_data$predicted_goals)),
+    mae_xgb
+  ),
+  RMSE = c(
+    sqrt(mean((validation_data$Goals -
+                 validation_data$predicted_goals)^2)),
+    rmse_xgb
+  )
+)
+```
+```{r}
+calculate_metrics <- function(actual, predicted) {
+  data.frame(
+    MAE = mean(abs(actual - predicted)),
+    RMSE = sqrt(mean((actual - predicted)^2))
+  )
+}
+```
+```{r}
+library(lightgbm)
 
-ggplot(
-  training_data,
-  aes(x = HomeAway, y = Goals)
-) +
-  geom_boxplot() +
-  labs(
-    x = "Team's venue",
-    y = "Goals scored",
-    title = "Distribution of goals scored by venue"
-  ) +
-  theme_minimal()
+# Convert predictors to numeric matrices, encoding categorical variables
+x_train <- model.matrix(
+  ~ . - 1,
+  data = train_data[, predictors, drop = FALSE]
+)
+
+x_valid <- model.matrix(
+  ~ . - 1,
+  data = validation_data[, predictors, drop = FALSE]
+)
+
+# Ensure training and validation have the same columns
+x_valid <- x_valid[, colnames(x_train), drop = FALSE]
+
+# Create LightGBM datasets
+lgb_train <- lgb.Dataset(
+  data = x_train,
+  label = train_data$Goals
+)
+
+lgb_valid <- lgb.Dataset(
+  data = x_valid,
+  label = validation_data$Goals
+)
+
+# Fit the model
+set.seed(123)
+
+lightgbm_model <- lgb.train(
+  params = list(
+    objective = "regression",
+    metric = "rmse",
+    learning_rate = 0.01,
+    num_leaves = 15,
+    max_depth = 6,
+    verbosity = -1,
+    num_threads = 2
+  ),
+  data = lgb_train,
+  nrounds = 200
+)
+
+validation_data$lightgbm_predictions <- predict(
+  lightgbm_model,
+  x_valid
+)
+
+# Evaluate
+lightgbm_metrics <- calculate_metrics(
+  validation_data$Goals,
+  lightgbm_predictions
+)
+
+lightgbm_metrics
 ```
 
