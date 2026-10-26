@@ -9,6 +9,18 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r} 
+keep_cols <- names(X14_15)[1:23]
+
+match_data <- c("X14_15", "X15_16", "X16_17", "X17_18", "X18_19",
+                "X19_20", "X20_21", "X21_22", "X22_23", "X23_24", "X24_25")
+
+for (nm in match_data) {
+  assign(nm, get(nm)[, keep_cols])
+}
+X14_15 <- X14_15[-381,]
+```
+
 ```{r}
 library(dplyr)
 library(tidyr)
@@ -96,7 +108,16 @@ build_season_dataset <- function(current_data,
       desc(previous_season_goal_difference),
       desc(previous_season_goals_scored)
     ) %>%
-    mutate(previous_season_ranking = row_number())
+    mutate(
+      previous_season_ranking = row_number(),
+      RankCategory = case_when(
+        previous_season_ranking <= 3  ~ "Top3",
+        previous_season_ranking <= 7  ~ "4to7",
+        previous_season_ranking <= 12 ~ "8to12",
+        previous_season_ranking <= 17 ~ "13to17",
+        TRUE ~ NA_character_
+      )
+    )
 
   # Historical goal-rate medians, based only on the previous season
   median_scored <- median(
@@ -269,7 +290,8 @@ build_season_dataset <- function(current_data,
           previous_season_wins,
           previous_season_draws,
           previous_season_losses,
-          previous_season_ranking
+          previous_season_ranking,
+          RankCategory
         ),
       by = "Team"
     ) %>%
@@ -307,7 +329,9 @@ build_season_dataset <- function(current_data,
         matches_played == 0,
         previous_season_goals_conceded_per_match,
         defence_score
-      )
+      ),
+      
+      RankCategory = coalesce(RankCategory, "Promoted")
     )
 
   # --------------------------------------------------
@@ -319,20 +343,11 @@ build_season_dataset <- function(current_data,
       match_id, Team,
       matches_played,
       days_since_last_match,
-
-      previous_season_goals_scored_per_match,
-      previous_season_goals_conceded_per_match,
-      previous_season_ranking,
-      previous_season_wins,
-      previous_season_draws,
-      previous_season_losses,
+      RankCategory,
 
       win_frequency,
       loss_frequency,
       draw_frequency,
-      goals_scored_per_match,
-      goals_conceded_per_match,
-
       attack_score,
       defence_score,
 
@@ -359,25 +374,11 @@ build_season_dataset <- function(current_data,
       by = c("match_id", "Opponent")
     ) %>%
     mutate(
-      PDSF = previous_season_goals_scored_per_match -
-        opp_previous_season_goals_scored_per_match,
+      TeamRankCategory = RankCategory,
+      OpponentRankCategory = opp_RankCategory,
 
-      PDSCF = previous_season_goals_conceded_per_match -
-        opp_previous_season_goals_conceded_per_match,
-
-      PDR = previous_season_ranking -
-        opp_previous_season_ranking,
-
-      PDW = previous_season_wins -
-        opp_previous_season_wins,
-
-      PDD = previous_season_draws -
-        opp_previous_season_draws,
-
-      PDL = previous_season_losses -
-        opp_previous_season_losses,
-
-      Round = matches_played - opp_matches_played,
+      Round = matches_played,
+      OpponentRound = opp_matches_played,
 
       Days = days_since_last_match -
         opp_days_since_last_match,
@@ -385,12 +386,6 @@ build_season_dataset <- function(current_data,
       DWF = win_frequency - opp_win_frequency,
       DLF = loss_frequency - opp_loss_frequency,
       DDF = draw_frequency - opp_draw_frequency,
-
-      DGSF = goals_scored_per_match -
-        opp_goals_scored_per_match,
-
-      DGCF = goals_conceded_per_match -
-        opp_goals_conceded_per_match,
 
       DAS = attack_score - opp_attack_score,
       DDS = defence_score - opp_defence_score,
@@ -413,6 +408,12 @@ build_season_dataset <- function(current_data,
       DSF = shots_per_match -
         opp_shots_per_match
     ) %>%
+    mutate(
+      across(
+        c(Days, DRF, DYF, DFF, DCS, DSTF, DSF),
+        ~ replace_na(.x, 0)
+      )
+    ) %>%
     transmute(
       match_id,
       Year,
@@ -420,13 +421,22 @@ build_season_dataset <- function(current_data,
       Team,
       Opponent,
       HomeAway,
-
-      PDSF, PDSCF, PDR, PDW, PDD, PDL,
-      Round, Days,
-      DWF, DLF, DDF, DGSF, DGCF,
-      DAS, DDS,
-      DRF, DYF, DFF, DCS, DSTF, DSF,
-
+      TeamRankCategory,
+      OpponentRankCategory,
+      Round,
+      OpponentRound,
+      Days,
+      DWF,
+      DLF,
+      DDF,
+      DAS,
+      DDS,
+      DRF,
+      DYF,
+      DFF,
+      DCS,
+      DSTF,
+      DSF,
       Goals = goals_for
     ) %>%
     arrange(match_id, desc(HomeAway == "Home"))

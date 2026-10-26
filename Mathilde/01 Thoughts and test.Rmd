@@ -1,0 +1,89 @@
+---
+title: "Football predictions"
+author: "Mathilde Launay"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Initial ideas:
+- Football scores are counts. Use some sort of Poisson regression model
+- Two models: one predicting home team scores, the other away team score
+- One model combining the two above to make a final prediction.
+- Clustering teams based on historical performance?
+- Covariates:
+  - Team strength:
+    - Historical goals scored (how many goals have been scored by that team so far - issue is that we start with data from 2014)
+    - Recent performance (what ranking this team had in the previous year and how many goals they scored in total)
+    - Opponent strength (opponent historical goals and previous ranking and goals)
+    - Home advantage 
+    - Matches played and rest time (how many matches has this team played so far and when was the last match)
+  - Team variations:
+    - Squad turnover (which players are in this team)
+    - Experience 
+    - Previous season goals/League performance
+    - Some sort of metric for new players
+  - Individual player stats:
+    - Premier League history
+    - Age
+    - Position
+    
+- For new players who have not played before, use a technique for dealing with missing data to get a "strength score" for that player.
+- Assign each player a score based on FPL data, and see how that score changes over the years (is there a trend?) so then the model will predict that score for the next year. 
+- Compare scores of different positions in any match and get an overall team score (defense and attack?)
+- Make a model which predicts match outcomes based on these scores (Poisson?, Cubist?)
+
+
+**Update**
+Getting individual player data is too time consuming. Use individual match data instead.
+To build a model which looks at two rows per match, here is a potential structure for a dataset:
+- Match id
+- year
+- Date 
+- Team of interest
+- Opponent
+- Home or away (for the "Team of interest")
+- HomeRankCategory 
+- AwayRankCategory  
+      - Top3: 1-3
+      - 4to7: 4-7
+      - 8to12: 8-12
+      - 13to17: 13-17
+      - Promoted
+- Round = Amount of matches the team of interest has played before current match
+- OpponentRound = Amount of matches the opponent has played before current match
+- Days = Difference in number of days since last match played
+- DWF = Difference in win frequency
+- DLF = Difference in loss frequency
+- DDF = Difference in draw frequency 
+- DAS = Difference in attack scores
+- DDS = Difference in defense scores
+- DRF = Difference in red cards per match
+- DYF = Difference in yellow cards per match
+- DFF = Difference in fouls per match
+- DCS = Difference in corners per match
+- DSTF = Difference in Shots on Target per match 
+- DSF = Difference in Shots per match
+
+
+DAS and DDS should be calculated like 
+DAS = (goals scored per match in previous season for team of interest * k + goals scored per match in current season for team of interest* number of matches played by team of interest)/(k + number of matches played by team of interest) - (goals scored per match in previous season by opponent * k + goals scored per match in current season by opponent * number of matches played by opponent)/(k + number of matches played by opponent)
+Similar for DDS with goals conceded. 
+The difference calculations come from doing team of interest - opponent. This reduces the numbers of columns and is easier to perform feature engineering/selection.
+
+Want to get rid of DRF, DYF, DFF, DCS, DSTF and DSF after feature selection since the model would not know how to predict matches without that info if it is trained on those predictors. Keep it in for analysis for now.
+
+For the new teams, goals scored and conceded should be calculated from the median of the other teams. This is from the assumption that the level that the new teams are at are about average compared to the teams last year. I decided on making k = 2 as I want the model to quickly forget about the team's attacking and defense strength from the previous year. This is done for 2 reasons:
+- The new teams do not have an accurate attack and defense score due to the unavailability of data.
+- The players change within the teams, so the model quickly needs to be able to update these scores.
+
+Having the scores calculated from the previous season avoids the restriction that the other paper had with having to get rid of the first 5 games. 
+
+Also, averaging over the goals from the season so far means that we don't constrain ourselves with needing good predictions to get good predictions later on. As in if 5 consecutive predictions are wrong, they'll affect the next 5, affecting the next 5 and so on. Doing it this way may reduce uncertainty, although it may also reduce accuracy. 
+
+This strategy gives me two choices. Either it 
+- uses real results as they become available. This tests how well the model performs when the season is underway and results are known, or it
+- uses predicted goals to update team statistics when actual results are unavailable. This tests how well the model can forecast a season into the future without relying on future results.
