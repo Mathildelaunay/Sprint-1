@@ -105,33 +105,52 @@ To clean the data I will now just delete all the odds columns from all of the da
 
 ```{r}
 # columns to keep i.e. match information, results and match statistics
-columns_to_keep <- c("Date", "HomeTeam", "AwayTeam","FTHG", "HG", "FTAG", "AG", "FTR", "Res","HTHG", "HTAG", "HTR","Attendance","HS", "AS", "HST", "AST", "HHW", "AHW","HC", "AC", "HF", "AF", "HFKC", "AFKC","HO", "AO", "HY", "AY", "HR", "AR", "HBP", "ABP","HomeMatchPoints","AwayMatchPoints","HomePointsBeforeMatch","HomePointsAfterMatch","AwayPointsBeforeMatch","AwayPointsAfterMatch")
+columns_to_keep <- c("Date", "HomeTeam", "AwayTeam","FTHG", "HG", "FTAG", "AG", "FTR", "Res","HTHG", "HTAG", "HTR","Attendance","Referee", "HS", "AS", "HST", "AST", "HHW", "AHW","HC", "AC", "HF", "AF", "HFKC", "AFKC","HO", "AO", "HY", "AY", "HR", "AR", "HBP", "ABP")
 
 
 for (i in seq_along(vectordata)) {
   columns_removed <- setdiff(names(vectordata[[i]]), columns_to_keep) #odds columns
 
   vectordata[[i]] <- vectordata[[i]][, intersect(columns_to_keep, names(vectordata[[i]])),drop = FALSE]
-
-  cat(names(vectordata)[i], "- removed",length(columns_removed), "columns;",ncol(vectordata[[i]]), "columns remaining\n")
 }
+
 ```
 As we can see, the older (or incomplete for `data26_27`) the dataset is, the less features it contains. This will then be spoken about in the limitations section of our report. This means that we want the model to be weighted more strongly for the newer datasets.
 
 ## Test/Train split
 
+Firstly we define out test/train split.
 ```{r}
 library(dplyr)
+library(stats)
+library(base)
 
 train_names <- paste0("data",c("14_15", "15_16", "16_17", "17_18", "18_19","19_20", "20_21", "21_22", "22_23", "23_24", "24_25"))
 
 train_data <- bind_rows(vectordata[train_names])
 test_data  <- bind_rows(vectordata["data25_26"])
 ```
-Keep 2026/27 separate as the data we'll predict from
+
+We keep 2026/27 separate as the data we'll predict from
 
 ```{r}
 prediction_data <- bind_rows(vectordata["data26_27"])
+```
+
+Now we want to add extra columns to simplify our model calculations. First we consider the whole dataset as one and split it wrt seasons.
+
+```{r}
+# Join the datasets in chronological order so totals carry forward
+all_data <- rbind(train_data, test_data, prediction_data)
+# Identify each match's season (e.g. August 2025 belongs to 2025/26)
+all_data$Date <- as.Date(as.character(all_data$Date), format = "%d/%m/%Y") #treat `Date` as date format 
+match_year <- as.integer(format(all_data$Date, "%Y"))
+match_month <- as.integer(format(all_data$Date, "%m"))
+
+all_data$Season <- ifelse(match_month >= 7,match_year,match_year - 1) # adding a new column which represents the season
+
+seasons <- unique(all_data$Season) # length = 13 
+teams <- unique(c(all_data$HomeTeam, all_data$AwayTeam))#columns of all teams from 2014-2027 of length = 36
 ```
 
 We need to add the following columns for our model:
@@ -141,32 +160,46 @@ We need to add the following columns for our model:
 - Away Team total number of goals after match = ATGA
 
 ```{r}
+# Add the goal columns
+all_data$HTGB <- NA
+all_data$HTGA <- NA
+all_data$ATGB <- NA
+all_data$ATGA <- NA
 
-# Create the new columns
-train_data$HTGB <- NA
-train_data$HTGA <- NA
-train_data$ATGB <- NA
-train_data$ATGA <- NA
-
-teams_train <- unique(c(train_data$HomeTeam, train_data$AwayTeam)) # vector of premier league teams (2014/15-2024/25)
-
-for (team in teams_train) {
-  # Goals scored by this team in each row
-  goals_scored <- ifelse(train_data$HomeTeam == team, train_data$FTHG,train_data$FTAG) #if team is home team, return FTHG, otherwise return FTAG
-
-  goals_before <- c(0, head(cumsum(goals_scored), -1))  #team total goals before match
-  goals_after  <- cumsum(goals_scored) #team total goals after match
-
-  # Store the totals in the appropriate home or away columns
-  home_rows <- train_data$HomeTeam == team 
-  away_rows <- train_data$AwayTeam == team
-
-  train_data$HTGB[home_rows] <- goals_before[home_rows]
-  train_data$HTGA[home_rows] <- goals_after[home_rows]
-  train_data$ATGB[away_rows] <- goals_before[away_rows]
-  train_data$ATGA[away_rows] <- goals_after[away_rows]
+for(season in seasons){
+  for (team in teams) {
+  
+    #find every match involving this team in this season
+    rows <- which(all_data$Season == season & (all_data$HomeTeam == team | all_data$AwayTeam == team))
+  
+    # Goals scored by this team in each match
+    goals_scored <- ifelse(all_data$HomeTeam[rows] == team, all_data$FTHG[rows], all_data$FTAG[rows]) #for this team, the goals scored are FTHG when playing home or FTAG  when playing away
+  
+    # Running total before and after each match
+    goals_before <- c(0, head(cumsum(goals_scored), -1)) #summing up all of the goals up to previous match
+    goals_after  <- cumsum(goals_scored) #summing up all of the goals up to current match
+  
+    # Store the totals in the home or away columns
+    home_rows <- rows[all_data$HomeTeam[rows] == team] #store in HTGB or HTGA if team is home team
+    away_rows <- rows[all_data$AwayTeam[rows] == team] #store in ATGB or ATGA if team is away team
+  
+    all_data$HTGB[home_rows] <- goals_before[all_data$HomeTeam[rows] == team] 
+    all_data$HTGA[home_rows] <- goals_after[all_data$HomeTeam[rows] == team]
+    all_data$ATGB[away_rows] <- goals_before[all_data$AwayTeam[rows] == team]
+    all_data$ATGA[away_rows] <- goals_after[all_data$AwayTeam[rows] == team]
+  }
 }
+# Split the datasets back apart
+train_data <- all_data[1:nrow(train_data), ]
+
+test_start <- nrow(train_data) + 1
+test_end <- nrow(train_data) + nrow(test_data)
+test_data <- all_data[test_start:test_end, ]
+
+prediction_start <- test_end + 1
+prediction_data <- all_data[prediction_start:nrow(all_data), ]
 ```
+
 Now we also want to add the following columns to our model:
 - Home Team total points before match = HTPB
 - Home team total points after match = HTPA
@@ -175,37 +208,55 @@ Now we also want to add the following columns to our model:
 
 ```{r}
 # Create the new columns
-train_data$HTPB <- NA  
-train_data$HTPA <- NA  
-train_data$ATPB <- NA  
-train_data$ATPA <- NA 
+all_data$HTPB <- NA
+all_data$HTPA <- NA
+all_data$ATPB <- NA
+all_data$ATPA <- NA
 
-for (team in teams_train) {
-  # Find every match involving this team
-  rows <- which(train_data$HomeTeam == team | train_data$AwayTeam == team)
-
-  # Points this team earned in each match
-  points <- ifelse(train_data$HomeTeam[rows] == team, #if we are looking at home team
-    ifelse(train_data$FTR[rows] == "H", 3,ifelse(train_data$FTR[rows] == "D", 1, 0)), #if FTR = H then 3, o/w if FTR=D then 1, o/w 0
-    ifelse(train_data$FTR[rows] == "A",#if we're looking at away team and FTR = A 
-           3, #then 3
-           ifelse(train_data$FTR[rows] == "D", 1, 0)) #o/w if FTR = D then 1, o/w 0
-  )
-
-  # Running total before and after each match
-  points_before <- c(0, head(cumsum(points), -1))
-  points_after <- cumsum(points)
-
-  # Store totals in the home or away columns
-  home_rows <- rows[train_data$HomeTeam[rows] == team]
-  away_rows <- rows[train_data$AwayTeam[rows] == team]
-
-  train_data$HTPB[home_rows] <- points_before[train_data$HomeTeam[rows] == team]
-  train_data$HTPA[home_rows] <- points_after[train_data$HomeTeam[rows] == team]
-  train_data$ATPB[away_rows] <- points_before[train_data$AwayTeam[rows] == team]
-  train_data$ATPA[away_rows] <- points_after[train_data$AwayTeam[rows] == team]
+for(season in seasons){
+  for (team in teams) {
+  
+    #find every match involving this team in this season
+    rows <- which(all_data$Season == season & (all_data$HomeTeam == team | all_data$AwayTeam == team))
+  
+    # Points this team earned in each match
+    points <- ifelse(all_data$HomeTeam[rows] == team, ifelse(all_data$FTR[rows] == "H", #if team is home and FTR = H then 3,
+                                                             3,
+                                                             ifelse(all_data$FTR[rows] == "D", # if FTR = D then 1 o/w 0
+                                                                    1,
+                                                                    0)),
+                                                      ifelse(all_data$FTR[rows] == "A", #if team is not home and FTR = A then 3,
+                                                             3,
+                                                             ifelse(all_data$FTR[rows] == "D", # if FTR = D then 1 o/w 0
+                                                                    1,
+                                                                    0))
+                     )
+  
+    # Running total before and after each match
+    points_before <- c(0, head(cumsum(points), -1))
+    points_after  <- cumsum(points)
+  
+    # Store the totals in the home or away columns
+    home_rows <- rows[all_data$HomeTeam[rows] == team]
+    away_rows <- rows[all_data$AwayTeam[rows] == team]
+  
+    all_data$HTPB[home_rows] <- points_before[all_data$HomeTeam[rows] == team]
+    all_data$HTPA[home_rows] <- points_after[all_data$HomeTeam[rows] == team]
+    all_data$ATPB[away_rows] <- points_before[all_data$AwayTeam[rows] == team]
+    all_data$ATPA[away_rows] <- points_after[all_data$AwayTeam[rows] == team]
+  }
 }
+
+# Split the datasets back apart again, including the new points columns
+train_data <- all_data[1:nrow(train_data), ]
+
+test_start <- nrow(train_data) + 1
+test_end <- nrow(train_data) + nrow(test_data)
+test_data <- all_data[test_start:test_end, ]
+
+prediction_start <- test_end + 1
+prediction_data <- all_data[prediction_start:nrow(all_data), ]
 
 ```
 
-Okay, now that we have all of the correct teams together we will pass to the next file which is the model building section of my work. Here we will star doing a classification model as I think that to start with, it'll be a good visualization.
+Okay, now that we have all of the correct teams together we will pass to the next file which is the model building section of my work. 
