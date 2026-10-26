@@ -7,163 +7,218 @@ date: "2026-10-22"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-Choose a cutoff: use all 2026/27 matches completed by a stated date. For each team, record how many matches it has played; postponed fixtures can mean those counts differ.
 
-Recreate that same point in past seasons: for example, take each historical season after each team has played a similar number of matches. Use statistics available by that point as predictors and final season points as the target.
-
-Backtest before forecasting: train on earlier seasons, validate your choices on a later season, and evaluate on a held-out season at the same early-season stage. This tests whether your approach could have made a useful forecast before you apply it to 2026/27.
-
-Fit your simple GAM: predict final points from a small number of early-season summaries, then sort predicted points to produce the table. Compare it with a simple baseline, such as projecting current points per game over a full season.
-
-Show how forecasts change: if time permits, repeat the historical backtest at more than one cutoff. That lets you show whether predictions improve as more matches are played.
-
-
+```{r}
+library(dplyr)
+library(ggplot2)
+```
 
 ## Idea
 
-To start with, I have the broad idea of firstly, recording and predicting the total goals at the end of the season of each team (time dependent). 
-Through this I want the model to follow certain conditions(can add this at the end): (this can be an if else statement)
-- the team with most points at the end ends up top and record the rest of the list  depending on the number of points of the team at time t=end
-- we also want the team to record the total number of goals of each team at the end of the season to calculate its goal difference(this is the total goals scored across the season minus the total goals conceded). We want the top team to have the lasrgest number of goal difference (max(gd)).
--if two teams finish with same number of points and goal difference, then the model should simulate a match between the two top teams and the winner comes up as top. (if there are more than two teams in this position they they should all play eachother until we get another ranking of who's the winnner until convergence)
+The aim of this model is to predict the Premier League ranking of teams at the end of the season. To do this I will predict the goals scored in each match of the given fixture, convert this into predicted points, add these points up, to then get a final ranking that orders the team with respect to:
 
-## Time dependent observations
-
-Given a set of data, we want to determine the ranking at the end of the season with data that starts at the beginning of the season. 
-Train/Validation split will be each year at random???
-  
+1. Total number of points at the end of the season
+2. Goal difference at the end of the season.
 
 
+## Model building
 
-Instead of directly wanting to predict the rank by giving two conditions (i.e. points and the GD) I can put these two together byt coding something along the lines of:
-- Record the total number of goals of each team
-eg.
+Firstly, I want to visualize the possible variables that might be used to model our prediction.
+```{r}
+goal_data <- data.frame(Goals = c(train_data$FTHG, train_data$FTAG))
 
-match: arsenal v everton ->  if Arsenal goals > Everton goals => Everton loses (pt=0) and Arsenal (pt=3)
-                         ->  elif Arsenal goals = Everton goals => draw so Everton(pt=1) and Arsenal (pt=1)
-                         ->  else Arsenal goals < Everton goals => Everton wins (pt=3) and Arsenal (pt=3)
-To use the total number goals of goals:
+ggplot(goal_data, aes(x = Goals)) + geom_bar() + scale_x_continuous(breaks = 0:max(goal_data$Goals, na.rm = TRUE)) +labs(title = "Goals scored per match",x = "Goals",y = "Number of team performances") + theme_minimal()
+```
+This shows how often each score occurred. It’s a useful first look, but the overall goal distribution alone can’t tell you whether a Poisson model fits well once predictors are included. (HERE ADD THAT WE USE POISSON BECAUSE IS THE DISTRIBTION OF COUNTS!!!!!!)
 
-match: arsenal v everton ->  if (Total number of goals before match - total number of goals after match)Arsenal > (Total number of goals before match - total number of goals after match)Everton => Everton loses (pt=0) and Arsenal (pt=3)
-                         ->  elif (Total number of goals before match - total number of goals after match)Arsenal = (Total number of goals before match - total number of goals after match)Everton => draw so Everton(pt=1) and Arsenal (pt=1)
-                         ->  else (Total number of goals before match - total number of goals after match)Arsenal  < (Total number of goals before match - total number of goals after match)Everton  => Everton wins (pt=3) and Arsenal (pt=3)
+## Model selection using stepwise method selection and AIC
 
-Ranking will consiste of teams with highest number of points 
+The model predicts the number of goals scored by the home team and the number scored by the away team. It uses statistics from previous matches as inputs. The current match’s final result and statistics are not used as inputs, because that information would not be available before the match.
 
-##Rank Regression
+Now we look at a stepwise method selection to choose the model with lowest AIC.
 
-As with least squares, the goal of rank-based regression is to estimate the vector of coefficients, $\mathbf{\beta}$, of a general linear model of the form:
-$$y_i = \alpha+\mathbf{x}^T_i \beta +e_i \ \text{for i=1,...n (1)} $$
-where $y_i$ is the response variable, $\mathbf{x}_i$ is the vector of explanatory variables, $\alpha$ is the intercept parameter, and $e_i$ is the error term.
+```{r}
+set.seed(1)
+predictor_columns <- c("HomeFTGoalsBefore", "AwayFTGoalsBefore", "HTPB", "ATPB", "HomeShotsBefore", "AwayShotsBefore", "HomeShotsOnTargetBefore", "AwayShotsOnTargetBefore", "HomeCornersBefore", "AwayCornersBefore", "HomeFoulsBefore", "AwayFoulsBefore", "HomeYellowCardsBefore", "AwayYellowCardsBefore", "HomeRedCardsBefore", "AwayRedCardsBefore")
+
+#variables we want to apply to our model
+home_train <- train_data[, c("FTHG", predictor_columns)]
+away_train <- train_data[, c("FTAG", predictor_columns)]
+
+#full model formulas
+home_full_formula <- reformulate(predictor_columns, response = "FTHG")
+away_full_formula <- reformulate(predictor_columns, response = "FTAG")
+
+#null models
+home_null <- glm(FTHG ~ 1, data = home_train, family = poisson)
+away_null <- glm(FTAG ~ 1, data = away_train, family = poisson)
+
+#forward backward selection using AIC
+home_step <- step(home_null, scope = list(lower = ~1, upper = home_full_formula), direction = "both")
+away_step <- step(away_null, scope = list(lower = ~1, upper = away_full_formula), direction = "both")
+
+#full models
+home_full <- glm(home_full_formula, data = home_train, family = poisson)
+away_full <- glm(away_full_formula, data = away_train, family = poisson)
+
+# comparison
+AIC(home_null, home_step, home_full)
+AIC(away_null, away_step, away_full)
+
+```
+
+For each response, the lowest AIC is the best of the models compared by that criterion. The forward-backward models selected by AIC are:
+
+```{r}
+formula(home_step)
+formula(away_step)
+```
+
+## Checking the selected models
+
+```{r}
+home_selected_model <- home_step
+away_selected_model <- away_step
+```
+
+Now, since we're applying a glm, we want to look at the residual plots for glms.
+
+```{r}
+par(mfrow = c(2, 2))
+plot(home_selected_model)
+
+par(mfrow = c(2, 2))
+plot(away_selected_model)
+
+par(mfrow = c(1, 1))
+```
+
+Poisson goals are discrete counts, so their residuals aren’t expected to look like normally distributed residuals. To check whether using this model makes sense we can check the Pearson residuals, which help us check for overdispersion:
+
+```{r}
+c(Home = sum(residuals(home_selected_model, type = "pearson")^2) /df.residual(home_selected_model),
+  Away = sum(residuals(away_selected_model, type = "pearson")^2) /df.residual(away_selected_model))
+```
+
+Since the Pearson dispersion ratios are close to 1, there is no strong sign of overdispersion as a ratio near 1 is expected for a well-fitting Poisson model.
 
 ## Predicting c(Goals scored, goals conceded, points) for each team
 
-First we look at the 2014/15 - 2024/25 training set. Here we have the following teams overall:
+### Checking teams
+
 ```{r}
 train_teams<-unique(c(train_data$HomeTeam, train_data$AwayTeam))
 length(train_teams)
+length(intersect(train_teams, unique(c(test_data$HomeTeam, test_data$AwayTeam))))
 ```
-```{r}
-intersect(train_teams, unique(c(test_data$HomeTeam, test_data$AwayTeam)))
-```
+
 This tells us that from the train data set we have all the teams data from our test set which is great as this gives us more information for all of our observations.
+
 ```{r}
-intersect(train_teams, unique(c(prediction_data$HomeTeam, prediction_data$AwayTeam)))
+length(intersect(train_teams, unique(c(prediction_data$HomeTeam, prediction_data$AwayTeam))))
+setdiff(unique(c(prediction_data$HomeTeam, prediction_data$AwayTeam)),train_teams)
 ```
-On the other hand, for our prediction dataset we do not have information for all the teams. We will expland on this when we get to the point in which we want to make the prediction.
+On the other hand, for our prediction dataset we do not have information for all the teams. This means that we won't have that much information for `Coventry` as the only information that we have is the first three months of the 2026/27 premier league season. This will then be expanded in our Limitations section.
 
-```{r}
-# Convert the match date and identify each season by its starting year
+### Model Fitting
+Now we fit our selected models.
 
-train_data$Date <- as.Date(as.character(train_data$Date), format = "%d/%m/%Y")
+```{r} 
+outcome_columns <- c("FTHG", "FTAG", "HG", "AG", "Date", "Season") #response variable (Full time away/home goals)
 
-train_data$SeasonStart <- as.integer(format(train_data$Date, "%Y")) 
-
-before_july <- as.integer(format(train_data$Date, "%m")) < 7
-
-train_data$SeasonStart[before_july] <- train_data$SeasonStart[before_july] - 1
-
-
-
-outcome_columns <- c("FTHG", "FTAG", "HG", "AG", "Date", "SeasonStart") #response variable
-
-predictor_columns <- setdiff(names(train_data), outcome_columns)
-predictor_columns <- setdiff(predictor_columns,c("HomeTeam", "AwayTeam", "FTR", "HS", "HTPA")) #variables CAN SIMPLIFY THIS
-
-
-# Turn text columns into factors, keeping consistent levels across seasons
 text_columns <- names(train_data)[sapply(train_data, is.character)] #names the text columns in the dataset
 train_data[text_columns] <- lapply(train_data[text_columns], factor) #applies factor() to the text columns
+test_data[text_columns] <- lapply(test_data[text_columns], factor) #applies factor() to the text columns
 
-
-
-# Store predicted tables here, one for each test season
-season_tables <- list()
-
-# Test each season using only seasons before it for training IS THE YEAR RANGE CORRECT??????
-for (year in 2015:2024) {
-
-  training_seasons <- train_data[train_data$SeasonStart < year, ] #trains the model with data from previous year
-  test_season <- train_data[train_data$SeasonStart == year, ] #tests the model with data of selected year
-  
-  if (nrow(training_seasons) == 0 || nrow(test_season) == 0) {
-    next
-  }
-
-#I CAN REWRITE THE FOLLOWING IN SIMPLER WORDS:
-  home_formula <- reformulate(predictor_columns, response = "FTHG") # creates a formula such as FTHG~., variables = predictor_columns
-  away_formula <- reformulate(predictor_columns, response = "FTAG") # creates a formula such as FTHG~., variables = predictor_columns
-
-  home_model <- glm(home_formula, data = training_seasons, family = poisson)
-  away_model <- glm(away_formula, data = training_seasons, family = poisson)
-
-  # Predict the held-out season's match goals : WRITE THIS IN MATHEMATICS
-  test_season$PredHomeGoals <- round(predict(home_model, newdata = test_season, type = "response")) # predicting Y_homegoals
-
-  test_season$PredAwayGoals <- round(predict(away_model, newdata = test_season, type = "response")) # predicting Y_awaygoals
-
-  # Turn the predicted scores into points and goals for each team
-  
-  home_table <- data.frame(Team = test_season$HomeTeam,Points = ifelse(test_season$PredHomeGoals > test_season$PredAwayGoals,
-                                                                       3,
-                                                                       ifelse(test_season$PredHomeGoals == test_season$PredAwayGoals,
-                                                                              1,
-                                                                              0)),
-                            GF = test_season$PredHomeGoals, GA = test_season$PredAwayGoals) #GF = goals home, GA= goals away
-
-  away_table <- data.frame(Team = test_season$AwayTeam,Points = ifelse(test_season$PredAwayGoals > test_season$PredHomeGoals,
-                                                                       3,
-                                                                       ifelse(test_season$PredAwayGoals == test_season$PredHomeGoals,
-                                                                              1,
-                                                                              0)),
-                            GF = test_season$PredAwayGoals, GA = test_season$PredHomeGoals)
-  
-
-  all_team_matches <- rbind(home_table, away_table)
-  table <- aggregate(cbind(Points, GF, GA) ~ Team, data = all_team_matches, sum) # splits the data into subsets, computes summary statistics for each, and returns the result in a convenient form?? LOOK THIS FUNCTION UP
-
-  table$GD <- table$GF - table$GA  #calculating goal difference
-  table <- table[order(-table$Points, -table$GD, -table$GF), ] #adding the points, gd and gf in increasing order onto the table
-  table$Position <- seq_len(nrow(table)) # labels the position as increasing order from data in the table
-  table <- table[c("Position", "Team", "Points", "GF", "GA", "GD")]
-
-  season_tables[[as.character(year)]] <- table
-}
-
-
-
-# View the predicted table for the 2024/25 test season
-season_tables[["2024"]]
+#predict goals for each match in the test season
+test_data$PredHomeGoals <- predict(home_selected_model, newdata = test_data, type = "response") #using home model
+test_data$PredAwayGoals <- predict(away_selected_model, newdata = test_data, type = "response") #using away model
 ```
 
-## Adding a ranking condition to the model
-Tell the model to rank the teams by:
--highest to lowest number of points
--if two or more teams have the same number of points rank these few teams by highest to lowest goal difference.
+This function turns a set of match scores into a league table:
 
+```{r}
+make_table <- function(matches, home_goals, away_goals) {
+  home_table <- data.frame(Team = matches$HomeTeam,
+    Points = ifelse(home_goals > away_goals,
+                    3,
+                    ifelse(home_goals == away_goals,
+                           1,
+                           0)),GF = home_goals,GA = away_goals)
 
+  away_table <- data.frame(Team = matches$AwayTeam,
+    Points = ifelse(away_goals > home_goals,
+                    3,
+                    ifelse(away_goals == home_goals,
+                           1,
+                           0)), GF = away_goals,GA = home_goals)
 
+  all_team_matches <- rbind(home_table, away_table)
 
+  table <- aggregate(cbind(Points, GF, GA) ~ Team, data = all_team_matches, sum) #creates the table with all summed up values
+
+  table$GD <- table$GF - table$GA #create new column with each elements following this formula
+  table <- table[order(-table$Points, -table$GD), ] #ordering the teams wrt conditions given (i.e. points and gd)
+  table$Position <- seq_len(nrow(table)) #adding a column that tells us the index
+
+  table <- table[c("Position", "Team", "Points", "GF", "GA", "GD")]
+  rownames(table) <- NULL
+
+  table
+}
+```
+
+Use it to make both the predicted and actual tables for the test season, then compare positions:
+
+```{r}
+predicted_table <- make_table(test_data, test_data$PredHomeGoals, test_data$PredAwayGoals)
+
+actual_table <- make_table(test_data, test_data$FTHG, test_data$FTAG)
+
+table_comparison <- merge(predicted_table, actual_table, by = "Team", suffixes = c("_Predicted", "_Actual"))
+
+table_comparison$PositionDifference <- table_comparison$Position_Predicted - table_comparison$Position_Actual
+
+table_comparison <- table_comparison[order(table_comparison$Position_Actual),]
+
+table_comparison
+```
+
+## 2026/27 season prediction
+
+Once I have evaluated the model, I will fit it using the training and test data together. I will use the actual results for 2026/27 matches that have already been played and predict the remaining fixtures.
+
+This code assumes that unplayed fixtures have `NA` for `FTHG` and `FTAG`, and that their before-match statistics have already been created using results from previous matches only.
+
+```{r}
+set.seed(1)
+
+final_train_data <- bind_rows(train_data, test_data)
+
+home_final_model <- glm(formula(home_selected_model),data = final_training_data,family = poisson)
+away_final_model <- glm(formula(away_selected_model),data = final_training_data,family = poisson)
+
+# Identify fixtures without actual results
+unplayed <- is.na(prediction_data$FTHG) |is.na(prediction_data$FTAG) #rows without stats
+
+# Predict goals for unplayed fixtures
+prediction_data$PredHomeGoals <- NA
+prediction_data$PredAwayGoals <- NA
+
+prediction_data$PredHomeGoals[unplayed] <- round(predict(home_final_model,newdata = prediction_data[unplayed, ],type = "response"))
+
+prediction_data$PredAwayGoals[unplayed] <- round(predict(away_final_model,newdata = prediction_data[unplayed, ],type = "response"))
+
+# Use actual results for played fixtures and predictions for unplayed fixtures
+final_home_goals <- ifelse(unplayed,prediction_data$PredHomeGoals,prediction_data$FTHG)
+
+final_away_goals <- ifelse(unplayed,prediction_data$PredAwayGoals,prediction_data$FTAG)
+
+# Build the projected final league table
+predicted_2026_27_table <- make_table(prediction_data,final_home_goals,final_away_goals)
+
+predicted_2026_27_table
+```
 
 
 

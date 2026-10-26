@@ -190,16 +190,6 @@ for (stat in names(stats)) {
 all_data$.match_id <- NULL
 
 
-# Split the datasets back apart again, including the new points columns
-train_data <- all_data[1:nrow(train_data), ]
-
-test_start <- nrow(train_data) + 1
-test_end <- nrow(train_data) + nrow(test_data)
-test_data <- all_data[test_start:test_end, ]
-
-prediction_start <- test_end + 1
-prediction_data <- all_data[prediction_start:nrow(all_data), ]
-
 ```
 
 Now we also want to add the following columns to our model:
@@ -250,6 +240,42 @@ for(season in seasons){
   }
 }
 
+
+# Split the datasets back apart, including the new points columns
+train_data <- all_data[1:nrow(train_data), ]
+
+test_start <- nrow(train_data) + 1
+test_end <- nrow(train_data) + nrow(test_data)
+test_data <- all_data[test_start:test_end, ]
+
+prediction_start <- test_end + 1
+prediction_data <- all_data[prediction_start:nrow(all_data), ]
 ```
 
 Okay, now that we have all of the correct teams together we will pass to the next file which is the model building section of my work. 
+
+## Data for 2026/27 prediction
+
+For our 2026/27 prediction we need the fixtures of this season.
+```{r}
+fixtures26_27 <-read.csv("./Premier League match events data/26_27 fixtures.csv")
+
+fixtures26_27$Date <- as.Date(fixtures26_27$Date, format = "%d/%m/%Y")
+fixtures26_27 <- fixtures26_27[fixtures26_27$Date > as.Date("2026-10-19"),] #delete the known rows
+
+prediction_data <- bind_rows(prediction_data, fixtures26_27) 
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
