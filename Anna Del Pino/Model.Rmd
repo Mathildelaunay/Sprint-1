@@ -191,7 +191,7 @@ I will use the actual results for 2026/27 matches that have already been played 
 
 ```{r}
 
-final_train_data <- bind_rows(train_data, test_data)
+final_train_data <- bind_rows(train_data, test_data, prediction_data)
 
 home_final_model <- glm(formula(home_selected_model),data = final_train_data,family = poisson)
 away_final_model <- glm(formula(away_selected_model),data = final_train_data,family = poisson)

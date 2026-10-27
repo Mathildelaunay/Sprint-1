@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Import data
 
 ```{r}
-setwd("/Users/oy23975/OneDrive - University of Bristol/Documents/GitHub/Sprint-1/Anna Del Pino")
+setwd("/Users/lenovo/OneDrive - University of Bristol/2026_2027/DST/Sprint-1/Anna Del Pino")
 
 data26_27 <-read.csv("./Premier League match events data/26_27.csv")
 data25_26 <-read.csv("./Premier League match events data/25_26.csv")
@@ -28,22 +28,14 @@ data15_16 <-read.csv("./Premier League match events data/15_16.csv")
 data14_15 <-read.csv("./Premier League match events data/14_15.csv")
 ```
 
-We can see that this data contains 120 features. To predict the ranking of the next premier league's season I will not use all of this data. However, we fist start by combining all of the different datasets into one large one. Since all of the observations are recorded in cronological order it is easy to understand why we will just merge the observations following a cronological order.
+We can see that this data contains 120 features. To predict the ranking of the next premier league's season I will not use all of these features. We fist start by combining all of the different datasets into one large one. Since all of the observations are recorded in cronological order it is easy to understand why we will just merge the observations following a cronological order.
 
 We won't use all of the features of this data so now we want to clean the data.
 
 To do:
-Idea1)
 1.check which dataset has the maximum number of columns
 2.merge the datasets wrt the number of columns in this maxcoldataset (i.e. it'll appear NA for all the observations without that feature recorded)
-Idea2)
-1.check which dataset has the minimum number of columns
-2. check what coulmns this mincoldataset contains
-3. if {the columns make sense then merge wrt the columns of this micoldataset
-      {the columns don't make sense to apply to the model then use idea 2 and do missingness (5.3 workshop)
 
-
-Idea1)
 
 ```{r}
 
@@ -140,9 +132,8 @@ prediction_data <- bind_rows(vectordata["data26_27"])
 Now we want to add extra columns to simplify our model calculations. First we consider the whole dataset as one and split it wrt seasons.
 
 ```{r}
-# Join the datasets in chronological order so totals carry forward
 all_data <- rbind(train_data, test_data, prediction_data)
-# Identify each match's season (e.g. August 2025 belongs to 2025/26)
+#split observations by season
 all_data$Date <- as.Date(as.character(all_data$Date), format = "%d/%m/%Y") #treat `Date` as date format 
 match_year <- as.integer(format(all_data$Date, "%Y"))
 match_month <- as.integer(format(all_data$Date, "%m"))
@@ -156,7 +147,7 @@ teams <- unique(c(all_data$HomeTeam, all_data$AwayTeam))#columns of all teams fr
 Since we want our model to use the previous match results to predict the next match result, we need to add a counting column which adds up the previous statistics up to until the previous match so that we can use this statistic for our prediction.
 
 ```{r}
-# Match statistics from earlier matches
+#create a list of match statistics from earlier matches to keep track
 stats <- list(FTGoals= c("FTHG", "FTHG"), HTGoals = c("HTHG", "HTAG"), Shots = c("HS", "AS"), ShotsOnTarget = c("HST", "AST"), Corners = c("HC", "AC"), Fouls = c("HF", "AF"), YellowCards = c("HY", "AY"), RedCards = c("HR", "AR"))
 
 all_data$.match_id <- seq_len(nrow(all_data)) #starts empty columns
@@ -165,7 +156,7 @@ for (stat in names(stats)) {
   home_stat <- stats[[stat]][1]
   away_stat <- stats[[stat]][2]
 #creates new counting columns for each stat
-  all_data[[paste0("Home", stat, "Before")]] <- 0 #can try paste()
+  all_data[[paste0("Home", stat, "Before")]] <- 0
   all_data[[paste0("Away", stat, "Before")]] <- 0  
 
   for (season in unique(all_data$Season)) {
@@ -175,7 +166,7 @@ for (stat in names(stats)) {
       team_stats <- ifelse(all_data$HomeTeam[rows] == team, all_data[[home_stat]][rows], all_data[[away_stat]][rows]) # if team is home, then we look at home_stat, o/w we look at away_stat
       
       stat_before <- c(0, head(cumsum(team_stats), -1)) #summing up all of the stats up to previous match
-
+      
         home_rows <- rows[all_data$HomeTeam[rows] == team]
         away_rows <- rows[all_data$AwayTeam[rows] == team]
 
