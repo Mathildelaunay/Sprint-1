@@ -1,0 +1,149 @@
+---
+title: "model fitting"
+author: "Mathilde Launay"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+source("feature_engineering_functions.R")
+X24_25 <- read.csv("Premier League match events data/24_25.csv")
+X25_26 <- read.csv("Premier League match events data/25_26.csv")
+training_data <- readRDS("training_data.rds")
+
+X25_26_training <- build_season_dataset(
+  current_data = X25_26,
+  previous_data = X24_25,
+  season_label = "2025/26",
+  k = 2
+)
+```
+```{r}
+poisson_formula <- Goals ~ DAS + HomeAway + DSF +
+  TeamRankCategory + DDS + OpponentRankCategory +
+  DCS + DYF + DSTF
+```
+```{r}
+# Train on all seasons before 2025/26
+poisson_model_final <- glm(
+  poisson_formula,
+  data = training_data %>%
+    filter(Year != "2025/26"),
+  family = poisson(link = "log")
+)
+
+# Predict goals for each team in 2025/26
+X25_26_training <- X25_26_training %>%
+  mutate(
+    predicted_goals = predict(
+      poisson_model_final,
+      newdata = X25_26_training,
+      type = "response"
+    )
+  )
+```
+
+```{r}
+match_predictions_25_26 <- X25_26_training %>%
+  select(
+    Year, match_id, HomeAway, Team, Goals, predicted_goals
+  ) %>%
+  pivot_wider(
+    names_from = HomeAway,
+    values_from = c(Team, Goals, predicted_goals)
+  ) %>%
+  mutate(
+    goal_difference =
+      predicted_goals_Home - predicted_goals_Away,
+
+    predicted_result = case_when(
+      abs(goal_difference) <= 0.225 ~ "D",
+      goal_difference > 0.225 ~ "H",
+      TRUE ~ "A"
+    ),
+
+    actual_result = case_when(
+      Goals_Home > Goals_Away ~ "H",
+      Goals_Home < Goals_Away ~ "A",
+      TRUE ~ "D"
+    ),
+
+    predicted_home_points = case_when(
+      predicted_result == "H" ~ 3,
+      predicted_result == "D" ~ 1,
+      TRUE ~ 0
+    ),
+
+    predicted_away_points = case_when(
+      predicted_result == "A" ~ 3,
+      predicted_result == "D" ~ 1,
+      TRUE ~ 0
+    ),
+
+    actual_home_points = case_when(
+      actual_result == "H" ~ 3,
+      actual_result == "D" ~ 1,
+      TRUE ~ 0
+    ),
+
+    actual_away_points = case_when(
+      actual_result == "A" ~ 3,
+      actual_result == "D" ~ 1,
+      TRUE ~ 0
+    )
+  )
+```
+
+```{r}
+points_by_team_match <- bind_rows(
+  match_predictions_25_26 %>%
+    transmute(
+      Year, match_id,
+      Team = Team_Home,
+      HomeAway = "Home",
+      points_gained = actual_home_points,
+      predicted_points = predicted_home_points
+    ),
+
+  match_predictions_25_26 %>%
+    transmute(
+      Year, match_id,
+      Team = Team_Away,
+      HomeAway = "Away",
+      points_gained = actual_away_points,
+      predicted_points = predicted_away_points
+    )
+)
+
+X25_26_training <- X25_26_training %>%
+  left_join(
+    points_by_team_match,
+    by = c("Year", "match_id", "Team", "HomeAway")
+  )
+```
+
+```{r}
+league_table_25_26 <- X25_26_training %>%
+  group_by(Team) %>%
+  summarise(
+    PredictedPoints = sum(predicted_points, na.rm = TRUE),
+    ActualPoints = sum(points_gained, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(PredictedPoints)) %>%
+  mutate(
+    PredictedRank = row_number()
+  ) %>%
+  arrange(desc(ActualPoints)) %>%
+  mutate(
+    ActualRank = row_number()
+  )
+
+league_table_25_26
+```
+
+

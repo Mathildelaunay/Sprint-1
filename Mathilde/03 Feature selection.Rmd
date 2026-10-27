@@ -10,184 +10,10 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-features <- training_data %>%
-  select(
-    Days,
-    DWF,
-    DLF,
-    DDF,
-    DAS,
-    DDS,
-    DRF,
-    DYF,
-    DFF,
-    DCS,
-    DSTF,
-    DSF
-  )
-
-correlation_matrix <- cor(
-  features,
-  use = "pairwise.complete.obs"
-)
-
-round(correlation_matrix, 2)
-```
-
-```{r}
 library(dplyr)
+library(tidyr)
 
-# Select the predictors for the initial model
-model_data <- training_data %>%
-  select(
-    Goals,
-    HomeAway,
-    TeamRankCategory,
-    OpponentRankCategory,
-    Round,
-    OpponentRound,
-    Days,
-    DWF,
-    DLF,
-    DDF,
-    DAS,
-    DDS,
-    DRF,
-    DYF,
-    DFF,
-    DCS,
-    DSTF,
-    DSF
-  )
-
-poisson_model <- glm(
-  Goals ~ .,
-  data = model_data,
-  family = poisson(link = "log")
-)
-
-summary(poisson_model)
-
-model_data$predicted_goals <- predict(
-  poisson_model,
-  newdata = model_data,
-  type = "response"
-)
-
-mae <- mean(
-  abs(model_data$Goals - model_data$predicted_goals)
-)
-
-rmse <- sqrt(
-  mean((model_data$Goals - model_data$predicted_goals)^2)
-)
-
-mae
-rmse
-```
-Pretty far off..
-
-```{r}
-poisson_data <- training_data %>%
-  select(
-    Goals,
-    HomeAway,
-    TeamRankCategory,
-    OpponentRankCategory,
-    DAS,
-    DDS,
-    DYF,
-    DCS,
-    DSF
-  )
-
-reduced_poisson_model <- glm(
-  Goals ~ .,
-  data = poisson_data,
-  family = poisson(link = "log")
-)
-
-summary(reduced_poisson_model)
-
-poisson_data$predicted_goals <- predict(
-  reduced_poisson_model,
-  newdata = poisson_data,
-  type = "response"
-)
-
-mae <- mean(
-  abs(poisson_data$Goals - poisson_data$predicted_goals)
-)
-
-rmse <- sqrt(
-  mean((poisson_data$Goals - poisson_data$predicted_goals)^2)
-)
-
-mae
-rmse
-```
-```{r}
-library(dplyr)
-
-train_data <- training_data %>%
-  filter(Year != "2024/25")
-
-validation_data <- training_data %>%
-  filter(Year == "2024/25")
-```
-
-```{r}
-model_data <- training_data %>%
-  select(
-    Goals,
-    HomeAway,
-    TeamRankCategory,
-    OpponentRankCategory,
-    Round,
-    OpponentRound,
-    Days,
-    DWF,
-    DLF,
-    DDF,
-    DAS,
-    DDS,
-    DRF,
-    DYF,
-    DFF,
-    DCS,
-    DSF
-  )
-
-poisson_model <- glm(
-  Goals ~ .,
-  data = model_data,
-  family = poisson(link = "log")
-)
-
-validation_data <- validation_data %>%
-  mutate(
-    predicted_goals = predict(
-      poisson_model,
-      newdata = validation_data,
-      type = "response"
-    )
-  )
-
-mae <- mean(
-  abs(validation_data$Goals - validation_data$predicted_goals)
-)
-
-rmse <- sqrt(
-  mean((validation_data$Goals - validation_data$predicted_goals)^2)
-)
-
-mae
-rmse
-```
-
-```{r}
-library(xgboost)
-library(dplyr)
+training_data <- readRDS("training_data.rds")
 
 predictors <- c(
   "HomeAway",
@@ -205,148 +31,218 @@ predictors <- c(
   "DYF",
   "DFF",
   "DCS",
+  "DSTF",
   "DSF"
 )
+# Keep the same observations for all candidate models
+model_data <- training_data %>%
+  select(Goals, all_of(predictors)) %>%
+  na.omit()
+
+null_model <- glm(
+  Goals ~ 1,
+  data = model_data,
+  family = poisson(link = "log")
+)
+
+full_model <- glm(
+  reformulate(predictors, response = "Goals"),
+  data = model_data,
+  family = poisson(link = "log")
+)
+
+
+# Forward selection: start with the null model
+forward_model <- step(
+  null_model,
+  scope = list(
+    lower = formula(null_model),
+    upper = formula(full_model)
+  ),
+  direction = "forward",
+  trace = 0
+)
+
+# Backward selection: start with the full model
+backward_model <- step(
+  full_model,
+  direction = "backward",
+  trace = 0
+)
+
+# Both directions: start with the null model and allow
+# predictors to be added or removed at each step
+both_model <- step(
+  null_model,
+  scope = list(
+    lower = formula(null_model),
+    upper = formula(full_model)
+  ),
+  direction = "both",
+  trace = 0
+)
 ```
 
 ```{r}
-categorical_vars <- c(
-  "HomeAway",
-  "TeamRankCategory",
-  "OpponentRankCategory"
+formula(forward_model)
+formula(backward_model)
+formula(both_model)
+```
+```{r}
+poisson_formula <- Goals ~ DAS + HomeAway + DSF +
+  TeamRankCategory + DDS + OpponentRankCategory +
+  DCS + DYF + DSTF
+```
+
+expanding-window validation:
+```{r}
+seasons <- training_data %>%
+  distinct(Year) %>%
+  mutate(start_year = as.integer(substr(Year, 1, 4))) %>%
+  arrange(start_year) %>%
+  pull(Year)
+
+cv_results <- data.frame(
+  Season = character(),
+  Points_MAE = numeric(),
+  Points_RMSE = numeric(),
+  Outcome_Accuracy = numeric(),
+  Kendall_Rank = numeric()
 )
 
-for (v in categorical_vars) {
-  train_data[[v]] <- factor(train_data[[v]])
-  validation_data[[v]] <- factor(
-    validation_data[[v]],
-    levels = levels(train_data[[v]])
+for (i in 2:length(seasons)) {
+
+  # All seasons before the validation season
+  train_fold <- training_data %>%
+    filter(Year %in% seasons[1:(i - 1)])
+
+  # Entire next season
+  valid_fold <- training_data %>%
+    filter(Year == seasons[i])
+
+  # Fit Poisson GLM
+  poisson_model <- glm(
+    poisson_formula,
+    data = train_fold,
+    family = poisson(link = "log")
+  )
+
+  # Predict expected goals for each team
+  valid_fold <- valid_fold %>%
+    mutate(
+      predicted_goals = predict(
+        poisson_model,
+        newdata = valid_fold,
+        type = "response"
+      )
+    )
+
+  # Pair home and away teams for each match
+  match_predictions <- valid_fold %>%
+    select(
+      Year, match_id, HomeAway, Team, Goals, predicted_goals
+    ) %>%
+    pivot_wider(
+      names_from = HomeAway,
+      values_from = c(Team, Goals, predicted_goals)
+    ) %>%
+    mutate(
+      goal_difference =
+        predicted_goals_Home - predicted_goals_Away,
+
+      predicted_result = case_when(
+        abs(goal_difference) <= 0.225 ~ "D",
+        goal_difference > 0.225 ~ "H",
+        TRUE ~ "A"
+      ),
+
+      actual_result = case_when(
+        Goals_Home > Goals_Away ~ "H",
+        Goals_Home < Goals_Away ~ "A",
+        TRUE ~ "D"
+      ),
+
+      predicted_home_points = case_when(
+        predicted_result == "H" ~ 3,
+        predicted_result == "D" ~ 1,
+        TRUE ~ 0
+      ),
+
+      predicted_away_points = case_when(
+        predicted_result == "A" ~ 3,
+        predicted_result == "D" ~ 1,
+        TRUE ~ 0
+      ),
+
+      actual_home_points = case_when(
+        actual_result == "H" ~ 3,
+        actual_result == "D" ~ 1,
+        TRUE ~ 0
+      ),
+
+      actual_away_points = case_when(
+        actual_result == "A" ~ 3,
+        actual_result == "D" ~ 1,
+        TRUE ~ 0
+      )
+    )
+
+  # Sum predicted and actual points for each team
+  team_points <- bind_rows(
+    match_predictions %>%
+      transmute(
+        Team = Team_Home,
+        predicted_points = predicted_home_points,
+        actual_points = actual_home_points
+      ),
+    match_predictions %>%
+      transmute(
+        Team = Team_Away,
+        predicted_points = predicted_away_points,
+        actual_points = actual_away_points
+      )
+  ) %>%
+    group_by(Team) %>%
+    summarise(
+      predicted_points = sum(predicted_points),
+      actual_points = sum(actual_points),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      predicted_rank = min_rank(desc(predicted_points)),
+      actual_rank = min_rank(desc(actual_points))
+    )
+
+  # Evaluate predicted versus actual season points and rankings
+  cv_results <- rbind(
+    cv_results,
+    data.frame(
+      Season = seasons[i],
+
+      Points_MAE = mean(abs(
+        team_points$actual_points -
+          team_points$predicted_points
+      )),
+
+      Points_RMSE = sqrt(mean(
+        (team_points$actual_points -
+           team_points$predicted_points)^2
+      )),
+
+      Outcome_Accuracy = mean(
+        match_predictions$predicted_result ==
+          match_predictions$actual_result
+      ),
+
+      Kendall_Rank = cor(
+        team_points$predicted_rank,
+        team_points$actual_rank,
+        method = "kendall"
+      )
+    )
   )
 }
 
-x_train <- model.matrix(
-  reformulate(predictors, response = NULL),
-  data = train_data
-)[, -1, drop = FALSE]
-
-# Build validation matrix with the same columns
-x_valid <- model.matrix(
-  reformulate(predictors, response = NULL),
-  data = validation_data
-)[, -1, drop = FALSE]
-```
-
-```{r}
-set.seed(123)
-
-xgb_model <- xgboost(
-  data = x_train,
-  label = train_data$Goals,
-  objective = "count:poisson",
-  nrounds = 400,
-  max_depth = 6,
-  eta = 0.01,
-  subsample = 0.8,
-  colsample_bytree = 0.8,
-  verbose = 0
-)
-
-validation_data$predicted_xgb <- predict(
-  xgb_model,
-  newdata = x_valid
-)
-mae_xgb <- mean(
-  abs(validation_data$Goals - validation_data$predicted_xgb)
-)
-
-rmse_xgb <- sqrt(
-  mean(
-    (validation_data$Goals - validation_data$predicted_xgb)^2
-  )
-)
-
-mae_xgb
-rmse_xgb
-```
-```{r}
-tibble(
-  Model = c("Poisson regression", "XGBoost"),
-  MAE = c(
-    mean(abs(validation_data$Goals -
-               validation_data$predicted_goals)),
-    mae_xgb
-  ),
-  RMSE = c(
-    sqrt(mean((validation_data$Goals -
-                 validation_data$predicted_goals)^2)),
-    rmse_xgb
-  )
-)
-```
-```{r}
-calculate_metrics <- function(actual, predicted) {
-  data.frame(
-    MAE = mean(abs(actual - predicted)),
-    RMSE = sqrt(mean((actual - predicted)^2))
-  )
-}
-```
-```{r}
-library(lightgbm)
-
-# Convert predictors to numeric matrices, encoding categorical variables
-x_train <- model.matrix(
-  ~ . - 1,
-  data = train_data[, predictors, drop = FALSE]
-)
-
-x_valid <- model.matrix(
-  ~ . - 1,
-  data = validation_data[, predictors, drop = FALSE]
-)
-
-# Ensure training and validation have the same columns
-x_valid <- x_valid[, colnames(x_train), drop = FALSE]
-
-# Create LightGBM datasets
-lgb_train <- lgb.Dataset(
-  data = x_train,
-  label = train_data$Goals
-)
-
-lgb_valid <- lgb.Dataset(
-  data = x_valid,
-  label = validation_data$Goals
-)
-
-# Fit the model
-set.seed(123)
-
-lightgbm_model <- lgb.train(
-  params = list(
-    objective = "regression",
-    metric = "rmse",
-    learning_rate = 0.01,
-    num_leaves = 15,
-    max_depth = 6,
-    verbosity = -1,
-    num_threads = 2
-  ),
-  data = lgb_train,
-  nrounds = 200
-)
-
-validation_data$lightgbm_predictions <- predict(
-  lightgbm_model,
-  x_valid
-)
-
-# Evaluate
-lightgbm_metrics <- calculate_metrics(
-  validation_data$Goals,
-  lightgbm_predictions
-)
-
-lightgbm_metrics
+cv_results
 ```
 
