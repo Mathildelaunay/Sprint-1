@@ -373,22 +373,17 @@ data16_17 &lt;-read.csv(&quot;./Premier League match events data/16_17.csv&quot;
 data15_16 &lt;-read.csv(&quot;./Premier League match events data/15_16.csv&quot;)
 data14_15 &lt;-read.csv(&quot;./Premier League match events data/14_15.csv&quot;)</code></pre>
 <p>We can see that this data contains 120 features. To predict the
-ranking of the next premier league’s season I will not use all of this
-data. However, we fist start by combining all of the different datasets
-into one large one. Since all of the observations are recorded in
+ranking of the next premier league’s season I will not use all of these
+features. We fist start by combining all of the different datasets into
+one large one. Since all of the observations are recorded in
 cronological order it is easy to understand why we will just merge the
 observations following a cronological order.</p>
 <p>We won’t use all of the features of this data so now we want to clean
 the data.</p>
-<p>To do: Idea1) 1.check which dataset has the maximum number of columns
+<p>To do: 1.check which dataset has the maximum number of columns
 2.merge the datasets wrt the number of columns in this maxcoldataset
 (i.e. it’ll appear NA for all the observations without that feature
-recorded) Idea2) 1.check which dataset has the minimum number of columns
-2. check what coulmns this mincoldataset contains 3. if {the columns
-make sense then merge wrt the columns of this micoldataset {the columns
-don’t make sense to apply to the model then use idea 2 and do
-missingness (5.3 workshop)</p>
-<p>Idea1)</p>
+recorded)</p>
 <pre class="r"><code>vectordata&lt;-list(data26_27 = data26_27, data25_26 = data25_26, data24_25 = data24_25, data23_24 = data23_24, data22_23 = data22_23, data21_22 = data21_22, data20_21 = data20_21, data19_20 = data19_20, data18_19 = data18_19, data17_18 = data17_18, data16_17 = data16_17, data15_16 = data15_16, data14_15 = data14_15)
 
 columncheck &lt;- function(a) {
@@ -485,9 +480,8 @@ test_data  &lt;- bind_rows(vectordata[&quot;data25_26&quot;])</code></pre>
 <pre class="r"><code>prediction_data &lt;- bind_rows(vectordata[&quot;data26_27&quot;])</code></pre>
 <p>Now we want to add extra columns to simplify our model calculations.
 First we consider the whole dataset as one and split it wrt seasons.</p>
-<pre class="r"><code># Join the datasets in chronological order so totals carry forward
-all_data &lt;- rbind(train_data, test_data, prediction_data)
-# Identify each match&#39;s season (e.g. August 2025 belongs to 2025/26)
+<pre class="r"><code>all_data &lt;- rbind(train_data, test_data, prediction_data)
+#split observations by season
 all_data$Date &lt;- as.Date(as.character(all_data$Date), format = &quot;%d/%m/%Y&quot;) #treat `Date` as date format 
 match_year &lt;- as.integer(format(all_data$Date, &quot;%Y&quot;))
 match_month &lt;- as.integer(format(all_data$Date, &quot;%m&quot;))
@@ -500,16 +494,16 @@ teams &lt;- unique(c(all_data$HomeTeam, all_data$AwayTeam))#columns of all teams
 the next match result, we need to add a counting column which adds up
 the previous statistics up to until the previous match so that we can
 use this statistic for our prediction.</p>
-<pre class="r"><code># Match statistics from earlier matches
-stats &lt;- list(FTGoals= c(&quot;FTHG&quot;, &quot;FTHG&quot;), HTGoals = c(&quot;HTHG&quot;, &quot;HTAG&quot;), Shots = c(&quot;HS&quot;, &quot;AS&quot;), ShotsOnTarget = c(&quot;HST&quot;, &quot;AST&quot;), Corners = c(&quot;HC&quot;, &quot;AC&quot;), Fouls = c(&quot;HF&quot;, &quot;AF&quot;), YellowCards = c(&quot;HY&quot;, &quot;AY&quot;), RedCards = c(&quot;HR&quot;, &quot;AR&quot;))
+<pre class="r"><code>#create a list of match statistics from earlier matches to keep track
+stats &lt;- list(FTGoals= c(&quot;FTHG&quot;, &quot;FTAG&quot;), HTGoals = c(&quot;HTHG&quot;, &quot;HTAG&quot;), Shots = c(&quot;HS&quot;, &quot;AS&quot;), ShotsOnTarget = c(&quot;HST&quot;, &quot;AST&quot;), Corners = c(&quot;HC&quot;, &quot;AC&quot;), Fouls = c(&quot;HF&quot;, &quot;AF&quot;), YellowCards = c(&quot;HY&quot;, &quot;AY&quot;), RedCards = c(&quot;HR&quot;, &quot;AR&quot;))
 
 all_data$.match_id &lt;- seq_len(nrow(all_data)) #starts empty columns
 
 for (stat in names(stats)) {
-  home_stat &lt;- stats[[stat]][1]
-  away_stat &lt;- stats[[stat]][2]
+  home_stat &lt;- stats[[stat]][1] #identifies all of the home stats columns
+  away_stat &lt;- stats[[stat]][2] #identifies all of the away stats columns
 #creates new counting columns for each stat
-  all_data[[paste0(&quot;Home&quot;, stat, &quot;Before&quot;)]] &lt;- 0 #can try paste()
+  all_data[[paste0(&quot;Home&quot;, stat, &quot;Before&quot;)]] &lt;- 0
   all_data[[paste0(&quot;Away&quot;, stat, &quot;Before&quot;)]] &lt;- 0  
 
   for (season in unique(all_data$Season)) {
@@ -519,13 +513,13 @@ for (stat in names(stats)) {
       team_stats &lt;- ifelse(all_data$HomeTeam[rows] == team, all_data[[home_stat]][rows], all_data[[away_stat]][rows]) # if team is home, then we look at home_stat, o/w we look at away_stat
       
       stat_before &lt;- c(0, head(cumsum(team_stats), -1)) #summing up all of the stats up to previous match
+      
+        home_rows &lt;- rows[all_data$HomeTeam[rows] == team] #identify the rows in which our team is home team
+        away_rows &lt;- rows[all_data$AwayTeam[rows] == team] #identify the rows in which our team is away team
 
-        home_rows &lt;- rows[all_data$HomeTeam[rows] == team]
-        away_rows &lt;- rows[all_data$AwayTeam[rows] == team]
+        all_data[[paste0(&quot;Home&quot;, stat, &quot;Before&quot;)]][home_rows] &lt;- stat_before[all_data$HomeTeam[rows] == team] #add to home stat column when team is home
 
-        all_data[[paste0(&quot;Home&quot;, stat, &quot;Before&quot;)]][home_rows] &lt;- stat_before[all_data$HomeTeam[rows] == team]
-
-        all_data[[paste0(&quot;Away&quot;, stat, &quot;Before&quot;)]][away_rows] &lt;- stat_before[all_data$AwayTeam[rows] == team]
+        all_data[[paste0(&quot;Away&quot;, stat, &quot;Before&quot;)]][away_rows] &lt;- stat_before[all_data$AwayTeam[rows] == team] #add away stat column when team is away
       
     }
   }
@@ -535,8 +529,9 @@ all_data$.match_id &lt;- NULL</code></pre>
 <p>Now we also want to add the following columns to our model: - Home
 Team total points before match = HTPB - Home team total points after
 match = HTPA - Away Team total points before match = ATPB - Away team
-total points after match = ATPA We do this separately since the number
-of points depends on a different condition.</p>
+total points after match = ATPA Adds columns that keeps track of the
+points. We do this separately since the number of points depends on a
+different condition.</p>
 <pre class="r"><code># Create the new columns
 all_data$HTPB &lt;- NA
 all_data$HTPA &lt;- NA
@@ -577,8 +572,7 @@ for(season in seasons){
   }
 }
 
-
-# Split the datasets back apart, including the new points columns
+#split the datasets apart
 train_data &lt;- all_data[1:nrow(train_data), ]
 
 test_start &lt;- nrow(train_data) + 1
