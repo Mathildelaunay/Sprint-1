@@ -359,6 +359,8 @@ display: none;
 <h2>Import data</h2>
 <pre class="r"><code>setwd(&quot;/Users/lenovo/OneDrive - University of Bristol/2026_2027/DST/Sprint-1/Anna Del Pino&quot;)
 
+
+fixtures26_27 &lt;-read.csv(&quot;./Premier League match events data/26_27 fixtures.csv&quot;)
 data26_27 &lt;-read.csv(&quot;./Premier League match events data/26_27.csv&quot;)
 data25_26 &lt;-read.csv(&quot;./Premier League match events data/25_26.csv&quot;)
 data24_25 &lt;-read.csv(&quot;./Premier League match events data/24_25.csv&quot;)
@@ -384,7 +386,7 @@ the data.</p>
 2.merge the datasets wrt the number of columns in this maxcoldataset
 (i.e. it’ll appear NA for all the observations without that feature
 recorded)</p>
-<pre class="r"><code>vectordata&lt;-list(data26_27 = data26_27, data25_26 = data25_26, data24_25 = data24_25, data23_24 = data23_24, data22_23 = data22_23, data21_22 = data21_22, data20_21 = data20_21, data19_20 = data19_20, data18_19 = data18_19, data17_18 = data17_18, data16_17 = data16_17, data15_16 = data15_16, data14_15 = data14_15)
+<pre class="r"><code>vectordata&lt;-list(fixtures26_27=fixtures26_27, data26_27 = data26_27, data25_26 = data25_26, data24_25 = data24_25, data23_24 = data23_24, data22_23 = data22_23, data21_22 = data21_22, data20_21 = data20_21, data19_20 = data19_20, data18_19 = data18_19, data17_18 = data17_18, data16_17 = data16_17, data15_16 = data15_16, data14_15 = data14_15)
 
 columncheck &lt;- function(a) {
   coln &lt;- sapply(a, ncol) #applies the function ncol() to each dataset
@@ -405,10 +407,12 @@ for (i in seq_along(vectordata)) {
 }
 names(matches) &lt;- names(vectordata)
 print(matches) </code></pre>
-<pre><code>## data26_27 data25_26 data24_25 data23_24 data22_23 data21_22 data20_21 data19_20 
-##       100       132       102        88        88        88        88        88 
-## data18_19 data17_18 data16_17 data15_16 data14_15 
-##        35        38        38        38        38</code></pre>
+<pre><code>## fixtures26_27     data26_27     data25_26     data24_25     data23_24 
+##            22           100           132           102            88 
+##     data22_23     data21_22     data20_21     data19_20     data18_19 
+##            88            88            88            88            35 
+##     data17_18     data16_17     data15_16     data14_15 
+##            38            38            38            38</code></pre>
 <p>Here we now know that <code>data18_19</code> has the least number of
 feature matches wrt <code>data25_26</code>. We want to check which
 columns of these datasets are different to the ones of
@@ -476,10 +480,15 @@ train_names &lt;- paste0(&quot;data&quot;,c(&quot;14_15&quot;, &quot;15_16&quot;
 
 train_data &lt;- bind_rows(vectordata[train_names])
 test_data  &lt;- bind_rows(vectordata[&quot;data25_26&quot;])</code></pre>
-<p>We keep 2026/27 separate as the data we’ll predict from</p>
-<pre class="r"><code>prediction_data &lt;- bind_rows(vectordata[&quot;data26_27&quot;])</code></pre>
-<p>Now we want to add extra columns to simplify our model calculations.
-First we consider the whole dataset as one and split it wrt seasons.</p>
+<p>We keep 2026/27 separate as the data we’ll predict from.</p>
+<pre class="r"><code>prediction_data &lt;- bind_rows(vectordata[&quot;data26_27&quot;])
+fixtures26_27 &lt;- bind_rows(vectordata[&quot;fixtures26_27&quot;])
+prediction_data &lt;- bind_rows(prediction_data, fixtures26_27) </code></pre>
+<p>Now <code>prediction_data</code> contains all fixtures of 2026/27
+season and <code>NA</code> for starts of matches that haven’t been
+played. Now we want to add extra columns to simplify our model
+calculations. First we consider the whole dataset as one and split it
+wrt seasons.</p>
 <pre class="r"><code>all_data &lt;- rbind(train_data, test_data, prediction_data)
 #split observations by season
 all_data$Date &lt;- as.Date(as.character(all_data$Date), format = &quot;%d/%m/%Y&quot;) #treat `Date` as date format 
@@ -493,7 +502,8 @@ teams &lt;- unique(c(all_data$HomeTeam, all_data$AwayTeam))#columns of all teams
 <p>Since we want our model to use the previous match results to predict
 the next match result, we need to add a counting column which adds up
 the previous statistics up to until the previous match so that we can
-use this statistic for our prediction.</p>
+use this statistic for our prediction. This gives greater weight to more
+recent observations.</p>
 <pre class="r"><code>#create a list of match statistics from earlier matches to keep track
 stats &lt;- list(FTGoals= c(&quot;FTHG&quot;, &quot;FTAG&quot;), HTGoals = c(&quot;HTHG&quot;, &quot;HTAG&quot;), Shots = c(&quot;HS&quot;, &quot;AS&quot;), ShotsOnTarget = c(&quot;HST&quot;, &quot;AST&quot;), Corners = c(&quot;HC&quot;, &quot;AC&quot;), Fouls = c(&quot;HF&quot;, &quot;AF&quot;), YellowCards = c(&quot;HY&quot;, &quot;AY&quot;), RedCards = c(&quot;HR&quot;, &quot;AR&quot;))
 
@@ -511,6 +521,7 @@ for (stat in names(stats)) {
       rows &lt;- which(all_data$Season == season &amp; (all_data$HomeTeam == team | all_data$AwayTeam == team)) # look at the rows where this team has played
 
       team_stats &lt;- ifelse(all_data$HomeTeam[rows] == team, all_data[[home_stat]][rows], all_data[[away_stat]][rows]) # if team is home, then we look at home_stat, o/w we look at away_stat
+      team_stats[is.na(team_stats)] &lt;- 0
       
       stat_before &lt;- c(0, head(cumsum(team_stats), -1)) #summing up all of the stats up to previous match
       
@@ -556,6 +567,7 @@ for(season in seasons){
                                                                     1,
                                                                     0))
                      )
+    points[is.na(points)] &lt;- 0
   
     # Running total before and after each match
     points_before &lt;- c(0, head(cumsum(points), -1))
@@ -583,19 +595,6 @@ prediction_start &lt;- test_end + 1
 prediction_data &lt;- all_data[prediction_start:nrow(all_data), ]</code></pre>
 <p>Okay, now that we have all of the correct teams together we will pass
 to the next file which is the model building section of my work.</p>
-</div>
-<div id="data-for-202627-prediction" class="section level2">
-<h2>Data for 2026/27 prediction</h2>
-<p>For our 2026/27 prediction we need the fixtures of this season.</p>
-<pre class="r"><code>fixtures26_27 &lt;-read.csv(&quot;./Premier League match events data/26_27 fixtures.csv&quot;)
-
-fixtures26_27$Date &lt;- as.Date(fixtures26_27$Date, format = &quot;%d/%m/%Y&quot;)
-fixtures26_27 &lt;- fixtures26_27[fixtures26_27$Date &gt; as.Date(&quot;2026-10-19&quot;),] #delete the known rows
-
-prediction_data &lt;- bind_rows(prediction_data, fixtures26_27) </code></pre>
-<p>Now <code>prediction_data</code> contains all fixtures of 2026/27
-season and <code>NA</code> for starts of matches that haven’t been
-played.</p>
 </div>
 
 

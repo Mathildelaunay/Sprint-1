@@ -119,6 +119,8 @@ library(dplyr)
 library(stats)
 library(base)
 
+train_names <- paste0("data",c("14_15", "15_16", "16_17", "17_18", "18_19","19_20", "20_21", "21_22", "22_23", "23_24", "24_25"))
+
 train_data <- bind_rows(vectordata[train_names])
 test_data  <- bind_rows(vectordata["data25_26"])
 ```
