@@ -3,6 +3,9 @@ title: "Test"
 author: "Anna Del Pino"
 date: "2026-10-26"
 output: html_document
+editor_options: 
+  markdown: 
+    wrap: sentence
 ---
 
 ```{r setup, include=FALSE}
@@ -11,16 +14,13 @@ source("Data Cleaning.R")
 source("Model.R")
 ```
 
-##Testing the output from test set
+# Testing the output from test set
 
-This chunk calculates goal error, compare against the training baseline and evaluate the predicted ranking:
+This chunk calculates the mean average error for predicted goals, compare against the trained model errors as a baseline and evaluate the predicted ranking:
 
 ```{r}
-test_data$PredHomeGoalMean <- predict(home_selected_model, newdata = test_data, type = "response")
-test_data$PredAwayGoalMean <- predict(away_selected_model, newdata = test_data, type = "response")
-
-MAE_HG <- mean(abs(test_data$FTHG - test_data$PredHomeGoalMean))
-MAE_AG <- mean(abs(test_data$FTAG - test_data$PredAwayGoalMean))
+MAE_HG <- mean(abs(test_data$FTHG - test_data$PredHomeGoals))
+MAE_AG <- mean(abs(test_data$FTAG - test_data$PredAwayGoals))
 train_MAE_HG <- mean(abs(test_data$FTHG - mean(train_data$FTHG)))
 train_MAE_AG <- mean(abs(test_data$FTAG - mean(train_data$FTAG)))
 MAE_pos <- mean(abs(table_comparison$PositionDifference))
@@ -28,71 +28,70 @@ rank_corr <- cor(table_comparison$Position_Predicted, table_comparison$Position_
 
 print(c(MAE_HG, MAE_AG, train_MAE_HG, train_MAE_AG, MAE_pos, rank_corr))
 ```
+
 These results show taht the model performs better than the training baseline.
-- Home goal MAE: 0.953 goals, compared with 0.996 for the baseline so a 4.3% reduction.
-- Away goal MAE: 0.846 goals, compared with 0.875 for the baseline so a 3.3% reduction.
+- Home goal MAE: 0.939 goals, compared with 0.996 from the train model error so a 5.7% reduction.
+- Away goal MAE: 0.818 goals, compared with 0.875 from the train model error so a 6.5% reduction.
 - Mean position error: 2.1 places. On average, a team’s predicted position was about two places away from its actual position.
-- Spearman rank correlation: 0.862, showing that the predicted and actual ranking orders were fairly similar. The Spearman correlation between two variables will be high when observations have a similar (or equal with correlation = 1) rank between the two variables.
+- Spearman rank correlation: 0.862, showing that the predicted and actual ranking orders were fairly similar.
+The Spearman correlation between two variables will be high when observations have a similar (or equal with correlation = 1) rank between the two variables.
 The model improved goal predictions over the baseline and reproduced the overall team ranking reasonably well on the test season.
 
 ## Why GLM?
 
-The response variables (home goals and away goals) are non negative counts. A Poisson GLM models counts and uses a log link, so it predicts a positive expected goal rate $\lambda$.
+The response variables (home goals and away goals) are non negative counts.
+A Poisson GLM models counts and uses a log link, so it predicts a positive expected goal rate $\lambda$.
 
-I found an article talking about modelling goals as counts using a Poisson distribution. They treat goals in a match as a random count modelled as $Y \sim \text{Poisson}(\lambda)$ where $\lambda$ is the expected goals for that match. The paper uses a Poisson regression to let expected goals depend on match information i.e. $\log(\lambda_i) = \beta_0 +\beta_1 X_{i,1} + \beta_2 X_{i,2} + ...$. So `predict(home_selected_model, newdata = test_data, type = "response")` returns the estimated $\lambda_i$.
+I found an article talking about modelling goals as counts using a Poisson distribution.
+They treat goals in a match as a random count modelled as $Y \sim \text{Poisson}(\lambda)$ where $\lambda$ is the expected goals for that match.
+The paper uses a Poisson regression model to let expected goals depend on match information i.e. $\log(\lambda_i) = \beta_0 +\beta_1 X_{i,1} + \beta_2 X_{i,2} + ...$.
+So `predict(home_selected_model, newdata = test_data, type = "response")` returns the estimated $\lambda_i$.
 
-I use separate Poisson GLMs for home and away goals because goals are count outcomes and the log link gives positive expected goal counts. I use previousm match statistics as predictors and assess the models on a later season.
+I use separate Poisson GLMs for home and away goals because goals are count outcomes and the log link gives positive expected goal counts.
+I use previousm match statistics as predictors and assess the models on a later season.
 
 ##Questions
 
 -Why use a Poisson model instead of linear regression?
-Because Poisson GLM is used for non negative counts and returns an expected goal rate which is then used to rank our teams. A linear model can predict negative or fractional goals. 
+Because Poisson GLM is used for non negative counts and returns an expected goal rate which is then used to rank our teams.
+A linear model can predict negative or fractional goals.
 
 -What assumptions does Poisson make?
-It assumes that goal count variance equals the expected goal count. Meaning that if we predict $\hat \lambda = 2.5$ then the variance of how far the predicted result might be from the actual result is quite high.
+It assumes that goal count variance equals the expected goal count.
+Meaning that if we predict $\hat \lambda = 2.5$ then the variance of how far the predicted result might be from the actual result is quite high.
 
 -Why fit separate home goal and away goal models?
-The paper fits separate models because a team’s scoring rate can differ depending on whether it plays at home or away. It estimates one rate for home goals and another for away goals, then uses those rates to generate scores for each fixture.
+The paper fits separate models because a team’s scoring rate can differ depending on whether it plays at home or away.
+It estimates one rate for home goals and another for away goals, then uses those rates to generate scores for each fixture.
 
 -How do you prevent information from the match being predicted leaking into the predictors?
 Using "before" features prevent this from happening.
 
 # Explaining Work
+
 ## Data Cleaning
 
 ### Data Exploration
 
-Here we set our working directory to call all the data. Here we have data from 2014/15 to 2026/27 Premier League seasons which contain odds and match statistics. Each row represents a match of the corresponding season so observations are each match of a season. We see that not every dataset constains the same number of features but the dataset containing the largest number is `data25_26` which is the most recent one containing all information. 
+Here we set our working directory to call all the data.
+Here we have data from 2014/15 to 2026/27 Premier League seasons which contain odds and match statistics.
+Each row represents a match of the corresponding season so observations are each match of a season.
+We see that not every dataset constains the same number of features but the dataset containing the largest number is `data25_26` which is the most recent one containing all information.
 We then proceed to delete all of the odds columns from every dataset.
 
 ### Train/Test Split
 
 As agreed with the team, I split the dataset into train - 2014/15 to 2024/25, test - 2025/26 and prediction - 2026/27.
-Then, as we're considering this problem as a time series problem where observations depend on the previous one, we're adding columns that sum up the total number of statistics for each home and away team. We will then tell the model to only consider these elements as known (on the same row) to use them for prediction. We do this to avoid having the model utilise data from the match when what we want to do is predict the goals scored each match.
-Firstly we split the observations by season. We do this to be able to reset the counts each season.
+Then, as we're considering this problem as a time series problem where observations depend on the previous one, we're adding columns that sum up the total number of statistics for each home and away team.
+We will then tell the model to only consider these elements as known (on the same row) to use them for prediction.
+We do this to avoid having the model utilise data from the match when what we want to do is predict the goals scored each match.
+Firstly we split the observations by season.
+We do this to be able to reset the counts each season.
 
 ### Data for 2026/27
 
-The `prediciton_data` contains only infomation for the frist 3 month of the preier league (up to 19/10/2026). This means that we need to predict each matches statistics for the remaining matches. We have the fixtures of the 26/27 season and we added these to our prediction data after the already known data. from 31/10/26 it contains only information for `Date`, `Season`, `HomeTeam` and `AwayTeam`. The newly added conting columns will be filled as the model predicts the stats and by the end of it, the model will have predicted all of the goals for and against and points for each team to finally rank these.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+The `prediciton_data` contains only infomation for the frist 3 month of the preier league (up to 19/10/2026).
+This means that we need to predict each matches statistics for the remaining matches.
+We have the fixtures of the 26/27 season and we added these to our prediction data after the already known data.
+from 31/10/26 it contains only information for `Date`, `Season`, `HomeTeam` and `AwayTeam`.
+The newly added conting columns will be filled as the model predicts the stats and by the end of it, the model will have predicted all of the goals for and against and points for each team to finally rank these.

@@ -357,33 +357,32 @@ display: none;
 </div>
 
 
-<p>##Testing the output from test set</p>
-<p>This chunk calculates goal error, compare against the training
-baseline and evaluate the predicted ranking:</p>
-<pre class="r"><code>test_data$PredHomeGoalMean &lt;- predict(home_selected_model, newdata = test_data, type = &quot;response&quot;)
-test_data$PredAwayGoalMean &lt;- predict(away_selected_model, newdata = test_data, type = &quot;response&quot;)
-
-MAE_HG &lt;- mean(abs(test_data$FTHG - test_data$PredHomeGoalMean))
-MAE_AG &lt;- mean(abs(test_data$FTAG - test_data$PredAwayGoalMean))
+<div id="testing-the-output-from-test-set" class="section level1">
+<h1>Testing the output from test set</h1>
+<p>This chunk calculates the mean average error for predicted goals,
+compare against the trained model errors as a baseline and evaluate the
+predicted ranking:</p>
+<pre class="r"><code>MAE_HG &lt;- mean(abs(test_data$FTHG - test_data$PredHomeGoals))
+MAE_AG &lt;- mean(abs(test_data$FTAG - test_data$PredAwayGoals))
 train_MAE_HG &lt;- mean(abs(test_data$FTHG - mean(train_data$FTHG)))
 train_MAE_AG &lt;- mean(abs(test_data$FTAG - mean(train_data$FTAG)))
 MAE_pos &lt;- mean(abs(table_comparison$PositionDifference))
 rank_corr &lt;- cor(table_comparison$Position_Predicted, table_comparison$Position_Actual,method = &quot;spearman&quot;, use = &quot;complete.obs&quot;)
 
 print(c(MAE_HG, MAE_AG, train_MAE_HG, train_MAE_AG, MAE_pos, rank_corr))</code></pre>
-<pre><code>## [1] 0.9529944 0.8457395 0.9961496 0.8746034 2.1000000 0.8616541</code></pre>
+<pre><code>## [1] 0.9394737 0.8184211 0.9961496 0.8746034 2.1000000 0.8616541</code></pre>
 <p>These results show taht the model performs better than the training
-baseline. - Home goal MAE: 0.953 goals, compared with 0.996 for the
-baseline so a 4.3% reduction. - Away goal MAE: 0.846 goals, compared
-with 0.875 for the baseline so a 3.3% reduction. - Mean position error:
-2.1 places. On average, a team’s predicted position was about two places
-away from its actual position. - Spearman rank correlation: 0.862,
-showing that the predicted and actual ranking orders were fairly
-similar. The Spearman correlation between two variables will be high
-when observations have a similar (or equal with correlation = 1) rank
-between the two variables. The model improved goal predictions over the
-baseline and reproduced the overall team ranking reasonably well on the
-test season.</p>
+baseline. - Home goal MAE: 0.939 goals, compared with 0.996 from the
+train model error so a 5.7% reduction. - Away goal MAE: 0.818 goals,
+compared with 0.875 from the train model error so a 6.5% reduction. -
+Mean position error: 2.1 places. On average, a team’s predicted position
+was about two places away from its actual position. - Spearman rank
+correlation: 0.862, showing that the predicted and actual ranking orders
+were fairly similar. The Spearman correlation between two variables will
+be high when observations have a similar (or equal with correlation = 1)
+rank between the two variables. The model improved goal predictions over
+the baseline and reproduced the overall team ranking reasonably well on
+the test season.</p>
 <div id="why-glm" class="section level2">
 <h2>Why GLM?</h2>
 <p>The response variables (home goals and away goals) are non negative
@@ -393,9 +392,9 @@ a positive expected goal rate <span class="math inline">\(\lambda\)</span>.</p>
 Poisson distribution. They treat goals in a match as a random count
 modelled as <span class="math inline">\(Y \sim
 \text{Poisson}(\lambda)\)</span> where <span class="math inline">\(\lambda\)</span> is the expected goals for that
-match. The paper uses a Poisson regression to let expected goals depend
-on match information i.e. <span class="math inline">\(\log(\lambda_i) =
-\beta_0 +\beta_1 X_{i,1} + \beta_2 X_{i,2} + ...\)</span>. So
+match. The paper uses a Poisson regression model to let expected goals
+depend on match information i.e. <span class="math inline">\(\log(\lambda_i) = \beta_0 +\beta_1 X_{i,1} +
+\beta_2 X_{i,2} + ...\)</span>. So
 <code>predict(home_selected_model, newdata = test_data, type = &quot;response&quot;)</code>
 returns the estimated <span class="math inline">\(\lambda_i\)</span>.</p>
 <p>I use separate Poisson GLMs for home and away goals because goals are
@@ -420,6 +419,7 @@ each fixture.</p>
 <p>-How do you prevent information from the match being predicted
 leaking into the predictors? Using “before” features prevent this from
 happening.</p>
+</div>
 </div>
 <div id="explaining-work" class="section level1">
 <h1>Explaining Work</h1>

@@ -18,18 +18,19 @@ library(ggplot2)
 
 The aim of this model is to predict the Premier League ranking of teams at the end of the season. To do this I will predict the goals scored in each match of the given fixture, convert this into predicted points, add these points up, to then get a final ranking that orders the team with respect to:
 
-1. Total number of points at the end of the season
-2. Goal difference at the end of the season.
-
+1.  Total number of points at the end of the season
+2.  Goal difference at the end of the season.
 
 ## Model building
 
 Firstly, I want to visualize the possible variables that might be used to model our prediction.
+
 ```{r}
 goal_data <- data.frame(Goals = c(train_data$FTHG, train_data$FTAG))
 
 ggplot(goal_data, aes(x = Goals)) + geom_bar() + scale_x_continuous(breaks = 0:max(goal_data$Goals, na.rm = TRUE)) +labs(title = "Goals scored per match",x = "Goals",y = "Number of team performances") + theme_minimal()
 ```
+
 This shows how often each score occurred. It’s a useful first look, but the overall goal distribution alone can’t tell you whether a Poisson model fits well once predictors are included. (HERE ADD THAT WE USE POISSON BECAUSE IS THE DISTRIBTION OF COUNTS!!!!!!)
 
 ## Model selection using stepwise method selection and AIC
@@ -119,13 +120,14 @@ This tells us that from the train data set we have all the teams data from our t
 length(intersect(train_teams, unique(c(prediction_data$HomeTeam, prediction_data$AwayTeam))))
 setdiff(unique(c(prediction_data$HomeTeam, prediction_data$AwayTeam)),train_teams)
 ```
+
 On the other hand, for our prediction dataset we do not have information for all the teams. This means that we won't have that much information for `Coventry` as the only information that we have is the first three months of the 2026/27 premier league season. This will then be expanded in our Limitations section.
 
 ### Model Fitting
 
 Now we fit our selected models.
 
-```{r} 
+```{r}
 text_columns <- names(train_data)[sapply(train_data, is.character)] #names the text columns in the dataset
 train_data[text_columns] <- lapply(train_data[text_columns], factor) #applies factor() to the text columns
 test_data[text_columns] <- lapply(test_data[text_columns], factor) #applies factor() to the text columns
@@ -221,4 +223,3 @@ Notice, we have that Manchester City is likely to end up as the winner of the se
 ```{r}
 #prediction_data <- prediction_data[prediction_data$HomeTeam != "Man City" & prediction_data$AwayTeam != "Man City", ]
 ```
-
