@@ -94,7 +94,184 @@ poisson_formula <- Goals ~ DAS + HomeAway + DSF +
   DCS + DYF + DSTF
 ```
 
-expanding-window validation:
+I decided to us an expanding-window validation, since my data relies on data from previous year.
+At the same time, I am testing for different values of beta, where beta is the threshold for which we a win for the team with higher prediction if the absolute error is more than beta, and a draw if the absolute error is less than beta. 
+```{r}
+test_beta <- function(beta_values, training_data, poisson_formula) {
+  # Get seasons in chronological order
+  seasons <- training_data %>%
+    distinct(Year) %>%
+    mutate(start_year = as.integer(substr(Year, 1, 4))) %>%
+    arrange(start_year) %>%
+    pull(Year)
+
+  # Store results for every beta and validation season
+  cv_results <- data.frame()
+
+  for (beta in beta_values) {
+
+    for (i in 2:length(seasons)) {
+
+      # All seasons before the validation season
+      train_fold <- training_data %>%
+        filter(Year %in% seasons[1:(i - 1)])
+
+      # Entire next season
+      valid_fold <- training_data %>%
+        filter(Year == seasons[i])
+
+      # Fit Poisson GLM
+      poisson_model <- glm(
+        poisson_formula,
+        data = train_fold,
+        family = poisson(link = "log")
+      )
+
+      # Predict expected goals
+      valid_fold <- valid_fold %>%
+        mutate(
+          predicted_goals = predict(
+            poisson_model,
+            newdata = valid_fold,
+            type = "response"
+          )
+        )
+
+      # Pair home and away teams
+      match_predictions <- valid_fold %>%
+        select(
+          Year, match_id, HomeAway, Team, Goals, predicted_goals
+        ) %>%
+        pivot_wider(
+          names_from = HomeAway,
+          values_from = c(Team, Goals, predicted_goals)
+        ) %>%
+        mutate(
+          goal_difference =
+            predicted_goals_Home - predicted_goals_Away,
+
+          predicted_result = case_when(
+            abs(goal_difference) <= beta ~ "D",
+            goal_difference > beta ~ "H",
+            TRUE ~ "A"
+          ),
+
+          actual_result = case_when(
+            Goals_Home > Goals_Away ~ "H",
+            Goals_Home < Goals_Away ~ "A",
+            TRUE ~ "D"
+          ),
+
+          predicted_home_points = case_when(
+            predicted_result == "H" ~ 3,
+            predicted_result == "D" ~ 1,
+            TRUE ~ 0
+          ),
+
+          predicted_away_points = case_when(
+            predicted_result == "A" ~ 3,
+            predicted_result == "D" ~ 1,
+            TRUE ~ 0
+          ),
+
+          actual_home_points = case_when(
+            actual_result == "H" ~ 3,
+            actual_result == "D" ~ 1,
+            TRUE ~ 0
+          ),
+
+          actual_away_points = case_when(
+            actual_result == "A" ~ 3,
+            actual_result == "D" ~ 1,
+            TRUE ~ 0
+          )
+        )
+
+      # Calculate total points for each team
+      team_points <- bind_rows(
+        match_predictions %>%
+          transmute(
+            Team = Team_Home,
+            predicted_points = predicted_home_points,
+            actual_points = actual_home_points
+          ),
+
+        match_predictions %>%
+          transmute(
+            Team = Team_Away,
+            predicted_points = predicted_away_points,
+            actual_points = actual_away_points
+          )
+      ) %>%
+        group_by(Team) %>%
+        summarise(
+          predicted_points = sum(predicted_points),
+          actual_points = sum(actual_points),
+          .groups = "drop"
+        ) %>%
+        mutate(
+          predicted_rank = min_rank(desc(predicted_points)),
+          actual_rank = min_rank(desc(actual_points))
+        )
+
+      # Store evaluation metrics
+      cv_results <- rbind(
+        cv_results,
+        data.frame(
+          Beta = beta,
+          Season = seasons[i],
+
+          Points_MAE = mean(abs(
+            team_points$actual_points -
+              team_points$predicted_points
+          )),
+
+          Points_RMSE = sqrt(mean(
+            (team_points$actual_points -
+               team_points$predicted_points)^2
+          )),
+
+          Outcome_Accuracy = mean(
+            match_predictions$predicted_result ==
+              match_predictions$actual_result
+          ),
+
+          Kendall_Rank = cor(
+            team_points$predicted_rank,
+            team_points$actual_rank,
+            method = "kendall"
+          )
+        )
+      )
+    }
+  }
+
+  return(cv_results)
+}
+```
+```{r}
+beta_values <- seq(0.1, 1, by = 0.025)
+
+beta_results <- test_beta(
+  beta_values = beta_values,
+  training_data = training_data,
+  poisson_formula = poisson_formula
+)
+```
+```{r}
+beta_summary <- beta_results %>%
+  group_by(Beta) %>%
+  summarise(
+    Mean_Points_MAE = mean(Points_MAE, na.rm = TRUE),
+    Mean_Points_RMSE = mean(Points_RMSE, na.rm = TRUE),
+    Mean_Outcome_Accuracy = mean(Outcome_Accuracy, na.rm = TRUE),
+    Mean_Kendall_Rank = mean(Kendall_Rank, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+beta_summary
+```
+The value of beta which has lowest mean MAE, mean RMSE and highest mean Kendall Rank is 0.8.
 ```{r}
 seasons <- training_data %>%
   distinct(Year) %>%
@@ -151,8 +328,8 @@ for (i in 2:length(seasons)) {
         predicted_goals_Home - predicted_goals_Away,
 
       predicted_result = case_when(
-        abs(goal_difference) <= 0.225 ~ "D",
-        goal_difference > 0.225 ~ "H",
+        abs(goal_difference) <= 0.8 ~ "D",
+        goal_difference > 0.8 ~ "H",
         TRUE ~ "A"
       ),
 
@@ -245,4 +422,3 @@ for (i in 2:length(seasons)) {
 
 cv_results
 ```
-

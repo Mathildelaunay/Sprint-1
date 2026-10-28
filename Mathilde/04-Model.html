@@ -11,7 +11,7 @@
 
 <meta name="author" content="Mathilde Launay" />
 
-<meta name="date" content="2026-10-27" />
+<meta name="date" content="2026-10-28" />
 
 <title>model fitting</title>
 
@@ -352,7 +352,7 @@ display: none;
 
 <h1 class="title toc-ignore">model fitting</h1>
 <h4 class="author">Mathilde Launay</h4>
-<h4 class="date">2026-10-27</h4>
+<h4 class="date">2026-10-28</h4>
 
 </div>
 
@@ -414,8 +414,8 @@ X25_26_training &lt;- X25_26_training %&gt;%
       predicted_goals_Home - predicted_goals_Away,
 
     predicted_result = case_when(
-      abs(goal_difference) &lt;= 0.225 ~ &quot;D&quot;,
-      goal_difference &gt; 0.225 ~ &quot;H&quot;,
+      abs(goal_difference) &lt;= 0.8 ~ &quot;D&quot;,
+      goal_difference &gt; 0.8 ~ &quot;H&quot;,
       TRUE ~ &quot;A&quot;
     ),
 
@@ -494,26 +494,26 @@ league_table_25_26</code></pre>
 <pre><code>## # A tibble: 20 × 5
 ##    Team           PredictedPoints ActualPoints PredictedRank ActualRank
 ##    &lt;chr&gt;                    &lt;dbl&gt;        &lt;dbl&gt;         &lt;int&gt;      &lt;int&gt;
-##  1 Arsenal                    100           85             2          1
-##  2 Man City                   105           78             1          2
-##  3 Man United                  71           71             6          3
-##  4 Aston Villa                 68           65             8          4
-##  5 Liverpool                   96           60             3          5
-##  6 Bournemouth                 57           57             9          6
-##  7 Sunderland                  14           54            18          7
-##  8 Brentford                   50           53            10          8
-##  9 Brighton                    50           53            11          9
-## 10 Chelsea                     83           52             4         10
-## 11 Fulham                      44           52            12         11
-## 12 Newcastle                   73           49             5         12
-## 13 Everton                     27           49            16         13
-## 14 Leeds                       23           47            17         14
-## 15 Crystal Palace              42           45            13         15
-## 16 Nott&#39;m Forest               69           44             7         16
-## 17 Tottenham                   35           41            14         17
-## 18 West Ham                    30           39            15         18
-## 19 Burnley                      4           22            20         19
-## 20 Wolves                      12           20            19         20</code></pre>
+##  1 Arsenal                     76           85             1          1
+##  2 Man City                    70           78             3          2
+##  3 Man United                  47           71             7          3
+##  4 Aston Villa                 53           65             6          4
+##  5 Liverpool                   70           60             2          5
+##  6 Bournemouth                 40           57            10          6
+##  7 Sunderland                  22           54            19          7
+##  8 Brighton                    41           53             9          8
+##  9 Brentford                   38           53            11          9
+## 10 Chelsea                     60           52             5         10
+## 11 Fulham                      34           52            13         11
+## 12 Newcastle                   61           49             4         12
+## 13 Everton                     35           49            12         13
+## 14 Leeds                       32           47            17         14
+## 15 Crystal Palace              33           45            15         15
+## 16 Nott&#39;m Forest               43           44             8         16
+## 17 Tottenham                   34           41            14         17
+## 18 West Ham                    33           39            16         18
+## 19 Burnley                     18           22            20         19
+## 20 Wolves                      24           20            18         20</code></pre>
 
 
 

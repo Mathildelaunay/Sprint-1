@@ -61,8 +61,8 @@ match_predictions_25_26 <- X25_26_training %>%
       predicted_goals_Home - predicted_goals_Away,
 
     predicted_result = case_when(
-      abs(goal_difference) <= 0.225 ~ "D",
-      goal_difference > 0.225 ~ "H",
+      abs(goal_difference) <= 0.8 ~ "D",
+      goal_difference > 0.8 ~ "H",
       TRUE ~ "A"
     ),
 

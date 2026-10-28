@@ -11,7 +11,7 @@
 
 <meta name="author" content="Mathilde Launay" />
 
-<meta name="date" content="2026-10-27" />
+<meta name="date" content="2026-10-28" />
 
 <title>feature selection</title>
 
@@ -352,7 +352,7 @@ display: none;
 
 <h1 class="title toc-ignore">feature selection</h1>
 <h4 class="author">Mathilde Launay</h4>
-<h4 class="date">2026-10-27</h4>
+<h4 class="date">2026-10-28</h4>
 
 </div>
 
@@ -448,7 +448,197 @@ both_model &lt;- step(
 <pre class="r"><code>poisson_formula &lt;- Goals ~ DAS + HomeAway + DSF +
   TeamRankCategory + DDS + OpponentRankCategory +
   DCS + DYF + DSTF</code></pre>
-<p>expanding-window validation:</p>
+<p>I decided to us an expanding-window validation, since my data relies
+on data from previous year. At the same time, I am testing for different
+values of beta, where beta is the threshold for which we a win for the
+team with higher prediction if the absolute error is more than beta, and
+a draw if the absolute error is less than beta.</p>
+<pre class="r"><code>test_beta &lt;- function(beta_values, training_data, poisson_formula) {
+  # Get seasons in chronological order
+  seasons &lt;- training_data %&gt;%
+    distinct(Year) %&gt;%
+    mutate(start_year = as.integer(substr(Year, 1, 4))) %&gt;%
+    arrange(start_year) %&gt;%
+    pull(Year)
+
+  # Store results for every beta and validation season
+  cv_results &lt;- data.frame()
+
+  for (beta in beta_values) {
+
+    for (i in 2:length(seasons)) {
+
+      # All seasons before the validation season
+      train_fold &lt;- training_data %&gt;%
+        filter(Year %in% seasons[1:(i - 1)])
+
+      # Entire next season
+      valid_fold &lt;- training_data %&gt;%
+        filter(Year == seasons[i])
+
+      # Fit Poisson GLM
+      poisson_model &lt;- glm(
+        poisson_formula,
+        data = train_fold,
+        family = poisson(link = &quot;log&quot;)
+      )
+
+      # Predict expected goals
+      valid_fold &lt;- valid_fold %&gt;%
+        mutate(
+          predicted_goals = predict(
+            poisson_model,
+            newdata = valid_fold,
+            type = &quot;response&quot;
+          )
+        )
+
+      # Pair home and away teams
+      match_predictions &lt;- valid_fold %&gt;%
+        select(
+          Year, match_id, HomeAway, Team, Goals, predicted_goals
+        ) %&gt;%
+        pivot_wider(
+          names_from = HomeAway,
+          values_from = c(Team, Goals, predicted_goals)
+        ) %&gt;%
+        mutate(
+          goal_difference =
+            predicted_goals_Home - predicted_goals_Away,
+
+          predicted_result = case_when(
+            abs(goal_difference) &lt;= beta ~ &quot;D&quot;,
+            goal_difference &gt; beta ~ &quot;H&quot;,
+            TRUE ~ &quot;A&quot;
+          ),
+
+          actual_result = case_when(
+            Goals_Home &gt; Goals_Away ~ &quot;H&quot;,
+            Goals_Home &lt; Goals_Away ~ &quot;A&quot;,
+            TRUE ~ &quot;D&quot;
+          ),
+
+          predicted_home_points = case_when(
+            predicted_result == &quot;H&quot; ~ 3,
+            predicted_result == &quot;D&quot; ~ 1,
+            TRUE ~ 0
+          ),
+
+          predicted_away_points = case_when(
+            predicted_result == &quot;A&quot; ~ 3,
+            predicted_result == &quot;D&quot; ~ 1,
+            TRUE ~ 0
+          ),
+
+          actual_home_points = case_when(
+            actual_result == &quot;H&quot; ~ 3,
+            actual_result == &quot;D&quot; ~ 1,
+            TRUE ~ 0
+          ),
+
+          actual_away_points = case_when(
+            actual_result == &quot;A&quot; ~ 3,
+            actual_result == &quot;D&quot; ~ 1,
+            TRUE ~ 0
+          )
+        )
+
+      # Calculate total points for each team
+      team_points &lt;- bind_rows(
+        match_predictions %&gt;%
+          transmute(
+            Team = Team_Home,
+            predicted_points = predicted_home_points,
+            actual_points = actual_home_points
+          ),
+
+        match_predictions %&gt;%
+          transmute(
+            Team = Team_Away,
+            predicted_points = predicted_away_points,
+            actual_points = actual_away_points
+          )
+      ) %&gt;%
+        group_by(Team) %&gt;%
+        summarise(
+          predicted_points = sum(predicted_points),
+          actual_points = sum(actual_points),
+          .groups = &quot;drop&quot;
+        ) %&gt;%
+        mutate(
+          predicted_rank = min_rank(desc(predicted_points)),
+          actual_rank = min_rank(desc(actual_points))
+        )
+
+      # Store evaluation metrics
+      cv_results &lt;- rbind(
+        cv_results,
+        data.frame(
+          Beta = beta,
+          Season = seasons[i],
+
+          Points_MAE = mean(abs(
+            team_points$actual_points -
+              team_points$predicted_points
+          )),
+
+          Points_RMSE = sqrt(mean(
+            (team_points$actual_points -
+               team_points$predicted_points)^2
+          )),
+
+          Outcome_Accuracy = mean(
+            match_predictions$predicted_result ==
+              match_predictions$actual_result
+          ),
+
+          Kendall_Rank = cor(
+            team_points$predicted_rank,
+            team_points$actual_rank,
+            method = &quot;kendall&quot;
+          )
+        )
+      )
+    }
+  }
+
+  return(cv_results)
+}</code></pre>
+<pre class="r"><code>beta_values &lt;- seq(0.1, 1, by = 0.025)
+
+beta_results &lt;- test_beta(
+  beta_values = beta_values,
+  training_data = training_data,
+  poisson_formula = poisson_formula
+)</code></pre>
+<pre class="r"><code>beta_summary &lt;- beta_results %&gt;%
+  group_by(Beta) %&gt;%
+  summarise(
+    Mean_Points_MAE = mean(Points_MAE, na.rm = TRUE),
+    Mean_Points_RMSE = mean(Points_RMSE, na.rm = TRUE),
+    Mean_Outcome_Accuracy = mean(Outcome_Accuracy, na.rm = TRUE),
+    Mean_Kendall_Rank = mean(Kendall_Rank, na.rm = TRUE),
+    .groups = &quot;drop&quot;
+  )
+
+beta_summary</code></pre>
+<pre><code>## # A tibble: 37 × 5
+##     Beta Mean_Points_MAE Mean_Points_RMSE Mean_Outcome_Accuracy
+##    &lt;dbl&gt;           &lt;dbl&gt;            &lt;dbl&gt;                 &lt;dbl&gt;
+##  1 0.1              14.4             17.3                 0.526
+##  2 0.125            14.3             17.1                 0.523
+##  3 0.15             14.2             17.0                 0.520
+##  4 0.175            14.1             16.8                 0.517
+##  5 0.2              13.9             16.6                 0.516
+##  6 0.225            13.9             16.5                 0.512
+##  7 0.25             13.9             16.4                 0.511
+##  8 0.275            13.8             16.2                 0.502
+##  9 0.3              13.8             16.2                 0.497
+## 10 0.325            13.7             16.0                 0.492
+## # ℹ 27 more rows
+## # ℹ 1 more variable: Mean_Kendall_Rank &lt;dbl&gt;</code></pre>
+<p>The value of beta which has lowest mean MAE, mean RMSE and highest
+mean Kendall Rank is 0.8.</p>
 <pre class="r"><code>seasons &lt;- training_data %&gt;%
   distinct(Year) %&gt;%
   mutate(start_year = as.integer(substr(Year, 1, 4))) %&gt;%
@@ -504,8 +694,8 @@ for (i in 2:length(seasons)) {
         predicted_goals_Home - predicted_goals_Away,
 
       predicted_result = case_when(
-        abs(goal_difference) &lt;= 0.225 ~ &quot;D&quot;,
-        goal_difference &gt; 0.225 ~ &quot;H&quot;,
+        abs(goal_difference) &lt;= 0.8 ~ &quot;D&quot;,
+        goal_difference &gt; 0.8 ~ &quot;H&quot;,
         TRUE ~ &quot;A&quot;
       ),
 
@@ -598,16 +788,16 @@ for (i in 2:length(seasons)) {
 
 cv_results</code></pre>
 <pre><code>##     Season Points_MAE Points_RMSE Outcome_Accuracy Kendall_Rank
-## 1  2015/16      16.70    19.43708        0.4526316    0.5706687
-## 2  2016/17      13.30    15.89025        0.5631579    0.7914891
-## 3  2017/18      13.40    15.86821        0.5394737    0.6203297
-## 4  2018/19      10.95    12.84718        0.5473684    0.8116739
-## 5  2019/20      13.80    16.25115        0.5131579    0.7272831
-## 6  2020/21      13.70    15.70032        0.4710526    0.7340426
-## 7  2021/22      12.75    14.81047        0.5131579    0.7904537
-## 8  2022/23      17.65    20.43893        0.4815789    0.5994885
-## 9  2023/24      12.10    13.98213        0.5526316    0.7379785
-## 10 2024/25      14.50    19.86202        0.4815789    0.6986692</code></pre>
+## 1  2015/16      12.55    15.91383        0.4131579    0.5513836
+## 2  2016/17       9.95    12.79258        0.4105263    0.7627345
+## 3  2017/18      10.15    11.49565        0.4710526    0.6809676
+## 4  2018/19       9.15    11.17810        0.4289474    0.7659574
+## 5  2019/20      10.15    12.86662        0.4394737    0.6827957
+## 6  2020/21      10.60    13.27780        0.3631579    0.7131598
+## 7  2021/22       9.85    11.79195        0.4394737    0.7553298
+## 8  2022/23      12.40    15.21841        0.4000000    0.5952791
+## 9  2023/24       9.20    11.40175        0.4210526    0.7547197
+## 10 2024/25      11.40    13.42758        0.3894737    0.7486631</code></pre>
 
 
 
