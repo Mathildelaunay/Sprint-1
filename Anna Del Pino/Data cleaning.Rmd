@@ -119,8 +119,6 @@ library(dplyr)
 library(stats)
 library(base)
 
-train_names <- paste0("data", vectordata)
-
 train_data <- bind_rows(vectordata[train_names])
 test_data  <- bind_rows(vectordata["data25_26"])
 ```
@@ -171,6 +169,7 @@ for (stat in names(stats)) {
       rows <- which(all_data$Season == season & (all_data$HomeTeam == team | all_data$AwayTeam == team)) # look at the rows where this team has played
 
       team_stats <- ifelse(all_data$HomeTeam[rows] == team, all_data[[home_stat]][rows], all_data[[away_stat]][rows]) # if team is home, then we look at home_stat, o/w we look at away_stat
+      team_stats[is.na(team_stats)] <- 0
       
       stat_before <- c(0, head(cumsum(team_stats), -1)) #summing up all of the stats up to previous match
       
@@ -222,6 +221,7 @@ for(season in seasons){
                                                                     1,
                                                                     0))
                      )
+    points[is.na(points)] <- 0
   
     # Running total before and after each match
     points_before <- c(0, head(cumsum(points), -1))
