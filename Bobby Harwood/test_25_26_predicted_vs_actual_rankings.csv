@@ -1,0 +1,21 @@
+Team,Predicted_Ranking,Predicted_Goals_Ratio,Absolute_Rank_Error
+Arsenal,1,2.626,0
+Liverpool,2,1.844,2
+Man City,3,1.641,1
+Tottenham,4,1.428,12
+Chelsea,5,1.332,2
+Newcastle,6,1.229,4
+Bournemouth,7,1.176,1
+Brighton,8,1.101,2
+Aston Villa,9,1.094,4
+Crystal Palace,10,1.087,7
+Fulham,11,1.018,2
+Brentford,12,0.969,3
+Sunderland,13,0.965,2
+Everton,14,0.929,2
+Nott'm Forest,15,0.904,4
+Wolves,16,0.74,4
+Man United,17,0.714,14
+Leeds,18,0.688,4
+West Ham,19,0.655,1
+Burnley,20,0.507,1
