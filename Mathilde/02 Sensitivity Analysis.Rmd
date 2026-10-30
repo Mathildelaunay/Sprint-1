@@ -1,0 +1,270 @@
+---
+title: "Sensitivity analysis"
+author: "Mathilde Launay"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r} 
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(lubridate)
+library(ggplot2)
+
+source("feature_engineering_functions.R")
+
+X13_14 <- read.csv("Data/13_14.csv")
+X14_15 <- read.csv("Premier League match events data/14_15.csv")
+X15_16 <- read.csv("Premier League match events data/15_16.csv")
+X16_17 <- read.csv("Premier League match events data/16_17.csv")
+X17_18 <- read.csv("Premier League match events data/17_18.csv")
+X18_19 <- read.csv("Premier League match events data/18_19.csv")
+X19_20 <- read.csv("Premier League match events data/19_20.csv")
+X20_21 <- read.csv("Premier League match events data/20_21.csv")
+X21_22 <- read.csv("Premier League match events data/21_22.csv")
+X22_23 <- read.csv("Premier League match events data/22_23.csv")
+X23_24 <- read.csv("Premier League match events data/23_24.csv")
+X24_25 <- read.csv("Premier League match events data/24_25.csv")
+X25_26 <- read.csv("Premier League match events data/25_26.csv")
+
+get_valid_preds <- function(training_data, poisson_formula) {
+  seasons <- training_data %>%
+    distinct(Year) %>%
+    mutate(s = as.integer(substr(Year, 1, 4))) %>%
+    arrange(s) %>%
+    pull(Year)
+
+  map_dfr(seasons[-1], function(sn) {
+    tr <- training_data %>%
+      filter(Year %in% seasons[seq_len(match(sn, seasons) - 1)])
+    va <- training_data %>%
+      filter(Year == sn)
+
+    m <- glm(poisson_formula, data = tr, family = poisson(link = "log"))
+
+    va %>% mutate(predicted_goals = predict(m, va, type = "response"))
+  })
+}
+
+season_data_training <- list(
+  "2014/15" = X14_15, "2015/16" = X15_16, "2016/17" = X16_17,
+  "2017/18" = X17_18, "2018/19" = X18_19, "2019/20" = X19_20,
+  "2020/21" = X20_21, "2021/22" = X21_22, "2022/23" = X22_23,
+  "2023/24" = X23_24
+)
+training_prev <- list(X13_14, X14_15, X15_16, X16_17, X17_18,
+                      X18_19, X19_20, X20_21, X21_22, X22_23)
+
+# Validation: 2024/25 (previous season 2023/24)
+validation_data  <- X24_25
+validation_prev  <- X23_24
+validation_label <- "2024/25"
+
+predictors <- c(
+  "HomeAway", "TeamRankCategory", "OpponentRankCategory",
+  "Round", "OpponentRound", "RestAdvantage",
+  "DWF", "DLF", "DDF",
+  "attack_score", "defence_score",
+  "opp_attack_score", "opp_defence_score",
+  "DRF", "DYF", "DFF", "DCS", "DSTF", "DSF"
+)
+
+alpha_grid <- seq(0.05, 1, by = 0.05)
+beta_grid  <- seq(0.05, 1, by = 0.01)
+
+# ---- Helpers -------------------------------------------------------------
+poisson_deviance <- function(y, mu) {
+  2 * mean(ifelse(y == 0, 0, y * log(y / mu)) - (y - mu))
+}
+
+# Turn per-team predicted goals into predicted/actual league tables
+season_table <- function(df, beta) {
+  mp <- df %>%
+    select(match_id, HomeAway, Team, Goals, predicted_goals) %>%
+    pivot_wider(names_from = HomeAway,
+                values_from = c(Team, Goals, predicted_goals)) %>%
+    mutate(
+      gd       = predicted_goals_Home - predicted_goals_Away,
+      pred_res = case_when(abs(gd) <= beta ~ "D", gd > beta ~ "H", TRUE ~ "A"),
+      act_res  = case_when(Goals_Home > Goals_Away ~ "H",
+                           Goals_Home < Goals_Away ~ "A", TRUE ~ "D")
+    )
+
+  pts <- function(res, side) case_when(res == side ~ 3, res == "D" ~ 1, TRUE ~ 0)
+
+  tab <- bind_rows(
+    mp %>% transmute(Team = Team_Home,
+                     pred_pts = pts(pred_res, "H"), act_pts = pts(act_res, "H"),
+                     pred_gd = gd, act_gd = Goals_Home - Goals_Away,
+                     act_gf = Goals_Home),
+    mp %>% transmute(Team = Team_Away,
+                     pred_pts = pts(pred_res, "A"), act_pts = pts(act_res, "A"),
+                     pred_gd = -gd, act_gd = Goals_Away - Goals_Home,
+                     act_gf = Goals_Away)
+  ) %>%
+    group_by(Team) %>%
+    summarise(across(everything(), sum), .groups = "drop") %>%
+    arrange(desc(pred_pts), desc(pred_gd), Team) %>%        
+    mutate(pred_rank = row_number()) %>%
+    arrange(desc(act_pts), desc(act_gd), desc(act_gf), Team) %>%  
+    mutate(act_rank = row_number()) %>%
+    arrange(Team)
+
+  list(tab = tab, mp = mp)
+}
+
+# ---- One alpha, start to finish -----------------------------------------
+run_alpha <- function(alpha) {
+
+  # 1. Build training data with this alpha
+  training_data <- map_dfr(seq_along(season_data_training), function(i) {
+    build_season_dataset(
+      current_data  = season_data_training[[i]],
+      previous_data = training_prev[[i]],
+      season_label  = names(season_data_training)[i],
+      alpha         = alpha
+    )
+  })
+
+  # 2. Variable selection for this alpha
+  model_data <- training_data %>% select(Goals, all_of(predictors)) %>% na.omit()
+  null_model <- glm(Goals ~ 1, data = model_data,
+                    family = stats::poisson(link = "log"))
+  full_model <- glm(reformulate(predictors, response = "Goals"),
+                    data = model_data,
+                    family = stats::poisson(link = "log"))
+  sel_model <- step(null_model,
+                    scope = list(lower = formula(null_model),
+                                 upper = formula(full_model)),
+                    direction = "both", trace = 0)
+  poisson_formula <- formula(sel_model)
+
+  # 3. Choose beta by matching H/D/A proportions (expanding window, training only)
+  valid_preds <- get_valid_preds(training_data, poisson_formula)
+
+  # Target proportions over the SAME seasons the predictions cover
+  actual_props <- training_data %>%
+    filter(Year %in% unique(valid_preds$Year)) %>%
+    select(match_id, HomeAway, Goals) %>%
+    pivot_wider(names_from = HomeAway, values_from = Goals) %>%
+    summarise(H = mean(Home > Away), D = mean(Home == Away), A = mean(Home < Away))
+
+  gd_data <- valid_preds %>%
+    select(match_id, HomeAway, predicted_goals) %>%
+    pivot_wider(names_from = HomeAway, values_from = predicted_goals) %>%
+    mutate(gd = Home - Away)
+
+  prop_sweep <- map_dfr(beta_grid, function(b) {
+    tibble(Beta = b,
+           pred_H = mean(gd_data$gd >  b),
+           pred_D = mean(abs(gd_data$gd) <= b),
+           pred_A = mean(gd_data$gd < -b))
+  }) %>%
+    mutate(dist = (pred_H - actual_props$H)^2 +
+                  (pred_D - actual_props$D)^2 +
+                  (pred_A - actual_props$A)^2)
+
+  beta_chosen <- prop_sweep %>% slice_min(dist, n = 1, with_ties = FALSE) %>% pull(Beta)
+
+  # 4. Build 2024/25 with the same alpha, fit on ALL training seasons, predict
+  validation_df <- build_season_dataset(
+    current_data  = validation_data,
+    previous_data = validation_prev,
+    season_label  = validation_label,
+    alpha         = alpha
+  )
+
+  final_model <- glm(poisson_formula, data = training_data,
+                     family = poisson(link = "log"))
+  validation_df <- validation_df %>%
+    mutate(predicted_goals = predict(final_model, newdata = validation_df,
+                                     type = "response"))
+
+  # 5. Score
+  st <- season_table(validation_df, beta_chosen)
+
+  tibble(
+    alpha       = alpha,
+    beta        = beta_chosen,
+    rank_mse    = mean((st$tab$pred_rank - st$tab$act_rank)^2),
+    spearman    = cor(st$tab$pred_rank, st$tab$act_rank, method = "spearman"),
+    deviance    = poisson_deviance(validation_df$Goals, validation_df$predicted_goals),
+    pred_draw   = mean(st$mp$pred_res == "D"),
+    formula     = paste(deparse(poisson_formula, width.cutoff = 500), collapse = "")
+  )
+}
+
+# ---- Run over all alphas -------------------------------------------------
+alpha_results <- map_dfr(alpha_grid, run_alpha)
+
+alpha_results %>% select(-formula) %>% arrange(rank_mse)
+
+ggplot(alpha_results, aes(alpha, deviance)) +
+  geom_line() + geom_point() +
+  labs(y = "Deviance (2024/25)")
+ggplot(alpha_results, aes(alpha, rank_mse)) +
+  geom_line() + geom_point() +
+  labs(y = "Mean squared rank error (2024/25)")
+ggplot(alpha_results, aes(alpha, spearman)) +
+  geom_line() + geom_point() +
+  labs(y = "Spearman (2024/25)")
+```
+
+```{r} 
+keep_cols <- names(X14_15)[1:23]
+
+match_data <- c("X14_15", "X15_16", "X16_17", "X17_18", "X18_19",
+                "X19_20", "X20_21", "X21_22", "X22_23", "X23_24", "X24_25")
+
+for (nm in match_data) {
+  assign(nm, get(nm)[, keep_cols])
+}
+X14_15 <- X14_15[-381,]
+
+season_data <- list(
+  "2014/15" = X14_15,
+  "2015/16" = X15_16,
+  "2016/17" = X16_17,
+  "2017/18" = X17_18,
+  "2018/19" = X18_19,
+  "2019/20" = X19_20,
+  "2020/21" = X20_21,
+  "2021/22" = X21_22,
+  "2022/23" = X22_23,
+  "2023/24" = X23_24,
+  "2024/25" = X24_25
+)
+
+previous_data <- list(
+  X13_14,
+  X14_15,
+  X15_16,
+  X16_17,
+  X17_18,
+  X18_19,
+  X19_20,
+  X20_21,
+  X21_22,
+  X22_23,
+  X23_24
+)
+
+training_datasets <- lapply(
+  seq_along(season_data),
+  function(i) {
+    build_season_dataset(
+      current_data = season_data[[i]],
+      previous_data = previous_data[[i]],
+      season_label = names(season_data)[i],
+      0.15)
+  }
+)
+
+training_data <- bind_rows(training_datasets)
+#saveRDS(training_data, "training_data.rds")
+```

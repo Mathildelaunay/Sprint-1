@@ -11,28 +11,26 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 source("feature_engineering_functions.R")
+training_data <- readRDS("training_data.rds")
+
 X24_25 <- read.csv("Premier League match events data/24_25.csv")
 X25_26 <- read.csv("Premier League match events data/25_26.csv")
-training_data <- readRDS("training_data.rds")
 
 X25_26_training <- build_season_dataset(
   current_data = X25_26,
   previous_data = X24_25,
   season_label = "2025/26",
-  k = 2
+  0.15
 )
+poisson_formula <- Goals ~ DSTF + TeamRankCategory + HomeAway + opp_defence_score + 
+    attack_score + DCS + OpponentRankCategory + DYF + DSF + DLF
 ```
-```{r}
-poisson_formula <- Goals ~ DAS + HomeAway + DSF +
-  TeamRankCategory + DDS + OpponentRankCategory +
-  DCS + DYF + DSTF
-```
+
 ```{r}
 # Train on all seasons before 2025/26
 poisson_model_final <- glm(
   poisson_formula,
-  data = training_data %>%
-    filter(Year != "2025/26"),
+  data = training_data,
   family = poisson(link = "log")
 )
 
@@ -61,8 +59,8 @@ match_predictions_25_26 <- X25_26_training %>%
       predicted_goals_Home - predicted_goals_Away,
 
     predicted_result = case_when(
-      abs(goal_difference) <= 0.8 ~ "D",
-      goal_difference > 0.8 ~ "H",
+      abs(goal_difference) <= 0.25 ~ "D",
+      goal_difference > 0.25 ~ "H",
       TRUE ~ "A"
     ),
 
@@ -145,5 +143,43 @@ league_table_25_26 <- X25_26_training %>%
 
 league_table_25_26
 ```
+```{r}
+pm <- function(predicted, actual) {
+  wt <- c()
 
+  for (i in 1:length(predicted)) {
+    p <- predicted[i]  # predicted position
+    a <- actual[i]     # actual position
+    d <- abs(p - a)    # distance between predicted and actual i.e. residual
+
+    if (a <= 5) {  # team actually finished in the top five
+
+      if (p == a) { # actual and predicted teams are in the same position within the first 5
+        w <- 1
+      } else if (p <= 5) { # actual and predicted teams aren't in the same position but are within the first 5
+        w <- 0.7
+      } else if (d <= 2) { # actual and predicted teams aren't in the same position but predicted are 1 or 2 spaces from actual
+        w <- 0.4
+      } else { # predicted takes values in position 8+ while predicted takes position within first 5
+        w <- -(d / 19) #  i.e. for each position further apart, then the weight becomes smaller
+      }
+
+    } else {  # team actually finished outside the top five
+
+      if (p <= 5) { # incorrectly predicted in the top five
+        w <- 0  
+      } else if (p == a) { # correctly predicted outside of top 5
+        w <- 0.4
+      } else { # incorrectly predicted outside of top 5
+        w <- -(d / 14) # notice for one space wrong w = -0.07, for 14 spaces wrong (max distance) w = -1
+      }
+    }
+
+    wt <- c(wt, w)
+  }
+
+  sum(wt) 
+}
+pm(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank)
+```
 

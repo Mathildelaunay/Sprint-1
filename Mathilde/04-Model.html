@@ -11,7 +11,7 @@
 
 <meta name="author" content="Mathilde Launay" />
 
-<meta name="date" content="2026-10-28" />
+<meta name="date" content="2026-10-30" />
 
 <title>model fitting</title>
 
@@ -352,7 +352,7 @@ display: none;
 
 <h1 class="title toc-ignore">model fitting</h1>
 <h4 class="author">Mathilde Launay</h4>
-<h4 class="date">2026-10-28</h4>
+<h4 class="date">2026-10-30</h4>
 
 </div>
 
@@ -371,24 +371,23 @@ display: none;
 <pre><code>## The following objects are masked from &#39;package:base&#39;:
 ## 
 ##     date, intersect, setdiff, union</code></pre>
-<pre class="r"><code>X24_25 &lt;- read.csv(&quot;Premier League match events data/24_25.csv&quot;)
+<pre class="r"><code>training_data &lt;- readRDS(&quot;training_data.rds&quot;)
+
+X24_25 &lt;- read.csv(&quot;Premier League match events data/24_25.csv&quot;)
 X25_26 &lt;- read.csv(&quot;Premier League match events data/25_26.csv&quot;)
-training_data &lt;- readRDS(&quot;training_data.rds&quot;)
 
 X25_26_training &lt;- build_season_dataset(
   current_data = X25_26,
   previous_data = X24_25,
   season_label = &quot;2025/26&quot;,
-  k = 2
-)</code></pre>
-<pre class="r"><code>poisson_formula &lt;- Goals ~ DAS + HomeAway + DSF +
-  TeamRankCategory + DDS + OpponentRankCategory +
-  DCS + DYF + DSTF</code></pre>
+  0.15
+)
+poisson_formula &lt;- Goals ~ DSTF + TeamRankCategory + HomeAway + opp_defence_score + 
+    attack_score + DCS + OpponentRankCategory + DYF + DSF + DLF</code></pre>
 <pre class="r"><code># Train on all seasons before 2025/26
 poisson_model_final &lt;- glm(
   poisson_formula,
-  data = training_data %&gt;%
-    filter(Year != &quot;2025/26&quot;),
+  data = training_data,
   family = poisson(link = &quot;log&quot;)
 )
 
@@ -414,8 +413,8 @@ X25_26_training &lt;- X25_26_training %&gt;%
       predicted_goals_Home - predicted_goals_Away,
 
     predicted_result = case_when(
-      abs(goal_difference) &lt;= 0.8 ~ &quot;D&quot;,
-      goal_difference &gt; 0.8 ~ &quot;H&quot;,
+      abs(goal_difference) &lt;= 0.25 ~ &quot;D&quot;,
+      goal_difference &gt; 0.25 ~ &quot;H&quot;,
       TRUE ~ &quot;A&quot;
     ),
 
@@ -494,26 +493,64 @@ league_table_25_26</code></pre>
 <pre><code>## # A tibble: 20 × 5
 ##    Team           PredictedPoints ActualPoints PredictedRank ActualRank
 ##    &lt;chr&gt;                    &lt;dbl&gt;        &lt;dbl&gt;         &lt;int&gt;      &lt;int&gt;
-##  1 Arsenal                     76           85             1          1
-##  2 Man City                    70           78             3          2
-##  3 Man United                  47           71             7          3
-##  4 Aston Villa                 53           65             6          4
-##  5 Liverpool                   70           60             2          5
-##  6 Bournemouth                 40           57            10          6
-##  7 Sunderland                  22           54            19          7
-##  8 Brighton                    41           53             9          8
-##  9 Brentford                   38           53            11          9
-## 10 Chelsea                     60           52             5         10
-## 11 Fulham                      34           52            13         11
-## 12 Newcastle                   61           49             4         12
-## 13 Everton                     35           49            12         13
-## 14 Leeds                       32           47            17         14
-## 15 Crystal Palace              33           45            15         15
-## 16 Nott&#39;m Forest               43           44             8         16
-## 17 Tottenham                   34           41            14         17
-## 18 West Ham                    33           39            16         18
-## 19 Burnley                     18           22            20         19
-## 20 Wolves                      24           20            18         20</code></pre>
+##  1 Arsenal                    102           85             1          1
+##  2 Man City                   100           78             2          2
+##  3 Man United                  72           71             6          3
+##  4 Aston Villa                 71           65             7          4
+##  5 Liverpool                   98           60             3          5
+##  6 Bournemouth                 57           57             9          6
+##  7 Sunderland                  12           54            19          7
+##  8 Brighton                    50           53            10          8
+##  9 Brentford                   46           53            11          9
+## 10 Chelsea                     83           52             4         10
+## 11 Fulham                      40           52            13         11
+## 12 Newcastle                   75           49             5         12
+## 13 Everton                     28           49            15         13
+## 14 Leeds                       20           47            17         14
+## 15 Crystal Palace              41           45            12         15
+## 16 Nott&#39;m Forest               70           44             8         16
+## 17 Tottenham                   32           41            14         17
+## 18 West Ham                    27           39            16         18
+## 19 Burnley                      5           22            20         19
+## 20 Wolves                      14           20            18         20</code></pre>
+<pre class="r"><code>pm &lt;- function(predicted, actual) {
+  wt &lt;- c()
+
+  for (i in 1:length(predicted)) {
+    p &lt;- predicted[i]  # predicted position
+    a &lt;- actual[i]     # actual position
+    d &lt;- abs(p - a)    # distance between predicted and actual i.e. residual
+
+    if (a &lt;= 5) {  # team actually finished in the top five
+
+      if (p == a) { # actual and predicted teams are in the same position within the first 5
+        w &lt;- 1
+      } else if (p &lt;= 5) { # actual and predicted teams aren&#39;t in the same position but are within the first 5
+        w &lt;- 0.7
+      } else if (d &lt;= 2) { # actual and predicted teams aren&#39;t in the same position but predicted are 1 or 2 spaces from actual
+        w &lt;- 0.4
+      } else { # predicted takes values in position 8+ while predicted takes position within first 5
+        w &lt;- -(d / 19) #  i.e. for each position further apart, then the weight becomes smaller
+      }
+
+    } else {  # team actually finished outside the top five
+
+      if (p &lt;= 5) { # incorrectly predicted in the top five
+        w &lt;- 0  
+      } else if (p == a) { # correctly predicted outside of top 5
+        w &lt;- 0.4
+      } else { # incorrectly predicted outside of top 5
+        w &lt;- -(d / 14) # notice for one space wrong w = -0.07, for 14 spaces wrong (max distance) w = -1
+      }
+    }
+
+    wt &lt;- c(wt, w)
+  }
+
+  sum(wt) 
+}
+pm(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank)</code></pre>
+<pre><code>## [1] -0.8300752</code></pre>
 
 
 

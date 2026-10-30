@@ -9,48 +9,12 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r} 
-library(dplyr)
-library(tidyr)
-library(lubridate)
-X13_14 <- read.csv("Data/13_14.csv")
-X14_15 <- read.csv("Premier League match events data/14_15.csv")
-X15_16 <- read.csv("Premier League match events data/15_16.csv")
-X16_17 <- read.csv("Premier League match events data/16_17.csv")
-X17_18 <- read.csv("Premier League match events data/17_18.csv")
-X18_19 <- read.csv("Premier League match events data/18_19.csv")
-X19_20 <- read.csv("Premier League match events data/19_20.csv")
-X20_21 <- read.csv("Premier League match events data/20_21.csv")
-X21_22 <- read.csv("Premier League match events data/21_22.csv")
-X22_23 <- read.csv("Premier League match events data/22_23.csv")
-X23_24 <- read.csv("Premier League match events data/23_24.csv")
-X24_25 <- read.csv("Premier League match events data/24_25.csv")
-X25_26 <- read.csv("Premier League match events data/25_26.csv")
-
-keep_cols <- names(X14_15)[1:23]
-
-match_data <- c("X14_15", "X15_16", "X16_17", "X17_18", "X18_19",
-                "X19_20", "X20_21", "X21_22", "X22_23", "X23_24", "X24_25")
-
-for (nm in match_data) {
-  assign(nm, get(nm)[, keep_cols])
-}
-X14_15 <- X14_15[-381,]
-```
-
 ```{r}
-library(dplyr)
-library(tidyr)
-library(lubridate)
-
+# Also saved as .R file to call it later.
 build_season_dataset <- function(current_data,
                                  previous_data,
                                  season_label,
-                                 k = 2) {
-
-  # --------------------------------------------------
-  # A. Prepare current-season matches
-  # --------------------------------------------------
+                                 alpha) {
 
   matches <- current_data %>%
     mutate(
@@ -63,10 +27,6 @@ build_season_dataset <- function(current_data,
       )
     ) %>%
     arrange(Date, match_id)
-
-  # --------------------------------------------------
-  # B. Calculate previous-season team statistics
-  # --------------------------------------------------
 
   previous_season_matches <- bind_rows(
     previous_data %>%
@@ -136,20 +96,13 @@ build_season_dataset <- function(current_data,
       )
     )
 
-  # Historical goal-rate medians, based only on the previous season
-  median_scored <- median(
-    previous_season_stats$previous_season_goals_scored_per_match,
-    na.rm = TRUE
-  )
+  # Promoted teams: mean of the previous season's bottom three
+  bottom3 <- previous_season_stats %>%
+    slice_max(previous_season_ranking, n = 3)
 
-  median_conceded <- median(
-    previous_season_stats$previous_season_goals_conceded_per_match,
-    na.rm = TRUE
-  )
+  promoted_scored   <- mean(bottom3$previous_season_goals_scored_per_match)
+  promoted_conceded <- mean(bottom3$previous_season_goals_conceded_per_match)
 
-  # --------------------------------------------------
-  # C. Get two rows for every match
-  # --------------------------------------------------
 
   home_data <- matches %>%
     transmute(
@@ -200,9 +153,6 @@ build_season_dataset <- function(current_data,
   team_matches <- bind_rows(home_data, away_data) %>%
     arrange(Date, match_id, HomeAway)
 
-  # --------------------------------------------------
-  # D. Calculate pre-match statistics
-  # --------------------------------------------------
 
   team_features <- team_matches %>%
     group_by(Team) %>%
@@ -315,17 +265,9 @@ build_season_dataset <- function(current_data,
 
     mutate(
       previous_season_goals_scored_per_match =
-        coalesce(
-          previous_season_goals_scored_per_match,
-          median_scored
-        ),
-
+        coalesce(previous_season_goals_scored_per_match, promoted_scored),
       previous_season_goals_conceded_per_match =
-        coalesce(
-          previous_season_goals_conceded_per_match,
-          median_conceded
-        ),
-
+        coalesce(previous_season_goals_conceded_per_match, promoted_conceded),
       RankCategory = coalesce(RankCategory, "Promoted")
     )
 
@@ -344,8 +286,6 @@ build_season_dataset <- function(current_data,
       d$attack_score <- numeric(n)
       d$defence_score <- numeric(n)
 
-      alpha <- 0.1
-
       for (i in seq_len(n)) {
 
         # Store scores BEFORE this match takes place
@@ -363,11 +303,6 @@ build_season_dataset <- function(current_data,
       d
     }) %>%
     ungroup()
-
-
-  # --------------------------------------------------
-  # E. Attach each team's opponent features
-  # --------------------------------------------------
 
   opponent_features <- team_features %>%
     select(
@@ -395,10 +330,6 @@ build_season_dataset <- function(current_data,
     ) %>%
     rename(Opponent = Team)
 
-  # --------------------------------------------------
-  # F. Calculate difference features and return data
-  # --------------------------------------------------
-
   team_features %>%
     left_join(
       opponent_features,
@@ -411,113 +342,43 @@ build_season_dataset <- function(current_data,
       Round = matches_played,
       OpponentRound = opp_matches_played,
 
-      Days = days_since_last_match -
-        opp_days_since_last_match,
+      # Rest difference in days (needed to build RestAdvantage)
+      Days = days_since_last_match - opp_days_since_last_match,
+
+      RestAdvantage = case_when(
+        is.na(Days) ~ "Equal",
+        Days >= 2   ~ "More",
+        Days <= -2  ~ "Less",
+        TRUE        ~ "Equal"
+      ),
 
       DWF = win_frequency - opp_win_frequency,
       DLF = loss_frequency - opp_loss_frequency,
       DDF = draw_frequency - opp_draw_frequency,
 
-      DAS = attack_score - opp_attack_score,
-      DDS = defence_score - opp_defence_score,
-
-      DRF = red_cards_per_match -
-        opp_red_cards_per_match,
-
-      DYF = yellow_cards_per_match -
-        opp_yellow_cards_per_match,
-
-      DFF = fouls_per_match -
-        opp_fouls_per_match,
-
-      DCS = corners_per_match -
-        opp_corners_per_match,
-
-      DSTF = shots_on_target_per_match -
-        opp_shots_on_target_per_match,
-
-      DSF = shots_per_match -
-        opp_shots_per_match
+      DRF = red_cards_per_match - opp_red_cards_per_match,
+      DYF = yellow_cards_per_match - opp_yellow_cards_per_match,
+      DFF = fouls_per_match - opp_fouls_per_match,
+      DCS = corners_per_match - opp_corners_per_match,
+      DSTF = shots_on_target_per_match - opp_shots_on_target_per_match,
+      DSF = shots_per_match - opp_shots_per_match
     ) %>%
     mutate(
       across(
-        c(Days, DRF, DYF, DFF, DCS, DSTF, DSF),
+        c(DRF, DYF, DFF, DCS, DSTF, DSF),
         ~ replace_na(.x, 0)
       )
     ) %>%
     transmute(
-      match_id,
-      Year,
-      Date,
-      Team,
-      Opponent,
-      HomeAway,
-      TeamRankCategory,
-      OpponentRankCategory,
-      Round,
-      OpponentRound,
-      Days,
-      DWF,
-      DLF,
-      DDF,
-      DAS,
-      DDS,
-      DRF,
-      DYF,
-      DFF,
-      DCS,
-      DSTF,
-      DSF,
+      match_id, Year, Date, Team, Opponent, HomeAway,
+      TeamRankCategory, OpponentRankCategory,
+      Round, OpponentRound, RestAdvantage,
+      DWF, DLF, DDF,
+      attack_score, defence_score,
+      opp_attack_score, opp_defence_score,
+      DRF, DYF, DFF, DCS, DSTF, DSF,
       Goals = goals_for
     ) %>%
     arrange(match_id, desc(HomeAway == "Home"))
 }
 ```
-
-```{r}
-season_data <- list(
-  "2014/15" = X14_15,
-  "2015/16" = X15_16,
-  "2016/17" = X16_17,
-  "2017/18" = X17_18,
-  "2018/19" = X18_19,
-  "2019/20" = X19_20,
-  "2020/21" = X20_21,
-  "2021/22" = X21_22,
-  "2022/23" = X22_23,
-  "2023/24" = X23_24,
-  "2024/25" = X24_25
-)
-
-previous_data <- list(
-  X13_14,
-  X14_15,
-  X15_16,
-  X16_17,
-  X17_18,
-  X18_19,
-  X19_20,
-  X20_21,
-  X21_22,
-  X22_23,
-  X23_24
-)
-```
-
-```{r}
-training_datasets <- lapply(
-  seq_along(season_data),
-  function(i) {
-    build_season_dataset(
-      current_data = season_data[[i]],
-      previous_data = previous_data[[i]],
-      season_label = names(season_data)[i],
-      k = 2
-    )
-  }
-)
-
-training_data <- bind_rows(training_datasets)
-```
-
-

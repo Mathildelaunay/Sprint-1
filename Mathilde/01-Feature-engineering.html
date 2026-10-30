@@ -11,7 +11,7 @@
 
 <meta name="author" content="Mathilde Launay" />
 
-<meta name="date" content="2026-10-27" />
+<meta name="date" content="2026-10-30" />
 
 <title>My dataset</title>
 
@@ -352,62 +352,16 @@ display: none;
 
 <h1 class="title toc-ignore">My dataset</h1>
 <h4 class="author">Mathilde Launay</h4>
-<h4 class="date">2026-10-27</h4>
+<h4 class="date">2026-10-30</h4>
 
 </div>
 
 
-<pre class="r"><code>library(dplyr)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;dplyr&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:stats&#39;:
-## 
-##     filter, lag</code></pre>
-<pre><code>## The following objects are masked from &#39;package:base&#39;:
-## 
-##     intersect, setdiff, setequal, union</code></pre>
-<pre class="r"><code>library(tidyr)
-library(lubridate)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;lubridate&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:base&#39;:
-## 
-##     date, intersect, setdiff, union</code></pre>
-<pre class="r"><code>X13_14 &lt;- read.csv(&quot;Data/13_14.csv&quot;)
-X14_15 &lt;- read.csv(&quot;Premier League match events data/14_15.csv&quot;)
-X15_16 &lt;- read.csv(&quot;Premier League match events data/15_16.csv&quot;)
-X16_17 &lt;- read.csv(&quot;Premier League match events data/16_17.csv&quot;)
-X17_18 &lt;- read.csv(&quot;Premier League match events data/17_18.csv&quot;)
-X18_19 &lt;- read.csv(&quot;Premier League match events data/18_19.csv&quot;)
-X19_20 &lt;- read.csv(&quot;Premier League match events data/19_20.csv&quot;)
-X20_21 &lt;- read.csv(&quot;Premier League match events data/20_21.csv&quot;)
-X21_22 &lt;- read.csv(&quot;Premier League match events data/21_22.csv&quot;)
-X22_23 &lt;- read.csv(&quot;Premier League match events data/22_23.csv&quot;)
-X23_24 &lt;- read.csv(&quot;Premier League match events data/23_24.csv&quot;)
-X24_25 &lt;- read.csv(&quot;Premier League match events data/24_25.csv&quot;)
-X25_26 &lt;- read.csv(&quot;Premier League match events data/25_26.csv&quot;)
-
-keep_cols &lt;- names(X14_15)[1:23]
-
-match_data &lt;- c(&quot;X14_15&quot;, &quot;X15_16&quot;, &quot;X16_17&quot;, &quot;X17_18&quot;, &quot;X18_19&quot;,
-                &quot;X19_20&quot;, &quot;X20_21&quot;, &quot;X21_22&quot;, &quot;X22_23&quot;, &quot;X23_24&quot;, &quot;X24_25&quot;)
-
-for (nm in match_data) {
-  assign(nm, get(nm)[, keep_cols])
-}
-X14_15 &lt;- X14_15[-381,]</code></pre>
-<pre class="r"><code>library(dplyr)
-library(tidyr)
-library(lubridate)
-
+<pre class="r"><code># Also saved as .R file to call it later.
 build_season_dataset &lt;- function(current_data,
                                  previous_data,
                                  season_label,
-                                 k = 2) {
-
-  # --------------------------------------------------
-  # A. Prepare current-season matches
-  # --------------------------------------------------
+                                 alpha) {
 
   matches &lt;- current_data %&gt;%
     mutate(
@@ -420,10 +374,6 @@ build_season_dataset &lt;- function(current_data,
       )
     ) %&gt;%
     arrange(Date, match_id)
-
-  # --------------------------------------------------
-  # B. Calculate previous-season team statistics
-  # --------------------------------------------------
 
   previous_season_matches &lt;- bind_rows(
     previous_data %&gt;%
@@ -493,20 +443,13 @@ build_season_dataset &lt;- function(current_data,
       )
     )
 
-  # Historical goal-rate medians, based only on the previous season
-  median_scored &lt;- median(
-    previous_season_stats$previous_season_goals_scored_per_match,
-    na.rm = TRUE
-  )
+  # Promoted teams: mean of the previous season&#39;s bottom three
+  bottom3 &lt;- previous_season_stats %&gt;%
+    slice_max(previous_season_ranking, n = 3)
 
-  median_conceded &lt;- median(
-    previous_season_stats$previous_season_goals_conceded_per_match,
-    na.rm = TRUE
-  )
+  promoted_scored   &lt;- mean(bottom3$previous_season_goals_scored_per_match)
+  promoted_conceded &lt;- mean(bottom3$previous_season_goals_conceded_per_match)
 
-  # --------------------------------------------------
-  # C. Get two rows for every match
-  # --------------------------------------------------
 
   home_data &lt;- matches %&gt;%
     transmute(
@@ -557,9 +500,6 @@ build_season_dataset &lt;- function(current_data,
   team_matches &lt;- bind_rows(home_data, away_data) %&gt;%
     arrange(Date, match_id, HomeAway)
 
-  # --------------------------------------------------
-  # D. Calculate pre-match statistics
-  # --------------------------------------------------
 
   team_features &lt;- team_matches %&gt;%
     group_by(Team) %&gt;%
@@ -672,17 +612,9 @@ build_season_dataset &lt;- function(current_data,
 
     mutate(
       previous_season_goals_scored_per_match =
-        coalesce(
-          previous_season_goals_scored_per_match,
-          median_scored
-        ),
-
+        coalesce(previous_season_goals_scored_per_match, promoted_scored),
       previous_season_goals_conceded_per_match =
-        coalesce(
-          previous_season_goals_conceded_per_match,
-          median_conceded
-        ),
-
+        coalesce(previous_season_goals_conceded_per_match, promoted_conceded),
       RankCategory = coalesce(RankCategory, &quot;Promoted&quot;)
     )
 
@@ -701,8 +633,6 @@ build_season_dataset &lt;- function(current_data,
       d$attack_score &lt;- numeric(n)
       d$defence_score &lt;- numeric(n)
 
-      alpha &lt;- 0.1
-
       for (i in seq_len(n)) {
 
         # Store scores BEFORE this match takes place
@@ -720,11 +650,6 @@ build_season_dataset &lt;- function(current_data,
       d
     }) %&gt;%
     ungroup()
-
-
-  # --------------------------------------------------
-  # E. Attach each team&#39;s opponent features
-  # --------------------------------------------------
 
   opponent_features &lt;- team_features %&gt;%
     select(
@@ -752,10 +677,6 @@ build_season_dataset &lt;- function(current_data,
     ) %&gt;%
     rename(Opponent = Team)
 
-  # --------------------------------------------------
-  # F. Calculate difference features and return data
-  # --------------------------------------------------
-
   team_features %&gt;%
     left_join(
       opponent_features,
@@ -768,107 +689,45 @@ build_season_dataset &lt;- function(current_data,
       Round = matches_played,
       OpponentRound = opp_matches_played,
 
-      Days = days_since_last_match -
-        opp_days_since_last_match,
+      # Rest difference in days (needed to build RestAdvantage)
+      Days = days_since_last_match - opp_days_since_last_match,
+
+      RestAdvantage = case_when(
+        is.na(Days) ~ &quot;Equal&quot;,
+        Days &gt;= 2   ~ &quot;More&quot;,
+        Days &lt;= -2  ~ &quot;Less&quot;,
+        TRUE        ~ &quot;Equal&quot;
+      ),
 
       DWF = win_frequency - opp_win_frequency,
       DLF = loss_frequency - opp_loss_frequency,
       DDF = draw_frequency - opp_draw_frequency,
 
-      DAS = attack_score - opp_attack_score,
-      DDS = defence_score - opp_defence_score,
-
-      DRF = red_cards_per_match -
-        opp_red_cards_per_match,
-
-      DYF = yellow_cards_per_match -
-        opp_yellow_cards_per_match,
-
-      DFF = fouls_per_match -
-        opp_fouls_per_match,
-
-      DCS = corners_per_match -
-        opp_corners_per_match,
-
-      DSTF = shots_on_target_per_match -
-        opp_shots_on_target_per_match,
-
-      DSF = shots_per_match -
-        opp_shots_per_match
+      DRF = red_cards_per_match - opp_red_cards_per_match,
+      DYF = yellow_cards_per_match - opp_yellow_cards_per_match,
+      DFF = fouls_per_match - opp_fouls_per_match,
+      DCS = corners_per_match - opp_corners_per_match,
+      DSTF = shots_on_target_per_match - opp_shots_on_target_per_match,
+      DSF = shots_per_match - opp_shots_per_match
     ) %&gt;%
     mutate(
       across(
-        c(Days, DRF, DYF, DFF, DCS, DSTF, DSF),
+        c(DRF, DYF, DFF, DCS, DSTF, DSF),
         ~ replace_na(.x, 0)
       )
     ) %&gt;%
     transmute(
-      match_id,
-      Year,
-      Date,
-      Team,
-      Opponent,
-      HomeAway,
-      TeamRankCategory,
-      OpponentRankCategory,
-      Round,
-      OpponentRound,
-      Days,
-      DWF,
-      DLF,
-      DDF,
-      DAS,
-      DDS,
-      DRF,
-      DYF,
-      DFF,
-      DCS,
-      DSTF,
-      DSF,
+      match_id, Year, Date, Team, Opponent, HomeAway,
+      TeamRankCategory, OpponentRankCategory,
+      Round, OpponentRound, RestAdvantage,
+      DWF, DLF, DDF,
+      attack_score, defence_score,
+      opp_attack_score, opp_defence_score,
+      DRF, DYF, DFF, DCS, DSTF, DSF,
       Goals = goals_for
     ) %&gt;%
     arrange(match_id, desc(HomeAway == &quot;Home&quot;))
 }</code></pre>
-<pre class="r"><code>season_data &lt;- list(
-  &quot;2014/15&quot; = X14_15,
-  &quot;2015/16&quot; = X15_16,
-  &quot;2016/17&quot; = X16_17,
-  &quot;2017/18&quot; = X17_18,
-  &quot;2018/19&quot; = X18_19,
-  &quot;2019/20&quot; = X19_20,
-  &quot;2020/21&quot; = X20_21,
-  &quot;2021/22&quot; = X21_22,
-  &quot;2022/23&quot; = X22_23,
-  &quot;2023/24&quot; = X23_24,
-  &quot;2024/25&quot; = X24_25
-)
-
-previous_data &lt;- list(
-  X13_14,
-  X14_15,
-  X15_16,
-  X16_17,
-  X17_18,
-  X18_19,
-  X19_20,
-  X20_21,
-  X21_22,
-  X22_23,
-  X23_24
-)</code></pre>
-<pre class="r"><code>training_datasets &lt;- lapply(
-  seq_along(season_data),
-  function(i) {
-    build_season_dataset(
-      current_data = season_data[[i]],
-      previous_data = previous_data[[i]],
-      season_label = names(season_data)[i],
-      k = 2
-    )
-  }
-)
-
-training_data &lt;- bind_rows(training_datasets)</code></pre>
 
 
 
