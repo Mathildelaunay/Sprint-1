@@ -417,7 +417,20 @@ prediction).</p>
 <p>Note: The reason why we are dividing the distance by 19 for an
 incorrect prediction outside of top 5 is because <span class="math inline">\(\text{max}\{a_i,p_i\} = 19\)</span> and similarly
 for an incorrect prediction outside top 5 we have <span class="math inline">\(\text{max}\{a_i,p_i\} = 14\)</span>.</p>
-<p>Here is the code for the total weight we give to our model:</p>
+<p>Notes: 1) We aim to keep <span class="math inline">\(w_i \in
+[-1,1]\)</span>. 2) We care about the top 5 teams the most since these
+will then enter the Champions League so <span class="math inline">\(w_i
+= 1\)</span> (money won) 3) We care about the bottom 3 as these will get
+relegates for the next season so <span class="math inline">\(w_i =
+1\)</span> (money lost) 4) Say Arsenal(a) falls into 2nd , our
+prediction Arsenal(p) falss into 5th <span class="math inline">\(w_i =
+\frac{\vert P_5 \cap A_5\vert}{5}\)</span> where <span class="math inline">\(P_5\)</span> is the set of teams that are in the
+predicted top 5, and <span class="math inline">\(A_5\)</span> is the set
+of teams in the actual top 5. 5) predicted takes values in position 8+
+while predicted takes position within first 5 <span class="math inline">\(w_i = -\frac{d_i^2}{19}\)</span>. 6) actual is
+outside of top 5: - predicted = actual <span class="math inline">\(w_i =
+0.5\)</span> (not losing or winning money ish) - else <span class="math inline">\(w_i = -\frac{d_i^2}{14}\)</span> Here is the code
+for the total weight we give to our model:</p>
 <pre class="r"><code>pm &lt;- function(predicted, actual) {
   wt &lt;- c()
 
@@ -429,13 +442,11 @@ for an incorrect prediction outside top 5 we have <span class="math inline">\(\t
     if (a &lt;= 5) {  # team actually finished in the top five
 
       if (p == a) { # actual and predicted teams are in the same position within the first 5
-        w &lt;- 1
+        w &lt;- 1 
       } else if (p &lt;= 5) { # actual and predicted teams aren&#39;t in the same position but are within the first 5
-        w &lt;- 0.7
-      } else if (d &lt;= 2) { # actual and predicted teams aren&#39;t in the same position but predicted are 1 or 2 spaces from actual
-        w &lt;- 0.4
-      } else { # predicted takes values in position 8+ while predicted takes position within first 5
-        w &lt;- -(d / 19) #  i.e. for each position further apart, then the weight becomes smaller
+        w &lt;- 0.7 
+      } else { # predicted takes values in position 6+ while actual takes position within first 5
+        w &lt;- -(d^2 / 19) # max_i(d_i) = 19
       }
 
     } else {  # team actually finished outside the top five
@@ -452,14 +463,23 @@ for an incorrect prediction outside top 5 we have <span class="math inline">\(\t
     wt &lt;- c(wt, w)
   }
 
-  sum(wt)
-}</code></pre>
-<p>Notice that the weights range from <span class="math inline">\([0,1]\)</span>. We now need to add a penalisation
+  sum(wt) 
+}
+#check what&#39;s the maximum and minimum score
+pm(predicted = actual_table$Position, actual = actual_table$Position)</code></pre>
+<pre><code>## [1] 11</code></pre>
+<pre class="r"><code>pm(predicted = 21-actual_table$Position, actual = actual_table$Position)</code></pre>
+<pre><code>## [1] -64.88722</code></pre>
+<p>Notice that the weights range from <span class="math inline">\([-1,1]\)</span>. We now need to add a penalisation
 for number of parameters used in the model. We want to keep this
 penalisation smaller then our total number of weights so maybe using a
 log scale for number of parameters would be a good idea.</p>
 <p><code>pm(predicted, actual)</code> - <span class="math inline">\(\frac{1}{2} \log (\text{#of parameters})\)</span>
 ??</p>
+<pre class="r"><code>predicted_aligned &lt;- predicted_table[match(actual_table$Team, predicted_table$Team),]
+pm(predicted = predicted_aligned$Position,actual = actual_table$Position)</code></pre>
+<pre><code>## [1] 2.446617</code></pre>
+<p>WOMP WOMP Bad prediction!</p>
 </div>
 <div id="spearmans-rank-correlation-coefficient" class="section level2">
 <h2>Spearman’s rank correlation coefficient</h2>
