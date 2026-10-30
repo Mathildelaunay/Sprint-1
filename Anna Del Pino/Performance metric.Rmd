@@ -68,8 +68,9 @@ pm <- function(predicted, actual) {
 
   sum(wt)
 }
-#check what's the maximum score
+#check what's the maximum and minimum score
 pm(predicted = actual_table$Position, actual = actual_table$Position)
+pm(predicted = 21-actual_table$Position, actual = actual_table$Position)
 ```
 
 Notice that the weights range from $[-1,1]$. We now need to add a penalisation for number of parameters used in the model. We want to keep this penalisation smaller then our total number of weights so maybe using a log scale for number of parameters would be a good idea.
