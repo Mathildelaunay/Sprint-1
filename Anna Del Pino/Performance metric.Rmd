@@ -6,6 +6,8 @@ date: "2026-10-17"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+source("Data Cleaning.R")
+source("Model.R")
 ```
 
 The **idea** is to build a performance metric which will be used to compare everyone's models when these will be completed. We agreed that our models will output the final ranking of teams of the Premier League season we will be predicting.
@@ -66,12 +68,20 @@ pm <- function(predicted, actual) {
 
   sum(wt)
 }
-
+#check what's the maximum score
+pm(predicted = actual_table$Position, actual = actual_table$Position)
 ```
 
-Notice that the weights range from $[0,1]$. We now need to add a penalisation for number of parameters used in the model. We want to keep this penalisation smaller then our total number of weights so maybe using a log scale for number of parameters would be a good idea.
+Notice that the weights range from $[-1,1]$. We now need to add a penalisation for number of parameters used in the model. We want to keep this penalisation smaller then our total number of weights so maybe using a log scale for number of parameters would be a good idea.
+
 
 `pm(predicted, actual)` - $\frac{1}{2} \log (\text{#of parameters})$ ??
+
+```{r}
+predicted_aligned <- predicted_table[match(actual_table$Team, predicted_table$Team),]
+pm(predicted = predicted_aligned$Position,actual = actual_table$Position)
+```
+WOMP WOMP Bad prediction!
 
 ## Spearman's rank correlation coefficient
 
