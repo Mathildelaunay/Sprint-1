@@ -19,11 +19,12 @@ X25_26 <- read.csv("Premier League match events data/25_26.csv")
 X25_26_training <- build_season_dataset(
   current_data = X25_26,
   previous_data = X24_25,
-  season_label = "2025/26"
+  season_label = "2025/26",
+  0.1
 )
 
-poisson_formula <- Goals ~ DSTF + TeamRankCategory + HomeAway + DLF + OpponentRankCategory + 
-    DCS + DYF + DSF + goals_scored_per_match
+poisson_formula <- Goals ~ DSTF + TeamRankCategory + HomeAway + opp_defence_score + 
+    DCS + attack_score + OpponentRankCategory + DLF + DSF + DYF
 ```
 
 ```{r}
@@ -59,8 +60,8 @@ match_predictions_25_26 <- X25_26_training %>%
       predicted_goals_Home - predicted_goals_Away,
 
     predicted_result = case_when(
-      abs(goal_difference) <= 0.455	 ~ "D",
-      goal_difference > 0.455	 ~ "H",
+      abs(goal_difference) <= 0.473	 ~ "D",
+      goal_difference > 0.473	 ~ "H",
       TRUE ~ "A"
     ),
 

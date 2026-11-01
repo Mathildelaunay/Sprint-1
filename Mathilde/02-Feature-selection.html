@@ -372,8 +372,8 @@ predictors &lt;- c(
   &quot;HomeAway&quot;, &quot;TeamRankCategory&quot;, &quot;OpponentRankCategory&quot;,
   &quot;Round&quot;, &quot;OpponentRound&quot;, &quot;RestAdvantage&quot;,
   &quot;DWF&quot;, &quot;DLF&quot;, &quot;DDF&quot;,
-  &quot;goals_scored_per_match&quot;, &quot;opp_goals_scored_per_match&quot;,
-  &quot;goals_conceded_per_match&quot;, &quot;opp_goals_conceded_per_match&quot;,
+  &quot;attack_score&quot;, &quot;defence_score&quot;,
+  &quot;opp_attack_score&quot;, &quot;opp_defence_score&quot;,
   &quot;DRF&quot;, &quot;DYF&quot;, &quot;DFF&quot;, &quot;DCS&quot;, &quot;DSTF&quot;, &quot;DSF&quot;
 )
 
@@ -400,17 +400,17 @@ both_model     &lt;- step(null_model, scope = scope_list,
                        direction = &quot;both&quot;, trace = 0)
 
 formula(forward_model)</code></pre>
-<pre><code>## Goals ~ DSTF + TeamRankCategory + HomeAway + DLF + OpponentRankCategory + 
-##     DCS + DYF + DSF + goals_scored_per_match</code></pre>
+<pre><code>## Goals ~ DSTF + TeamRankCategory + HomeAway + opp_defence_score + 
+##     attack_score + DCS + opp_attack_score + DSF + DYF + OpponentRankCategory + 
+##     DLF</code></pre>
 <pre class="r"><code>formula(backward_model)</code></pre>
 <pre><code>## Goals ~ HomeAway + TeamRankCategory + OpponentRankCategory + 
-##     DWF + DDF + goals_scored_per_match + DYF + DCS + DSTF + DSF</code></pre>
+##     attack_score + defence_score + opp_attack_score + opp_defence_score + 
+##     DYF + DCS + DSTF + DSF</code></pre>
 <pre class="r"><code>formula(both_model)</code></pre>
-<pre><code>## Goals ~ DSTF + TeamRankCategory + HomeAway + DLF + OpponentRankCategory + 
-##     DCS + DYF + DSF + goals_scored_per_match</code></pre>
-<p>The forward and both directions models output the same results.
-Therefore,</p>
-<pre class="r"><code>poisson_formula &lt;- formula(both_model)</code></pre>
+<pre><code>## Goals ~ DSTF + TeamRankCategory + HomeAway + opp_defence_score + 
+##     attack_score + DCS + DSF + DYF + OpponentRankCategory + DLF</code></pre>
+<p>The formulas are all different, use the “both_model” one.</p>
 
 
 

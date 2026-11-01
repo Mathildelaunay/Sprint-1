@@ -17,8 +17,8 @@ predictors <- c(
   "HomeAway", "TeamRankCategory", "OpponentRankCategory",
   "Round", "OpponentRound", "RestAdvantage",
   "DWF", "DLF", "DDF",
-  "goals_scored_per_match", "opp_goals_scored_per_match",
-  "goals_conceded_per_match", "opp_goals_conceded_per_match",
+  "attack_score", "defence_score",
+  "opp_attack_score", "opp_defence_score",
   "DRF", "DYF", "DFF", "DCS", "DSTF", "DSF"
 )
 
@@ -48,8 +48,4 @@ formula(forward_model)
 formula(backward_model)
 formula(both_model)
 ```
-The forward and both directions models output the same results. Therefore, 
-```{r}
-poisson_formula <- formula(both_model)
-```
-
+The formulas are all different, use the "both_model" one.

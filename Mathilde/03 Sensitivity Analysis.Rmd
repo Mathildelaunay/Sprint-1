@@ -19,8 +19,8 @@ library(ggplot2)
 source("feature_engineering_functions.R")
 training_data <- readRDS("training_data.rds")
 
-poisson_formula <- Goals ~ DSTF + TeamRankCategory + HomeAway + DLF + OpponentRankCategory + 
-    DCS + DYF + DSF + goals_scored_per_match
+poisson_formula <- Goals ~ DSTF + TeamRankCategory + HomeAway + opp_defence_score + 
+    attack_score + DCS + DSF + DYF + OpponentRankCategory + DLF
 
 beta_grid <- seq(0.05, 1, by = 0.01)
 
@@ -144,4 +144,4 @@ beta_results %>%
   geom_vline(xintercept = mean(beta_chosen_by_season$Beta), colour = "red") +
   labs(y = "Mean squared rank error")
 ```
-From the first table, I will take the value of beta to be 0.455.
+From the first table, I will take the value of beta to be 0.473.
