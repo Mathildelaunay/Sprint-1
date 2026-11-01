@@ -25,14 +25,6 @@ poisson_formula <- Goals ~ DSTF + TeamRankCategory + HomeAway + DLF + OpponentRa
 beta_grid <- seq(0.05, 1, by = 0.01)
 
 
-draw_rate <- function(df) {
-  df %>%
-    select(match_id, HomeAway, Goals) %>%
-    pivot_wider(names_from = HomeAway, values_from = Goals) %>%
-    summarise(D = mean(Home == Away)) %>%
-    pull(D)
-}
-
 # Build a function which converts predicted goals into match outcomes and then calculates the predicted and actual league tables
 season_table <- function(df, beta) {
   mp <- df %>%
@@ -69,42 +61,56 @@ season_table <- function(df, beta) {
   list(tab = tab, mp = mp)
 }
 
-beta_cv <- function(training_data, poisson_formula, beta_grid, min_train = 5) {
+
+beta_cv <- function(training_data, poisson_formula, beta_grid, min_train = 1) {
 
   seasons <- training_data %>%
     distinct(Year) %>%
     mutate(s = as.integer(substr(Year, 1, 4))) %>%
-    arrange(s) %>% pull(Year)
+    arrange(s) %>%
+    pull(Year)
 
   map_dfr((min_train + 1):length(seasons), function(i) {
 
-    train_fold <- training_data %>% filter(Year %in% seasons[1:(i - 1)])
-    valid_fold <- training_data %>% filter(Year == seasons[i])
+    train_fold <- training_data %>%
+      filter(Year %in% seasons[1:(i - 1)])
 
-    # Target: average draw share of the earlier seasons
-    target_draw <- mean(map_dbl(seasons[1:(i - 1)], function(s) {
-      draw_rate(train_fold %>% filter(Year == s))
-    }))
+    valid_fold <- training_data %>%
+      filter(Year == seasons[i])
 
-    m <- glm(poisson_formula, data = train_fold,
-             family = stats::poisson(link = "log"))
+    # Fit Poisson model using previous seasons
+    m <- glm(
+      poisson_formula,
+      data = train_fold,
+      family = stats::poisson(link = "log")
+    )
 
+    # Predict goals in validation season
     valid_fold <- valid_fold %>%
-      mutate(predicted_goals = predict(m, newdata = valid_fold, type = "response"))
+      mutate(
+        predicted_goals = predict(
+          m,
+          newdata = valid_fold,
+          type = "response"
+        )
+      )
 
+    # Evaluate each beta
     map_dfr(beta_grid, function(b) {
+
       st <- season_table(valid_fold, b)
+
       tibble(
-        Season      = seasons[i],
-        Beta        = b,
-        target_draw = target_draw,
-        act_draw    = mean(st$mp$act_res == "D"),
-        pred_draw   = mean(st$mp$pred_res == "D"),
-        pred_home   = mean(st$mp$pred_res == "H"),
-        pred_away   = mean(st$mp$pred_res == "A"),
-        accuracy    = mean(st$mp$pred_res == st$mp$act_res),
-        rank_mse    = mean((st$tab$pred_rank - st$tab$act_rank)^2),
-        spearman    = cor(st$tab$pred_rank, st$tab$act_rank, method = "spearman")
+        Season = seasons[i],
+        Beta = b,
+        rank_mse = mean(
+          (st$tab$pred_rank - st$tab$act_rank)^2
+        ),
+        spearman = cor(
+          st$tab$pred_rank,
+          st$tab$act_rank,
+          method = "spearman"
+        )
       )
     })
   })
@@ -112,27 +118,23 @@ beta_cv <- function(training_data, poisson_formula, beta_grid, min_train = 5) {
 
 beta_results <- beta_cv(training_data, poisson_formula, beta_grid)
 
-
 beta_chosen_by_season <- beta_results %>%
   group_by(Season) %>%
-  slice_min(abs(pred_draw - target_draw), n = 1, with_ties = FALSE) %>%
+  slice_min(rank_mse, n = 1, with_ties = FALSE) %>%
   ungroup()
 
 beta_chosen_by_season %>%
-  select(Season, Beta, target_draw, pred_draw, act_draw,
-         pred_home, pred_away, accuracy, rank_mse, spearman)
+  summarise(
+    mean_beta = mean(Beta),
+    sd_beta = sd(Beta),
+    min_beta = min(Beta),
+    max_beta = max(Beta),
+    mean_rank_mse = mean(rank_mse),
+    mean_spearman = mean(spearman)
+  )
 
-# Summary across validation seasons
 beta_chosen_by_season %>%
-  summarise(mean_beta = mean(Beta), sd_beta = sd(Beta),
-            min_beta = min(Beta), max_beta = max(Beta))
-
-
-ggplot(beta_results, aes(Beta, pred_draw, colour = Season)) +
-  geom_line() +
-  geom_line(aes(y = target_draw), linetype = "dashed") +
-  geom_point(data = beta_chosen_by_season, size = 2) +
-  labs(y = "Predicted draw share")
+  select(Season, Beta, rank_mse, spearman)
 
 beta_results %>%
   group_by(Beta) %>%
@@ -142,5 +144,4 @@ beta_results %>%
   geom_vline(xintercept = mean(beta_chosen_by_season$Beta), colour = "red") +
   labs(y = "Mean squared rank error")
 ```
-
-For the test, I will use beta = 0.263.
+From the first table, I will take the value of beta to be 0.455.
