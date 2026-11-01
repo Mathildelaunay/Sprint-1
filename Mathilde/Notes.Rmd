@@ -1,0 +1,93 @@
+---
+title: "Football predictions"
+author: "Mathilde Launay"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+I decided to use a Poisson regression model to make predictions as Football scores are counts. the key assumption is that goals arrive independently at a constant rate given the covariates, with mean equal to variance. I wanted to fit a single model, so I split every row representing a match into two rows, each row focusing on a different team: Team of interest against Opponent. This introduces a limitation: the model treats the two rows of a match as independent, when in real life if a team scores, the opponent will get more competitive and may be more likely to score (this is a simplification, but is just to illustrate that this assumption is an important limitating factor).
+
+## Feature engineering 
+This links to the training dataset that I built in 
+    Folder: Mathilde 
+        Document: 01 Feature Engineering
+        
+My covariates were:
+- Home or away (for the "Team of interest")
+- TeamRankCategory and OpponentRankCategory  
+      - Top3: 1-3
+      - 4to7: 4-7
+      - 8to12: 8-12
+      - 13to17: 13-17
+      - Promoted
+- Round = Amount of matches the team of interest has played before current match
+- OpponentRound = Amount of matches the opponent has played before current match
+- RestAdvantage 
+    - Equal if they both have the same number of days since their last match
+    - More if the team of interest has had more rest than their opponent
+    - Less if the team of interest has had less rest than their opponent
+- DWF = Difference in win frequency so far in the season
+- DLF = Difference in loss frequency so far in the season
+- DDF = Difference in draw frequency  so far in the season
+- attack_score = team of interest's attack score
+- defence_score = team of interest's defence score
+- opp_attack_score = opponent's attack score
+- opp_defence_score = opponent's defence score
+- DRF = Difference in red cards per match
+- DYF = Difference in yellow cards per match
+- DFF = Difference in fouls per match
+- DCS = Difference in corners per match
+- DSTF = Difference in Shots on Target per match 
+- DSF = Difference in Shots per match
+
+Attack scores should be calculated recursively. At the start of the season, it should be based on the previous season's average goal scored per match. As the season progresses, the attack score should be updated following this formula:
+
+  attack score for the team's current match 
+  = attack score for the team's previous match * (1 - alpha) 
+  + goals scored during the team's previous match * alpha
+
+This ensures that the previous few matches carry more importance when trying to get a measure of the team's attacking strength for the match that needs to be predicted. 
+The same is then calculated to obtain the teams' defence scores. This is the fromula:
+
+  defence score for the team's current match 
+  = defence score for the team's previous match * (1 - alpha) 
+  + goals conceded during the team's previous match * alpha
+
+I assumed that the promoted teams are typically weaker than the median, so I used the mean of the three lowest-ranked teams as a proxy. This is done for 2 reasons:
+- The new teams do not have an accurate attack and defense score due to the unavailability of data.
+- The players change within the teams, so the model quickly needs to be able to update these scores.
+
+The value of alpha should lie between 0 and 1. A value close to 1 will only give advantage to the current season statistics, whereas a value of 0 will not use goals scored during the season at all. A sensitivity analysis over alpha on the 2024/25 validation season gave lowest deviance at alpha = 0, but the differences were under 1% and the curve was non-monotonic, so I couldn’t distinguish alphas. Alpha = 0 would freeze the scores at last season’s averages, defeating the purpose of updating them, so I fixed alpha = 0.1 on prior grounds. I did not re-tune it after changing the feature set.
+Having the scores calculated from the previous season avoids the restriction that the article "Predicting Football Match Outcomes with Machine Learning Approaches" had with having to get rid of the first 5 games - Choi, Bing & Foo, Lee-Kien & Chua, Sook-Ling. (2023). Predicting Football Match Outcomes with Machine Learning Approaches. MENDEL. 29. 229-236. 10.13164/mendel.2023.2.229
+The article mentioned above is also the one which gave me the idea to include "Round" as a variable. They also used the categorical variable "PromotedMatchup" which is 
+    0 = Both teams are not recently promoted team or are promoted teams
+    1 = Home Team is a promoted team
+    -1 = Away Team is a promoted team
+This gave me the idea to have TeamRankCategory and OpponentRankCategory. I changed it because I wanted a measure of how well the team performed in the previous season. 
+
+
+## Feature Selection
+Look at 
+    Folder: Mathilde
+        Document: 02 Feature Selection
+        
+To find the variables that I wanted to keep, I used the forward, backward, and forward and backward selection using AIC. Given that they outputted different models, I chose one of the two which had less variables, and decided on the model which combined both forward and backward selection. This kept TeamRankCategory, OpponentRankCategory, HomeAway, opp_defence_score, attack_score, DSTF, DCS, DSF, DYF, DLF.
+
+
+## Sensitivity Analysis
+Look at 
+    Folder: Mathilde
+        Document: 03 Sensitivity Analysis
+        
+Since the predcitions are decimal values, I wanted to find a way to assign teams with points without rounding the values as I thought this may lead to too many draws. The reason behind this choice is that since there may be a prediction of 1.49 for one team and 1.5 for another, although rounding would assign a clear winner, introducing a threshold for which a distance between predictions indicates whether to assign a draw to a match or not would make a scenario as mentioned above into a draw rather. I therefore performed sensitivity analysis on this value, that i called beta. The analysis used an expanding window validation technique to work out what value of beta outputs the smallest rank mean squared error; the rank coming from team's points at the end of the season. As outputs, I also included the spearman value as it indicates how strongly two sets of ranks are correlated. The mean beta value was found to be 0.473, with a standard deviation of 0.380. This shows that including beta in my model does introduce a limitation as it introduces an extra parameter which is difficult to estimate (high standard deviation, unstable). I also considered estimating this value by replicating the proportion of draws of the previous league seasons, but found that comparing the rank MSE was more appriopriate, especially given the goal of the model (to output a good rank). 
+
+## Model
+Look at 
+    Folder: Mathilde
+        Document: 04 Model
+
+I then fitted my model using beta = 0.473 on 2025/26. Against the perfomance metric the team agreed upon, my model got a score of -2.852665.
