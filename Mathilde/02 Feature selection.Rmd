@@ -1,0 +1,55 @@
+---
+title: "feature selection"
+author: "Mathilde Launay"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+predictors <- c(
+  "HomeAway", "TeamRankCategory", "OpponentRankCategory",
+  "Round", "OpponentRound", "RestAdvantage",
+  "DWF", "DLF", "DDF",
+  "goals_scored_per_match", "opp_goals_scored_per_match",
+  "goals_conceded_per_match", "opp_goals_conceded_per_match",
+  "DRF", "DYF", "DFF", "DCS", "DSTF", "DSF"
+)
+
+training_data <- readRDS("training_data.rds")
+
+# Same rows for every candidate model
+model_data <- training_data %>%
+  select(Goals, all_of(predictors)) %>%
+  na.omit()
+
+null_model <- glm(Goals ~ 1, data = model_data,
+                  family = stats::poisson(link = "log"))
+
+full_model <- glm(reformulate(predictors, response = "Goals"),
+                  data = model_data,
+                  family = stats::poisson(link = "log"))
+
+scope_list <- list(lower = formula(null_model), upper = formula(full_model))
+
+forward_model  <- step(null_model, scope = scope_list,
+                       direction = "forward", trace = 0)
+backward_model <- step(full_model, direction = "backward", trace = 0)
+both_model     <- step(null_model, scope = scope_list,
+                       direction = "both", trace = 0)
+
+formula(forward_model)
+formula(backward_model)
+formula(both_model)
+```
+The forward and both directions models output the same results. Therefore, 
+```{r}
+poisson_formula <- formula(both_model)
+```
+

@@ -1,0 +1,146 @@
+---
+title: "Sensitivity analysis"
+author: "Mathilde Launay"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r} 
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(lubridate)
+library(ggplot2)
+
+source("feature_engineering_functions.R")
+training_data <- readRDS("training_data.rds")
+
+poisson_formula <- Goals ~ DSTF + TeamRankCategory + HomeAway + DLF + OpponentRankCategory + 
+    DCS + DYF + DSF + goals_scored_per_match
+
+beta_grid <- seq(0.05, 1, by = 0.01)
+
+
+draw_rate <- function(df) {
+  df %>%
+    select(match_id, HomeAway, Goals) %>%
+    pivot_wider(names_from = HomeAway, values_from = Goals) %>%
+    summarise(D = mean(Home == Away)) %>%
+    pull(D)
+}
+
+# Build a function which converts predicted goals into match outcomes and then calculates the predicted and actual league tables
+season_table <- function(df, beta) {
+  mp <- df %>%
+    select(match_id, HomeAway, Team, Goals, predicted_goals) %>%
+    pivot_wider(names_from = HomeAway,
+                values_from = c(Team, Goals, predicted_goals)) %>%
+    mutate(
+      gd       = predicted_goals_Home - predicted_goals_Away,
+      pred_res = case_when(abs(gd) <= beta ~ "D", gd > beta ~ "H", TRUE ~ "A"),
+      act_res  = case_when(Goals_Home > Goals_Away ~ "H",
+                           Goals_Home < Goals_Away ~ "A", TRUE ~ "D")
+    )
+
+  pts <- function(res, side) case_when(res == side ~ 3, res == "D" ~ 1, TRUE ~ 0)
+
+  tab <- bind_rows(
+    mp %>% transmute(Team = Team_Home,
+                     pred_pts = pts(pred_res, "H"), act_pts = pts(act_res, "H"),
+                     pred_gd = gd, act_gd = Goals_Home - Goals_Away,
+                     act_gf = Goals_Home),
+    mp %>% transmute(Team = Team_Away,
+                     pred_pts = pts(pred_res, "A"), act_pts = pts(act_res, "A"),
+                     pred_gd = -gd, act_gd = Goals_Away - Goals_Home,
+                     act_gf = Goals_Away)
+  ) %>%
+    group_by(Team) %>%
+    summarise(across(everything(), sum), .groups = "drop") %>%
+    arrange(desc(pred_pts), desc(pred_gd), Team) %>%        
+    mutate(pred_rank = row_number()) %>%
+    arrange(desc(act_pts), desc(act_gd), desc(act_gf), Team) %>%  
+    mutate(act_rank = row_number()) %>%
+    arrange(Team)
+
+  list(tab = tab, mp = mp)
+}
+
+beta_cv <- function(training_data, poisson_formula, beta_grid, min_train = 5) {
+
+  seasons <- training_data %>%
+    distinct(Year) %>%
+    mutate(s = as.integer(substr(Year, 1, 4))) %>%
+    arrange(s) %>% pull(Year)
+
+  map_dfr((min_train + 1):length(seasons), function(i) {
+
+    train_fold <- training_data %>% filter(Year %in% seasons[1:(i - 1)])
+    valid_fold <- training_data %>% filter(Year == seasons[i])
+
+    # Target: average draw share of the earlier seasons
+    target_draw <- mean(map_dbl(seasons[1:(i - 1)], function(s) {
+      draw_rate(train_fold %>% filter(Year == s))
+    }))
+
+    m <- glm(poisson_formula, data = train_fold,
+             family = stats::poisson(link = "log"))
+
+    valid_fold <- valid_fold %>%
+      mutate(predicted_goals = predict(m, newdata = valid_fold, type = "response"))
+
+    map_dfr(beta_grid, function(b) {
+      st <- season_table(valid_fold, b)
+      tibble(
+        Season      = seasons[i],
+        Beta        = b,
+        target_draw = target_draw,
+        act_draw    = mean(st$mp$act_res == "D"),
+        pred_draw   = mean(st$mp$pred_res == "D"),
+        pred_home   = mean(st$mp$pred_res == "H"),
+        pred_away   = mean(st$mp$pred_res == "A"),
+        accuracy    = mean(st$mp$pred_res == st$mp$act_res),
+        rank_mse    = mean((st$tab$pred_rank - st$tab$act_rank)^2),
+        spearman    = cor(st$tab$pred_rank, st$tab$act_rank, method = "spearman")
+      )
+    })
+  })
+}
+
+beta_results <- beta_cv(training_data, poisson_formula, beta_grid)
+
+
+beta_chosen_by_season <- beta_results %>%
+  group_by(Season) %>%
+  slice_min(abs(pred_draw - target_draw), n = 1, with_ties = FALSE) %>%
+  ungroup()
+
+beta_chosen_by_season %>%
+  select(Season, Beta, target_draw, pred_draw, act_draw,
+         pred_home, pred_away, accuracy, rank_mse, spearman)
+
+# Summary across validation seasons
+beta_chosen_by_season %>%
+  summarise(mean_beta = mean(Beta), sd_beta = sd(Beta),
+            min_beta = min(Beta), max_beta = max(Beta))
+
+
+ggplot(beta_results, aes(Beta, pred_draw, colour = Season)) +
+  geom_line() +
+  geom_line(aes(y = target_draw), linetype = "dashed") +
+  geom_point(data = beta_chosen_by_season, size = 2) +
+  labs(y = "Predicted draw share")
+
+beta_results %>%
+  group_by(Beta) %>%
+  summarise(mean_rank_mse = mean(rank_mse), .groups = "drop") %>%
+  ggplot(aes(Beta, mean_rank_mse)) +
+  geom_line() +
+  geom_vline(xintercept = mean(beta_chosen_by_season$Beta), colour = "red") +
+  labs(y = "Mean squared rank error")
+```
+
+For the test, I will use beta = 0.263.
