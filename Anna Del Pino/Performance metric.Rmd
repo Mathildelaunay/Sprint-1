@@ -17,7 +17,7 @@ The **idea** is to build a performance metric which will be used to compare ever
 Our **idea** is to build a performance metric which will add weights as:
 
 | Actual, $a_i$ | Prediction, $p_i$ | Weight, $w_i$ |
-|------------------|-------------------------------------|------------------|
+|----|----|----|
 | Top 5 | Correct position | 1 |
 | Top 5 | Incorrect position but within top 5 | $w_i = \frac{\vert P_5 \cap A_5\vert}{5}$ |
 | Top 5 | Predicted outside top 5 | $f(x_i) = -(1-\exp^{-x_i})$ |

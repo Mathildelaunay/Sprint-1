@@ -209,8 +209,8 @@ away_final_model <- glm(formula(away_step), data = final_train_data, family = po
 prediction_data$PredHomeGoals <- NA_real_ 
 prediction_data$PredAwayGoals <- NA_real_
 
-prediction_data$PredHomeGoals[unplayed] <- predict(home_final_model, newdata = prediction_data[unplayed, ], type = "response")
-prediction_data$PredAwayGoals[unplayed] <- predict(away_final_model, newdata = prediction_data[unplayed, ], type = "response")
+prediction_data$PredHomeGoals[unplayed] <- round(predict(home_final_model, newdata = prediction_data[unplayed, ], type = "response"))
+prediction_data$PredAwayGoals[unplayed] <- round(predict(away_final_model, newdata = prediction_data[unplayed, ], type = "response"))
 
 final_home_goals <- ifelse(unplayed,prediction_data$PredHomeGoals,prediction_data$FTHG) 
 final_away_goals <- ifelse(unplayed,prediction_data$PredAwayGoals,prediction_data$FTAG)

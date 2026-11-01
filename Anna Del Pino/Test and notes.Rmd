@@ -32,7 +32,8 @@ print(c(MAE_HG, MAE_AG, train_MAE_HG, train_MAE_AG, MAE_pos, rank_corr))
 These results show taht the model performs better than the training baseline.
 - Home goal MAE: 0.939 goals, compared with 0.996 from the train model error so a 5.7% reduction.
 - Away goal MAE: 0.818 goals, compared with 0.875 from the train model error so a 6.5% reduction.
-- Mean position error: 2.1 places. On average, a team’s predicted position was about two places away from its actual position.
+- Mean position error: 2.1 places.
+On average, a team’s predicted position was about two places away from its actual position.
 - Spearman rank correlation: 0.862, showing that the predicted and actual ranking orders were fairly similar.
 The Spearman correlation between two variables will be high when observations have a similar (or equal with correlation = 1) rank between the two variables.
 The model improved goal predictions over the baseline and reproduced the overall team ranking reasonably well on the test season.
@@ -50,7 +51,7 @@ So `predict(home_selected_model, newdata = test_data, type = "response")` return
 I use separate Poisson GLMs for home and away goals because goals are count outcomes and the log link gives positive expected goal counts.
 I use previousm match statistics as predictors and assess the models on a later season.
 
-##Questions
+## Questions
 
 -Why use a Poisson model instead of linear regression?
 Because Poisson GLM is used for non negative counts and returns an expected goal rate which is then used to rank our teams.

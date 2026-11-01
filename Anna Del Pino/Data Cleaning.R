@@ -1,7 +1,11 @@
-knitr::opts_chunk$set(echo = TRUE)
+library(stats)
+library(base)
+library(dplyr)
 
 setwd("/Users/lenovo/OneDrive - University of Bristol/2026_2027/DST/Sprint-1/Anna Del Pino")
 
+
+fixtures26_27 <-read.csv("./Premier League match events data/26_27 fixtures.csv")
 data26_27 <-read.csv("./Premier League match events data/26_27.csv")
 data25_26 <-read.csv("./Premier League match events data/25_26.csv")
 data24_25 <-read.csv("./Premier League match events data/24_25.csv")
@@ -16,7 +20,7 @@ data16_17 <-read.csv("./Premier League match events data/16_17.csv")
 data15_16 <-read.csv("./Premier League match events data/15_16.csv")
 data14_15 <-read.csv("./Premier League match events data/14_15.csv")
 
-vectordata<-list(data26_27 = data26_27, data25_26 = data25_26, data24_25 = data24_25, data23_24 = data23_24, data22_23 = data22_23, data21_22 = data21_22, data20_21 = data20_21, data19_20 = data19_20, data18_19 = data18_19, data17_18 = data17_18, data16_17 = data16_17, data15_16 = data15_16, data14_15 = data14_15)
+vectordata<-list(fixtures26_27=fixtures26_27, data26_27 = data26_27, data25_26 = data25_26, data24_25 = data24_25, data23_24 = data23_24, data22_23 = data22_23, data21_22 = data21_22, data20_21 = data20_21, data19_20 = data19_20, data18_19 = data18_19, data17_18 = data17_18, data16_17 = data16_17, data15_16 = data15_16, data14_15 = data14_15)
 
 columncheck <- function(a) {
   coln <- sapply(a, ncol) #applies the function ncol() to each dataset
@@ -32,10 +36,11 @@ for (i in seq_along(vectordata)) {
   matches[i] <-sum(colnames(data25_26) %in% colnames(vectordata[[i]]))
 }
 names(matches) <- names(vectordata)
-print(matches)
+print(matches) 
 
 colnames(data18_19)[which(!colnames(data18_19) %in% colnames(data25_26))]
 
+# columns to keep i.e. match information, results and match statistics
 columns_to_keep <- c("Date", "HomeTeam", "AwayTeam","FTHG", "HG", "FTAG", "AG", "FTR", "Res","HTHG", "HTAG", "HTR","Attendance","Referee", "HS", "AS", "HST", "AST", "HHW", "AHW","HC", "AC", "HF", "AF", "HFKC", "AFKC","HO", "AO", "HY", "AY", "HR", "AR", "HBP", "ABP")
 
 
@@ -44,10 +49,8 @@ for (i in seq_along(vectordata)) {
   
   vectordata[[i]] <- vectordata[[i]][, intersect(columns_to_keep, names(vectordata[[i]])),drop = FALSE]
 }
-
-library(dplyr)
-library(stats)
-library(base)
+colnames(bind_rows(vectordata["data25_26"]))
+length(bind_rows(vectordata["data25_26"]))
 
 train_names <- paste0("data",c("14_15", "15_16", "16_17", "17_18", "18_19","19_20", "20_21", "21_22", "22_23", "23_24", "24_25"))
 
@@ -55,6 +58,8 @@ train_data <- bind_rows(vectordata[train_names])
 test_data  <- bind_rows(vectordata["data25_26"])
 
 prediction_data <- bind_rows(vectordata["data26_27"])
+fixtures26_27 <- bind_rows(vectordata["fixtures26_27"])
+prediction_data <- bind_rows(prediction_data, fixtures26_27) 
 
 all_data <- rbind(train_data, test_data, prediction_data)
 #split observations by season
@@ -68,13 +73,13 @@ seasons <- unique(all_data$Season) # length = 13
 teams <- unique(c(all_data$HomeTeam, all_data$AwayTeam))#columns of all teams from 2014-2027 of length = 36
 
 #create a list of match statistics from earlier matches to keep track
-stats <- list(FTGoals= c("FTHG", "FTHG"), HTGoals = c("HTHG", "HTAG"), Shots = c("HS", "AS"), ShotsOnTarget = c("HST", "AST"), Corners = c("HC", "AC"), Fouls = c("HF", "AF"), YellowCards = c("HY", "AY"), RedCards = c("HR", "AR"))
+stats <- list(FTGoals= c("FTHG", "FTAG"), HTGoals = c("HTHG", "HTAG"), Shots = c("HS", "AS"), ShotsOnTarget = c("HST", "AST"), Corners = c("HC", "AC"), Fouls = c("HF", "AF"), YellowCards = c("HY", "AY"), RedCards = c("HR", "AR"))
 
 all_data$.match_id <- seq_len(nrow(all_data)) #starts empty columns
 
 for (stat in names(stats)) {
-  home_stat <- stats[[stat]][1]
-  away_stat <- stats[[stat]][2]
+  home_stat <- stats[[stat]][1] #identifies all of the home stats columns
+  away_stat <- stats[[stat]][2] #identifies all of the away stats columns
   #creates new counting columns for each stat
   all_data[[paste0("Home", stat, "Before")]] <- 0
   all_data[[paste0("Away", stat, "Before")]] <- 0  
@@ -84,15 +89,16 @@ for (stat in names(stats)) {
       rows <- which(all_data$Season == season & (all_data$HomeTeam == team | all_data$AwayTeam == team)) # look at the rows where this team has played
       
       team_stats <- ifelse(all_data$HomeTeam[rows] == team, all_data[[home_stat]][rows], all_data[[away_stat]][rows]) # if team is home, then we look at home_stat, o/w we look at away_stat
+      team_stats[is.na(team_stats)] <- 0
       
       stat_before <- c(0, head(cumsum(team_stats), -1)) #summing up all of the stats up to previous match
       
-      home_rows <- rows[all_data$HomeTeam[rows] == team]
-      away_rows <- rows[all_data$AwayTeam[rows] == team]
+      home_rows <- rows[all_data$HomeTeam[rows] == team] #identify the rows in which our team is home team
+      away_rows <- rows[all_data$AwayTeam[rows] == team] #identify the rows in which our team is away team
       
-      all_data[[paste0("Home", stat, "Before")]][home_rows] <- stat_before[all_data$HomeTeam[rows] == team]
+      all_data[[paste0("Home", stat, "Before")]][home_rows] <- stat_before[all_data$HomeTeam[rows] == team] #add to home stat column when team is home
       
-      all_data[[paste0("Away", stat, "Before")]][away_rows] <- stat_before[all_data$AwayTeam[rows] == team]
+      all_data[[paste0("Away", stat, "Before")]][away_rows] <- stat_before[all_data$AwayTeam[rows] == team] #add away stat column when team is away
       
     }
   }
@@ -100,6 +106,7 @@ for (stat in names(stats)) {
 
 all_data$.match_id <- NULL
 
+# Create the new columns
 all_data$HTPB <- NA
 all_data$HTPA <- NA
 all_data$ATPB <- NA
@@ -123,6 +130,7 @@ for(season in seasons){
                                    1,
                                    0))
     )
+    points[is.na(points)] <- 0
     
     # Running total before and after each match
     points_before <- c(0, head(cumsum(points), -1))
@@ -139,8 +147,7 @@ for(season in seasons){
   }
 }
 
-
-# Split the datasets back apart, including the new points columns
+#split the datasets apart
 train_data <- all_data[1:nrow(train_data), ]
 
 test_start <- nrow(train_data) + 1
@@ -150,12 +157,21 @@ test_data <- all_data[test_start:test_end, ]
 prediction_start <- test_end + 1
 prediction_data <- all_data[prediction_start:nrow(all_data), ]
 
-fixtures26_27 <-read.csv("./Premier League match events data/26_27 fixtures.csv")
 
-fixtures26_27$Date <- as.Date(fixtures26_27$Date, format = "%d/%m/%Y")
-fixtures26_27 <- fixtures26_27[fixtures26_27$Date > as.Date("2026-10-19"),] #delete the known rows
 
-prediction_data <- bind_rows(prediction_data, fixtures26_27) 
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
