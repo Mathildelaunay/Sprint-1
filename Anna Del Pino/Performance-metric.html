@@ -365,9 +365,9 @@ Premier League season we will be predicting.</p>
 add weights as:</p>
 <table>
 <colgroup>
-<col width="20%" />
-<col width="53%" />
-<col width="26%" />
+<col width="24%" />
+<col width="50%" />
+<col width="24%" />
 </colgroup>
 <thead>
 <tr class="header">
@@ -379,33 +379,46 @@ add weights as:</p>
 <tbody>
 <tr class="odd">
 <td>Top 5</td>
-<td>correct in top 5</td>
+<td>Correct position</td>
 <td>1</td>
 </tr>
 <tr class="even">
 <td>Top 5</td>
-<td>incorrect in top 5</td>
-<td>0.7</td>
+<td>Incorrect position but within top 5</td>
+<td><span class="math inline">\(w_i = \frac{\vert P_5 \cap
+A_5\vert}{5}\)</span></td>
 </tr>
 <tr class="odd">
 <td>Top 5</td>
-<td>incorrect within 2 positions of top 5</td>
-<td>0.4</td>
+<td>Predicted outside top 5</td>
+<td><span class="math inline">\(f(x_i) = -(1-\exp^{-x_i})\)</span></td>
 </tr>
 <tr class="even">
-<td>Top 5</td>
-<td>incorrect outside of top 5</td>
-<td><span class="math inline">\(-\frac{d_i}{19}\)</span></td>
+<td>Outside top 5 (excluding bottom 3)</td>
+<td>Correct position</td>
+<td>0.5</td>
 </tr>
 <tr class="odd">
-<td>Outside top 5</td>
-<td>correct outside top 5</td>
-<td>0.4</td>
+<td>Outside top 5 (excluding bottom 3)</td>
+<td>Incorrectly predicted in top 5</td>
+<td><span class="math inline">\(f(x_i) = -(1-\exp^{-x_i})\)</span></td>
 </tr>
 <tr class="even">
-<td>Outside top 5</td>
-<td>incorrect outside top 5</td>
-<td><span class="math inline">\(-\frac{d_i}{14}\)</span></td>
+<td>Outside top 5 (excluding bottom 3)</td>
+<td>Incorrect position outside top 5</td>
+<td><span class="math inline">\(f(x_i) =
+-(1-\exp^{-0.1x_i})\)</span></td>
+</tr>
+<tr class="odd">
+<td>Bottom 3</td>
+<td>Correctly predicted within bottom 3</td>
+<td>1</td>
+</tr>
+<tr class="even">
+<td>Bottom 3</td>
+<td>Predicted outside bottom 3</td>
+<td><span class="math inline">\(f(x_i) =
+-(1-\exp^{-0.1x_i})\)</span></td>
 </tr>
 </tbody>
 </table>
@@ -513,25 +526,27 @@ where <span class="math inline">\(x_i=d(a_i,p_i)\)</span> and k =
   return(sum(wt))
 }
 
-pm_adjusted &lt;- function(predicted, actual, n_features, total_features, lambda = 2) {
+pm_adjusted &lt;- function(predicted, actual, historical_features, season_features, total_features, lambda_H = 1, lambda_S = 2) {
 
   original_pm &lt;- pm(predicted, actual)
 
-  penalty &lt;- lambda * (n_features / total_features)
+  penalty_H &lt;- lambda_H *(historical_features / total_features)
 
-  adjusted_pm &lt;- original_pm - penalty
+  penalty_S &lt;- lambda_S *(season_features / total_features)
+
+  adjusted_pm &lt;- original_pm - penalty_H - penalty_S
 
   return(adjusted_pm)
 }
 
 #check what&#39;s the maximum and minimum score
-pm_adjusted(predicted = actual_table$Position, actual = actual_table$Position, n_features = 22, total_features = 22, lambda = 2)</code></pre>
-<pre><code>## [1] 12</code></pre>
-<pre class="r"><code>pm_adjusted(predicted = 21-actual_table$Position, actual = actual_table$Position, n_features = 22, total_features = 22, lambda = 2)</code></pre>
-<pre><code>## [1] -15.68928</code></pre>
+pm_adjusted(predicted = actual_table$Position, actual = actual_table$Position, historical_features = 22 , season_features = 22, total_features = 22, lambda_H = 1, lambda_S = 2)</code></pre>
+<pre><code>## [1] 11</code></pre>
+<pre class="r"><code>pm_adjusted(predicted = 21-actual_table$Position, actual = actual_table$Position, historical_features = 22 , season_features = 22, total_features = 22, lambda_H = 1, lambda_S = 2)</code></pre>
+<pre><code>## [1] -16.68928</code></pre>
 <p>Now I check my prediction for 25/26 season</p>
 <pre class="r"><code>predicted_aligned &lt;- predicted_table$Position[match(actual_table$Team, predicted_table$Team)]
-pm_adjusted(predicted = predicted_aligned, actual = actual_table$Position, n_features = 12, total_features = 22, lambda = 2)</code></pre>
+pm_adjusted(predicted = predicted_aligned, actual = actual_table$Position, historical_features = 0 , season_features = 12, total_features = 22, lambda_H = 1, lambda_S = 2)</code></pre>
 <pre><code>## [1] 1.856649</code></pre>
 <p>WOMP WOMP Bad prediction!</p>
 <div id="penalisation" class="section level3">

@@ -16,14 +16,16 @@ The **idea** is to build a performance metric which will be used to compare ever
 
 Our **idea** is to build a performance metric which will add weights as:
 
-| Actual, $a_i$ | Prediction, $p_i$                     | Weight, $w_i$     |
-|---------------|---------------------------------------|-------------------|
-| Top 5         | correct in top 5                      | 1                 |
-| Top 5         | incorrect in top 5                    | 0.7               |
-| Top 5         | incorrect within 2 positions of top 5 | 0.4               |
-| Top 5         | incorrect outside of top 5            | $-\frac{d_i}{19}$ |
-| Outside top 5 | correct outside top 5                 | 0.4               |
-| Outside top 5 | incorrect outside top 5               | $-\frac{d_i}{14}$ |
+| Actual, $a_i$ | Prediction, $p_i$ | Weight, $w_i$ |
+|------------------|-------------------------------------|------------------|
+| Top 5 | Correct position | 1 |
+| Top 5 | Incorrect position but within top 5 | $w_i = \frac{\vert P_5 \cap A_5\vert}{5}$ |
+| Top 5 | Predicted outside top 5 | $f(x_i) = -(1-\exp^{-x_i})$ |
+| Outside top 5 (excluding bottom 3) | Correct position | 0.5 |
+| Outside top 5 (excluding bottom 3) | Incorrectly predicted in top 5 | $f(x_i) = -(1-\exp^{-x_i})$ |
+| Outside top 5 (excluding bottom 3) | Incorrect position outside top 5 | $f(x_i) = -(1-\exp^{-0.1x_i})$ |
+| Bottom 3 | Correctly predicted within bottom 3 | 1 |
+| Bottom 3 | Predicted outside bottom 3 | $f(x_i) = -(1-\exp^{-0.1x_i})$ |
 
 The reason why we add greater weight to the first 5 observations is because, we assume that the teams that fall into the first 5 positions at the end of the league will pass to the next championship (so focusing on this will also help us have an idea on how to continue the prediction).
 
@@ -31,23 +33,24 @@ Note: The reason why we are dividing the distance by 19 for an incorrect predict
 
 Notes:
 
-1) We aim to keep $w_i \in [-1,1]$.
+1)  We aim to keep $w_i \in [-1,1]$.
 
-2) We care about the top 5 teams the most since these will then enter the Champions League so $w_i = 1$ (money won)
+2)  We care about the top 5 teams the most since these will then enter the Champions League so $w_i = 1$ (money won)
 
-3) We care about the bottom 3 as these will get relegates for the next season so $w_i = 1$ (money lost)
+3)  We care about the bottom 3 as these will get relegates for the next season so $w_i = 1$ (money lost)
 
-4) Actual and predicted teams aren't in the same position but are within the first 5 so $w_i = \frac{\vert P_5 \cap A_5\vert}{5}$ where $P_5$ is the set of teams that are in the predicted top 5, and $A_5$ is the set of teams in the actual top 5. 
+4)  Actual and predicted teams aren't in the same position but are within the first 5 so $w_i = \frac{\vert P_5 \cap A_5\vert}{5}$ where $P_5$ is the set of teams that are in the predicted top 5, and $A_5$ is the set of teams in the actual top 5.
 
-5) predicted takes values in position 8+ while actual takes position within first 5 so $f(x_i) = -(1-\exp^{-kx_i})$ where $x_i=d(a_i,p_i)$ and k =1.
+5)  predicted takes values in position 8+ while actual takes position within first 5 so $f(x_i) = -(1-\exp^{-kx_i})$ where $x_i=d(a_i,p_i)$ and k =1.
 
-6) actual is outside of top 5: 
+6)  actual is outside of top 5:
+
 - predicted = actual $w_i = 0.5$ (not losing or winning money ish)
 - We care about the bottom 3 as these will get relegates for the next season so $w_i = 1$ (money lost)
 - else $f(x_i) = -(1-\exp^{-kx_i})$ where $x_i=d(a_i,p_i)$ and k = ??
 
-Here is the code for the total weight we give to our model:
-range is [-16,14] (??)
+Here is the code for the total weight we give to our model: range is [-16,14] (??)
+
 ```{r}
 pm <- function(predicted, actual) {
   
@@ -114,36 +117,37 @@ pm <- function(predicted, actual) {
   return(sum(wt))
 }
 
-pm_adjusted <- function(predicted, actual, n_features, total_features, lambda = 2) {
+pm_adjusted <- function(predicted, actual, historical_features, season_features, total_features, lambda_H = 1, lambda_S = 2) {
 
   original_pm <- pm(predicted, actual)
 
-  penalty <- lambda * (n_features / total_features)
+  penalty_H <- lambda_H *(historical_features / total_features)
 
-  adjusted_pm <- original_pm - penalty
+  penalty_S <- lambda_S *(season_features / total_features)
+
+  adjusted_pm <- original_pm - penalty_H - penalty_S
 
   return(adjusted_pm)
 }
 
 #check what's the maximum and minimum score
-pm_adjusted(predicted = actual_table$Position, actual = actual_table$Position, n_features = 22, total_features = 22, lambda = 2)
-pm_adjusted(predicted = 21-actual_table$Position, actual = actual_table$Position, n_features = 22, total_features = 22, lambda = 2)
+pm_adjusted(predicted = actual_table$Position, actual = actual_table$Position, historical_features = 22 , season_features = 22, total_features = 22, lambda_H = 1, lambda_S = 2)
+pm_adjusted(predicted = 21-actual_table$Position, actual = actual_table$Position, historical_features = 22 , season_features = 22, total_features = 22, lambda_H = 1, lambda_S = 2)
 ```
 
 Now I check my prediction for 25/26 season
 
 ```{r}
 predicted_aligned <- predicted_table$Position[match(actual_table$Team, predicted_table$Team)]
-pm_adjusted(predicted = predicted_aligned, actual = actual_table$Position, n_features = 12, total_features = 22, lambda = 2)
+pm_adjusted(predicted = predicted_aligned, actual = actual_table$Position, historical_features = 0 , season_features = 12, total_features = 22, lambda_H = 1, lambda_S = 2)
 ```
 
 WOMP WOMP Bad prediction!
 
 ### Penalisation
 
-Indicator function =  ( n/2 for historical data
-                      ( n  for season data 
-                      
+Indicator function = ( n/2 for historical data ( n for season data
+
 Minimum Description Length
 
 ## Spearman's rank correlation coefficient
@@ -169,7 +173,6 @@ For a sample size $n$, the $n$ pairs of raw scores $(X_i,Y_i)$ are converted to 
 ### Conclusion
 
 This tells us how well our model predicted the rank of teams at the end of the season. However, to compare different models this might not be ideal since it doesn't consider the complexity of the model. I can use this method instead to test how well my model performs when predicting the rank.
-
 
 ```{r}
 pm <- function(predicted, actual) {
