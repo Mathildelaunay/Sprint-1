@@ -30,14 +30,146 @@ The reason why we add greater weight to the first 5 observations is because, we 
 Note: The reason why we are dividing the distance by 19 for an incorrect prediction outside of top 5 is because $\text{max}\{a_i,p_i\} = 19$ and similarly for an incorrect prediction outside top 5 we have $\text{max}\{a_i,p_i\} = 14$.
 
 Notes:
+
 1) We aim to keep $w_i \in [-1,1]$.
+
 2) We care about the top 5 teams the most since these will then enter the Champions League so $w_i = 1$ (money won)
+
 3) We care about the bottom 3 as these will get relegates for the next season so $w_i = 1$ (money lost)
-4) Say Arsenal(a) falls into 2nd , our prediction Arsenal(p) falss into 5th $w_i = \frac{\vert P_5 \cap A_5\vert}{5}$ where $P_5$ is the set of teams that are in the predicted top 5, and $A_5$ is the set of teams in the actual top 5.
-5) predicted takes values in position 8+ while predicted takes position within first 5 $w_i = -\frac{d_i^2}{19}$.
-6) actual is outside of top 5: - predicted = actual $w_i = 0.5$ (not losing or winning money ish)
-                               - else  $w_i = -\frac{d_i^2}{14}$ 
+
+4) Actual and predicted teams aren't in the same position but are within the first 5 so $w_i = \frac{\vert P_5 \cap A_5\vert}{5}$ where $P_5$ is the set of teams that are in the predicted top 5, and $A_5$ is the set of teams in the actual top 5. 
+
+5) predicted takes values in position 8+ while actual takes position within first 5 so $f(x_i) = -(1-\exp^{-kx_i})$ where $x_i=d(a_i,p_i)$ and k =1.
+
+6) actual is outside of top 5: 
+- predicted = actual $w_i = 0.5$ (not losing or winning money ish)
+- We care about the bottom 3 as these will get relegates for the next season so $w_i = 1$ (money lost)
+- else $f(x_i) = -(1-\exp^{-kx_i})$ where $x_i=d(a_i,p_i)$ and k = ??
+
 Here is the code for the total weight we give to our model:
+range is [-16,14] (??)
+```{r}
+pm <- function(predicted, actual) {
+  
+  n <- length(actual)
+  # Identify the top five teams
+  P5 <- which(predicted <= 5)
+  A5 <- which(actual <= 5)
+
+  # Calculate overlap between predicted and actual top five
+  overlap <- length(intersect(P5, A5)) / 5
+
+  # Identify bottom three positions
+  bottom3 <- (n - 2):n
+
+  wt <- numeric(n)
+
+  for (i in 1:n) {
+
+    p <- predicted[i]
+    a <- actual[i]
+
+    d <- abs(p - a)
+
+    if (a <= 5) { # Actual position is in the top five
+      
+      if (p == a) {
+        w <- 1
+
+      } else if (p <= 5) {
+        w <- overlap
+
+      } else {
+        w <- -(1 - exp(-d))
+      }
+
+    } else {# Actual position is outside the top five
+
+      if (a %in% bottom3) {# Actual team is in the bottom three
+
+        if (p %in% bottom3) {
+          w <- 1
+
+        } else {
+          w <- -(1 - exp(-d))
+        }
+
+      } else if (p <= 5) {# Incorrectly predicted in the top five
+        
+        w <- -(1 - exp(-d))
+
+      } else if (p == a) {# Correctly predicted outside the top five
+
+        w <- 0.5
+
+      } else {# Incorrectly predicted outside the top five
+        k <- 0.1
+        w <- -(1 - exp(-k * d))
+      }
+    }
+
+    wt[i] <- w
+  }
+
+  return(sum(wt))
+}
+
+pm_adjusted <- function(predicted, actual, n_features, total_features, lambda = 2) {
+
+  original_pm <- pm(predicted, actual)
+
+  penalty <- lambda * (n_features / total_features)
+
+  adjusted_pm <- original_pm - penalty
+
+  return(adjusted_pm)
+}
+
+#check what's the maximum and minimum score
+pm_adjusted(predicted = actual_table$Position, actual = actual_table$Position, n_features = 22, total_features = 22, lambda = 2)
+pm_adjusted(predicted = 21-actual_table$Position, actual = actual_table$Position, n_features = 22, total_features = 22, lambda = 2)
+```
+
+Now I check my prediction for 25/26 season
+
+```{r}
+predicted_aligned <- predicted_table$Position[match(actual_table$Team, predicted_table$Team)]
+pm_adjusted(predicted = predicted_aligned, actual = actual_table$Position, n_features = 12, total_features = 22, lambda = 2)
+```
+
+WOMP WOMP Bad prediction!
+
+### Penalisation
+
+Indicator function =  ( n/2 for historical data
+                      ( n  for season data 
+                      
+Minimum Description Length
+
+## Spearman's rank correlation coefficient
+
+### Intuition
+
+Spearman's rank correlation coefficient, $\rho$, is a number ranging from −1 to 1 that indicates how strongly two sets of ranks are correlated (in our case `predicted` vs `actual`). It is a nonparametric measure of rank correlation. It assesses how well the relationship between two variables (`predicted` and `actual`) can be described using a monotonic function (i.e. \$f(x_i) \leq f(x\_{i+1}) \$ or \$f(x_i) \geq f(x\_{i+1}) \$). It is used in situations where the ranking of a dataset is important, for instance in sports.
+
+A perfect Spearman correlation of +1 or −1 occurs when each of the variables is a perfect monotone function of the other.
+
+(eg. $f($`actual[i]`$) = f($`predicted[i]`$) \leq f($`actual[i+1]`$) = f($`predicted[i+1]`$)$ eg.`predicted` = (3,2,4,1) and `actual` = (1,2,3,4)).
+
+Intuitively, the Spearman correlation between two variables will be high when observations have a similar (or equal with correlation = 1) rank between the two variables, and low when observations have a dissimilar(or fully opposed with correlation = -1) rank between the two variables.
+
+### Formula
+
+For a sample size $n$, the $n$ pairs of raw scores $(X_i,Y_i)$ are converted to ranks $(\text{R}[X_i],\text{R}[Y_i])$ and the Spearman rank correlation, $\rho$, is calculated as $$\rho [ \text{R}[X] \ ,\text{R}[Y] \ ] = \frac{\text{cov}[ \text{R}[X] \ ,\text{R}[Y]]}{\sigma_{\text{R}[X]}\sigma_{\text{R[Y]}}}, $$ where:
+
+- $\text{cov}[ \text{R}[X] \ ,\text{R}[Y]]$ is the covariance of the rank variables,
+
+- $\sigma_{\text{R}[X]}$ and $\sigma_{\text{R[Y]}}$ are the standard deviations of the rank variables.
+
+### Conclusion
+
+This tells us how well our model predicted the rank of teams at the end of the season. However, to compare different models this might not be ideal since it doesn't consider the complexity of the model. I can use this method instead to test how well my model performs when predicting the rank.
+
 
 ```{r}
 pm <- function(predicted, actual) {
@@ -64,7 +196,7 @@ pm <- function(predicted, actual) {
         w <- 0  
       } else if (p == a) { # correctly predicted outside of top 5
         w <- 0.4
-      } else { # incorrectly predicted outside of top 5
+      } else { # incorrectly predicted outside of top 5 actual outside of top 5 and predicted also outside but not equal
         w <- -(d / 14) # notice for one space wrong w = -0.07, for 14 spaces wrong (max distance) w = -1
       }
     }
@@ -78,38 +210,3 @@ pm <- function(predicted, actual) {
 pm(predicted = actual_table$Position, actual = actual_table$Position)
 pm(predicted = 21-actual_table$Position, actual = actual_table$Position)
 ```
-
-Notice that the weights range from $[-1,1]$. We now need to add a penalisation for number of parameters used in the model. We want to keep this penalisation smaller then our total number of weights so maybe using a log scale for number of parameters would be a good idea.
-
-
-`pm(predicted, actual)` - $\frac{1}{2} \log (\text{#of parameters})$ ??
-
-```{r}
-predicted_aligned <- predicted_table[match(actual_table$Team, predicted_table$Team),]
-pm(predicted = predicted_aligned$Position,actual = actual_table$Position)
-```
-WOMP WOMP Bad prediction!
-
-## Spearman's rank correlation coefficient
-
-### Intuition
-
-Spearman's rank correlation coefficient, $\rho$, is a number ranging from −1 to 1 that indicates how strongly two sets of ranks are correlated (in our case `predicted` vs `actual`). It is a nonparametric measure of rank correlation. It assesses how well the relationship between two variables (`predicted` and `actual`) can be described using a monotonic function (i.e. \$f(x_i) \leq f(x\_{i+1}) \$ or \$f(x_i) \geq f(x\_{i+1}) \$). It is used in situations where the ranking of a dataset is important, for instance in sports.
-
-A perfect Spearman correlation of +1 or −1 occurs when each of the variables is a perfect monotone function of the other.
-
-(eg. $f($`actual[i]`$) = f($`predicted[i]`$) \leq f($`actual[i+1]`$) = f($`predicted[i+1]`$)$ eg.`predicted` = (3,2,4,1) and `actual` = (1,2,3,4)).
-
-Intuitively, the Spearman correlation between two variables will be high when observations have a similar (or equal with correlation = 1) rank between the two variables, and low when observations have a dissimilar(or fully opposed with correlation = -1) rank between the two variables.
-
-### Formula
-
-For a sample size $n$, the $n$ pairs of raw scores $(X_i,Y_i)$ are converted to ranks $(\text{R}[X_i],\text{R}[Y_i])$ and the Spearman rank correlation, $\rho$, is calculated as $$\rho [ \text{R}[X] \ ,\text{R}[Y] \ ] = \frac{\text{cov}[ \text{R}[X] \ ,\text{R}[Y]]}{\sigma_{\text{R}[X]}\sigma_{\text{R[Y]}}}, $$ where:
-
-- $\text{cov}[ \text{R}[X] \ ,\text{R}[Y]]$ is the covariance of the rank variables,
-
-- $\sigma_{\text{R}[X]}$ and $\sigma_{\text{R[Y]}}$ are the standard deviations of the rank variables.
-
-### Conclusion
-
-This tells us how well our model predicted the rank of teams at the end of the season. However, to compare different models this might not be ideal since it doesn't consider the complexity of the model. I can use this method instead to test how well my model performs when predicting the rank.

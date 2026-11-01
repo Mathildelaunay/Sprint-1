@@ -355,6 +355,17 @@ display: none;
 </div>
 
 
+<pre class="r"><code>library(stats)
+library(base)
+library(dplyr)</code></pre>
+<pre><code>## 
+## Attaching package: &#39;dplyr&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:stats&#39;:
+## 
+##     filter, lag</code></pre>
+<pre><code>## The following objects are masked from &#39;package:base&#39;:
+## 
+##     intersect, setdiff, setequal, union</code></pre>
 <div id="import-data" class="section level2">
 <h2>Import data</h2>
 <pre class="r"><code>setwd(&quot;/Users/lenovo/OneDrive - University of Bristol/2026_2027/DST/Sprint-1/Anna Del Pino&quot;)
@@ -455,7 +466,14 @@ for (i in seq_along(vectordata)) {
   columns_removed &lt;- setdiff(names(vectordata[[i]]), columns_to_keep) #odds columns
 
   vectordata[[i]] &lt;- vectordata[[i]][, intersect(columns_to_keep, names(vectordata[[i]])),drop = FALSE]
-}</code></pre>
+}
+colnames(bind_rows(vectordata[&quot;data25_26&quot;]))</code></pre>
+<pre><code>##  [1] &quot;Date&quot;     &quot;HomeTeam&quot; &quot;AwayTeam&quot; &quot;FTHG&quot;     &quot;FTAG&quot;     &quot;FTR&quot;     
+##  [7] &quot;HTHG&quot;     &quot;HTAG&quot;     &quot;HTR&quot;      &quot;Referee&quot;  &quot;HS&quot;       &quot;AS&quot;      
+## [13] &quot;HST&quot;      &quot;AST&quot;      &quot;HC&quot;       &quot;AC&quot;       &quot;HF&quot;       &quot;AF&quot;      
+## [19] &quot;HY&quot;       &quot;AY&quot;       &quot;HR&quot;       &quot;AR&quot;</code></pre>
+<pre class="r"><code>length(bind_rows(vectordata[&quot;data25_26&quot;]))</code></pre>
+<pre><code>## [1] 22</code></pre>
 <p>As we can see, the older (or incomplete for <code>data26_27</code>)
 the dataset is, the less features it contains. This will then be spoken
 about in the limitations section of our report. This means that we want
@@ -464,19 +482,7 @@ the model to be weighted more strongly for the newer datasets.</p>
 <div id="testtrain-split" class="section level2">
 <h2>Test/Train split</h2>
 <p>Firstly we define out test/train split.</p>
-<pre class="r"><code>library(dplyr)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;dplyr&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:stats&#39;:
-## 
-##     filter, lag</code></pre>
-<pre><code>## The following objects are masked from &#39;package:base&#39;:
-## 
-##     intersect, setdiff, setequal, union</code></pre>
-<pre class="r"><code>library(stats)
-library(base)
-
-train_names &lt;- paste0(&quot;data&quot;,c(&quot;14_15&quot;, &quot;15_16&quot;, &quot;16_17&quot;, &quot;17_18&quot;, &quot;18_19&quot;,&quot;19_20&quot;, &quot;20_21&quot;, &quot;21_22&quot;, &quot;22_23&quot;, &quot;23_24&quot;, &quot;24_25&quot;))
+<pre class="r"><code>train_names &lt;- paste0(&quot;data&quot;,c(&quot;14_15&quot;, &quot;15_16&quot;, &quot;16_17&quot;, &quot;17_18&quot;, &quot;18_19&quot;,&quot;19_20&quot;, &quot;20_21&quot;, &quot;21_22&quot;, &quot;22_23&quot;, &quot;23_24&quot;, &quot;24_25&quot;))
 
 train_data &lt;- bind_rows(vectordata[train_names])
 test_data  &lt;- bind_rows(vectordata[&quot;data25_26&quot;])</code></pre>

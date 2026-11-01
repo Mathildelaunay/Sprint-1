@@ -75,6 +75,18 @@ For each response, the lowest AIC is the best of the models compared by that cri
 formula(home_step)
 formula(away_step)
 ```
+Notice: the features used by the two different models aren't the same and the number of features also aren't the same. This will get considered as a penalisation when checking the performance of my model. I will count the features with the following rule:
+
+```{r}
+# Extract variables used in each model
+home_features <- names(coef(home_step))[-1]
+away_features <- names(coef(away_step))[-1]
+
+# Count unique features across both models
+n_features <- length(unique(c(home_features, away_features)))
+
+n_features
+```
 
 ## Checking the selected models
 

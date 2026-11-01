@@ -8,6 +8,12 @@ date: "2026-10-22"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+library(stats)
+library(base)
+library(dplyr)
+```
+
 ## Import data
 
 ```{r}
@@ -107,7 +113,8 @@ for (i in seq_along(vectordata)) {
 
   vectordata[[i]] <- vectordata[[i]][, intersect(columns_to_keep, names(vectordata[[i]])),drop = FALSE]
 }
-
+colnames(bind_rows(vectordata["data25_26"]))
+length(bind_rows(vectordata["data25_26"]))
 ```
 As we can see, the older (or incomplete for `data26_27`) the dataset is, the less features it contains. This will then be spoken about in the limitations section of our report. This means that we want the model to be weighted more strongly for the newer datasets.
 
@@ -115,10 +122,6 @@ As we can see, the older (or incomplete for `data26_27`) the dataset is, the les
 
 Firstly we define out test/train split.
 ```{r}
-library(dplyr)
-library(stats)
-library(base)
-
 train_names <- paste0("data",c("14_15", "15_16", "16_17", "17_18", "18_19","19_20", "20_21", "21_22", "22_23", "23_24", "24_25"))
 
 train_data <- bind_rows(vectordata[train_names])
