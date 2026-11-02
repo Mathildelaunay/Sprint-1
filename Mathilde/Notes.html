@@ -11,7 +11,7 @@
 
 <meta name="author" content="Mathilde Launay" />
 
-<meta name="date" content="2026-11-01" />
+<meta name="date" content="2026-11-02" />
 
 <title>Football predictions</title>
 
@@ -352,7 +352,7 @@ display: none;
 
 <h1 class="title toc-ignore">Football predictions</h1>
 <h4 class="author">Mathilde Launay</h4>
-<h4 class="date">2026-11-01</h4>
+<h4 class="date">2026-11-02</h4>
 
 </div>
 
@@ -445,33 +445,66 @@ HomeAway, opp_defence_score, attack_score, DSTF, DCS, DSF, DYF, DLF.</p>
 <div id="sensitivity-analysis" class="section level2">
 <h2>Sensitivity Analysis</h2>
 <p>Look at Folder: Mathilde Document: 03 Sensitivity Analysis</p>
-<p>Since the predcitions are decimal values, I wanted to find a way to
-assign teams with points without rounding the values as I thought this
-may lead to too many draws. The reason behind this choice is that since
-there may be a prediction of 1.49 for one team and 1.5 for another,
-although rounding would assign a clear winner, introducing a threshold
-for which a distance between predictions indicates whether to assign a
-draw to a match or not would make a scenario as mentioned above into a
-draw rather. I therefore performed sensitivity analysis on this value,
-that i called beta. The analysis used an expanding window validation
-technique to work out what value of beta outputs the smallest rank mean
-squared error; the rank coming from team’s points at the end of the
-season. As outputs, I also included the spearman value as it indicates
-how strongly two sets of ranks are correlated. The mean beta value was
-found to be 0.473, with a standard deviation of 0.380. This shows that
-including beta in my model does introduce a limitation as it introduces
-an extra parameter which is difficult to estimate (high standard
-deviation, unstable). I also considered estimating this value by
-replicating the proportion of draws of the previous league seasons, but
-found that comparing the rank MSE was more appriopriate, especially
-given the goal of the model (to output a good rank).</p>
+<p>To construct a league table, the predictions made by the model must
+first be converted into points. I compared different approaches to doing
+so:</p>
+<p>The most obvious thing to try first was to round the predicted goals
+and compares the resulting scores. However, I thought that since most
+predicted goal values lie between approximately 0.8 and 2, this may
+result in more predicted draws than observed in the historical data. I
+also tried to explore using a threshold, beta, on the difference between
+the predicted goals. i.e. a match is classified as a draw if the
+absolute difference between the two predictions is at most beta and
+otherwise, the team with the higher predicted goals is classified as the
+winner. I made beta range 0.05 and 1.00, in increments of 0.01 to
+compare different values. To compare the two approaches, I used an
+expanding-window validation over the ten seasons from 2015/16 to
+2024/25. The main evaluation criteria were the mean squared error (MSE)
+between predicted and actual league-table ranks, and Spearman’s rank
+correlation.</p>
+<p>I also considered two ways of selecting beta. First, an “oracle”
+approach selected the best threshold separately for each validation
+season, using that season’s actual league table. Since the optimal
+threshold could not be known before the season took place, I knew that
+the mean rank MSE would be relatively low, and the technique would
+probably not be applicable for testing an unseen season if there was too
+much variability for this value. The resulting optimal thresholds had a
+mean of 0.473 and given that the standard deviation had a value of of
+0.380, ranging from 0.09 to 0.95, this “oracle” was too unstable to be
+used on the test data. The final plot also shows that this is not a good
+value because 0.473 lies above the line which shows the MSE of the
+rounding technique, so I might as well have just rounded the values. I
+then considered a more realistic, leak-free approach to estimate beta.
+For each validation season, the threshold was selected by minimising the
+mean rank MSE across all earlier validated seasons, before being
+evaluated on the next season. Across the nine seasons for which this was
+possible, this approach achieved a mean rank MSE of 10.44, compared with
+11.66 for rounding, and a mean Spearman correlation of 0.843, compared
+with 0.825 (a bit better). It also achieved a lower rank MSE than
+rounding in seven of the nine seasons if you look at the second table.
+However, again the selected threshold remained variable across
+validation seasons, ranging from 0.15 to 0.90. Although the threshold
+approach provided slight improvement in average ranking performance, it
+was too unstable to be used on an unseen season.</p>
+<p>I also used draw proportions as a secondary diagnostic tool. The
+leak-free threshold approach predicted draws in approximately 25.5% of
+matches, compared with 32.1% under rounding; the actual draw proportion
+across the corresponding validation seasons was approximately 22.8%.
+Although the threshold approach produced a draw proportion closer to the
+observed value, matching the draw proportion was not the objective used
+to select the outcome-mapping method. The threshold technique would
+therefore have been better suited to a scenario where goal counts
+mattered, but here the primary objective was to obtain an accurate
+league-table ranking.</p>
+<p>I therefore reverted to using rounding in the final model since it is
+parameter-free, straightforward to interpret, and avoids introducing an
+additional parameter that is difficult to estimate reliably.</p>
 </div>
 <div id="model" class="section level2">
 <h2>Model</h2>
 <p>Look at Folder: Mathilde Document: 04 Model</p>
-<p>I then fitted my model using beta = 0.473 on 2025/26. Against the
-perfomance metric the team agreed upon, my model got a score of
--2.852665.</p>
+<p>I then fitted my model on 2025/26. Against the perfomance metric the
+team agreed upon, my model got a score of -1.7582.</p>
 </div>
 
 

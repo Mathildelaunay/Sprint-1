@@ -56,21 +56,25 @@ match_predictions_25_26 <- X25_26_training %>%
     values_from = c(Team, Goals, predicted_goals)
   ) %>%
   mutate(
-    goal_difference =
-      predicted_goals_Home - predicted_goals_Away,
+    # Round each team's predicted goals
+    rounded_home_goals = round(predicted_goals_Home),
+    rounded_away_goals = round(predicted_goals_Away),
 
+    # Determine predicted outcome from rounded scores
     predicted_result = case_when(
-      abs(goal_difference) <= 0.473	 ~ "D",
-      goal_difference > 0.473	 ~ "H",
-      TRUE ~ "A"
+      rounded_home_goals > rounded_away_goals ~ "H",
+      rounded_home_goals < rounded_away_goals ~ "A",
+      TRUE ~ "D"
     ),
 
+    # Actual outcome
     actual_result = case_when(
       Goals_Home > Goals_Away ~ "H",
       Goals_Home < Goals_Away ~ "A",
       TRUE ~ "D"
     ),
 
+    # Predicted points
     predicted_home_points = case_when(
       predicted_result == "H" ~ 3,
       predicted_result == "D" ~ 1,
@@ -83,6 +87,7 @@ match_predictions_25_26 <- X25_26_training %>%
       TRUE ~ 0
     ),
 
+    # Actual points
     actual_home_points = case_when(
       actual_result == "H" ~ 3,
       actual_result == "D" ~ 1,

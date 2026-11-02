@@ -26,17 +26,27 @@ beta_grid <- seq(0.05, 1, by = 0.01)
 
 
 # Build a function which converts predicted goals into match outcomes and then calculates the predicted and actual league tables
-season_table <- function(df, beta) {
+season_table <- function(df, beta = NULL, method = c("beta", "round")) {
+  method <- match.arg(method)
+
   mp <- df %>%
     select(match_id, HomeAway, Team, Goals, predicted_goals) %>%
     pivot_wider(names_from = HomeAway,
                 values_from = c(Team, Goals, predicted_goals)) %>%
-    mutate(
-      gd       = predicted_goals_Home - predicted_goals_Away,
-      pred_res = case_when(abs(gd) <= beta ~ "D", gd > beta ~ "H", TRUE ~ "A"),
-      act_res  = case_when(Goals_Home > Goals_Away ~ "H",
-                           Goals_Home < Goals_Away ~ "A", TRUE ~ "D")
-    )
+    mutate(gd = predicted_goals_Home - predicted_goals_Away)
+
+  if (method == "beta") {
+    mp <- mp %>% mutate(
+      pred_res = case_when(abs(gd) <= beta ~ "D", gd > beta ~ "H", TRUE ~ "A"))
+  } else {
+    rh <- round(mp$predicted_goals_Home)
+    ra <- round(mp$predicted_goals_Away)
+    mp$pred_res <- case_when(rh > ra ~ "H", rh < ra ~ "A", TRUE ~ "D")
+  }
+
+  mp <- mp %>% mutate(
+    act_res = case_when(Goals_Home > Goals_Away ~ "H",
+                        Goals_Home < Goals_Away ~ "A", TRUE ~ "D"))
 
   pts <- function(res, side) case_when(res == side ~ 3, res == "D" ~ 1, TRUE ~ 0)
 
@@ -52,9 +62,9 @@ season_table <- function(df, beta) {
   ) %>%
     group_by(Team) %>%
     summarise(across(everything(), sum), .groups = "drop") %>%
-    arrange(desc(pred_pts), desc(pred_gd), Team) %>%        
+    arrange(desc(pred_pts), desc(pred_gd), Team) %>%
     mutate(pred_rank = row_number()) %>%
-    arrange(desc(act_pts), desc(act_gd), desc(act_gf), Team) %>%  
+    arrange(desc(act_pts), desc(act_gd), desc(act_gf), Team) %>%
     mutate(act_rank = row_number()) %>%
     arrange(Team)
 
@@ -62,86 +72,117 @@ season_table <- function(df, beta) {
 }
 
 
-beta_cv <- function(training_data, poisson_formula, beta_grid, min_train = 1) {
+score_table <- function(st, season, method, beta = NA_real_) {
+  tibble(
+    Season    = season,
+    method    = method,
+    Beta      = beta,
+    rank_mse  = mean((st$tab$pred_rank - st$tab$act_rank)^2),
+    spearman  = cor(st$tab$pred_rank, st$tab$act_rank, method = "spearman"),
+    pred_draw = mean(st$mp$pred_res == "D"),
+    act_draw  = mean(st$mp$act_res == "D")
+  )
+}
 
+beta_cv <- function(training_data, poisson_formula, beta_grid, min_train = 1) {
   seasons <- training_data %>%
     distinct(Year) %>%
     mutate(s = as.integer(substr(Year, 1, 4))) %>%
-    arrange(s) %>%
-    pull(Year)
+    arrange(s) %>% pull(Year)
 
   map_dfr((min_train + 1):length(seasons), function(i) {
+    train_fold <- training_data %>% filter(Year %in% seasons[1:(i - 1)])
+    valid_fold <- training_data %>% filter(Year == seasons[i])
 
-    train_fold <- training_data %>%
-      filter(Year %in% seasons[1:(i - 1)])
-
-    valid_fold <- training_data %>%
-      filter(Year == seasons[i])
-
-    # Fit Poisson model using previous seasons
-    m <- glm(
-      poisson_formula,
-      data = train_fold,
-      family = stats::poisson(link = "log")
-    )
-
-    # Predict goals in validation season
+    m <- glm(poisson_formula, data = train_fold,
+             family = stats::poisson(link = "log"))
     valid_fold <- valid_fold %>%
-      mutate(
-        predicted_goals = predict(
-          m,
-          newdata = valid_fold,
-          type = "response"
-        )
-      )
+      mutate(predicted_goals = predict(m, newdata = valid_fold, type = "response"))
 
-    # Evaluate each beta
-    map_dfr(beta_grid, function(b) {
-
-      st <- season_table(valid_fold, b)
-
-      tibble(
-        Season = seasons[i],
-        Beta = b,
-        rank_mse = mean(
-          (st$tab$pred_rank - st$tab$act_rank)^2
-        ),
-        spearman = cor(
-          st$tab$pred_rank,
-          st$tab$act_rank,
-          method = "spearman"
-        )
-      )
-    })
+    bind_rows(
+      # rounding: no parameter to tune
+      score_table(season_table(valid_fold, method = "round"),
+                  seasons[i], "round"),
+      # every beta on the grid
+      map_dfr(beta_grid, function(b)
+        score_table(season_table(valid_fold, beta = b, method = "beta"),
+                    seasons[i], "beta_grid", b))
+    )
   })
 }
 
-beta_results <- beta_cv(training_data, poisson_formula, beta_grid)
+all_results   <- beta_cv(training_data, poisson_formula, beta_grid)
+beta_results  <- all_results %>% filter(method == "beta_grid")
+round_results <- all_results %>% filter(method == "round")
+```
+```{r}
+seasons_v <- unique(beta_results$Season)
 
-beta_chosen_by_season <- beta_results %>%
+# (a) Oracle: best beta per season (optimistic upper bound)
+oracle <- beta_results %>%
   group_by(Season) %>%
   slice_min(rank_mse, n = 1, with_ties = FALSE) %>%
-  ungroup()
+  ungroup() %>% mutate(method = "beta (oracle, best per season)")
 
-beta_chosen_by_season %>%
+# (b) Fair: beta chosen using only earlier validated seasons
+fair <- map_dfr(2:length(seasons_v), function(j) {
+  b <- beta_results %>%
+    filter(Season %in% seasons_v[1:(j - 1)]) %>%
+    group_by(Beta) %>%
+    summarise(m = mean(rank_mse), .groups = "drop") %>%
+    slice_min(m, n = 1, with_ties = FALSE) %>% pull(Beta)
+  beta_results %>%
+    filter(Season == seasons_v[j], Beta == b) %>%
+    mutate(method = "beta (chosen on earlier seasons)")
+})
+
+comparison <- bind_rows(oracle, fair, round_results %>% mutate(method = "rounding"))
+
+# Summary on the seasons where all three exist (drops the first season)
+common <- fair$Season
+comparison %>%
+  filter(Season %in% common) %>%
+  group_by(method) %>%
+  summarise(mean_rank_mse = mean(rank_mse), sd_rank_mse = sd(rank_mse),
+            mean_spearman = mean(spearman), sd_spearman = sd(spearman),
+            mean_pred_draw = mean(pred_draw), mean_act_draw = mean(act_draw),
+            .groups = "drop")
+
+# Season by season
+comparison %>%
+  filter(Season %in% common) %>%
+  select(Season, method, Beta, rank_mse, spearman, pred_draw) %>%
+  arrange(Season, method)
+
+# Plots
+ggplot(comparison %>% filter(Season %in% common),
+       aes(Season, rank_mse, colour = method, group = method)) +
+  geom_line() + geom_point() + labs(y = "Rank MSE")
+
+ggplot(comparison %>% filter(Season %in% common),
+       aes(Season, spearman, colour = method, group = method)) +
+  geom_line() + geom_point() + labs(y = "Spearman")
+
+# Rank MSE vs beta, with rounding as a horizontal reference
+beta_results %>%
+  group_by(Beta) %>% summarise(mean_rank_mse = mean(rank_mse), .groups = "drop") %>%
+  ggplot(aes(Beta, mean_rank_mse)) +
+  geom_line() +
+  geom_hline(yintercept = mean(round_results$rank_mse[round_results$Season %in% common]),
+             linetype = "dashed", colour = "red") +
+  labs(y = "Mean rank MSE", caption = "Dashed red = rounding")
+```
+
+```{r}
+oracle %>%
   summarise(
-    mean_beta = mean(Beta),
-    sd_beta = sd(Beta),
-    min_beta = min(Beta),
-    max_beta = max(Beta),
+    mean_beta     = mean(Beta),
+    sd_beta       = sd(Beta),
+    min_beta      = min(Beta),
+    max_beta      = max(Beta),
     mean_rank_mse = mean(rank_mse),
     mean_spearman = mean(spearman)
   )
-
-beta_chosen_by_season %>%
-  select(Season, Beta, rank_mse, spearman)
-
-beta_results %>%
-  group_by(Beta) %>%
-  summarise(mean_rank_mse = mean(rank_mse), .groups = "drop") %>%
-  ggplot(aes(Beta, mean_rank_mse)) +
-  geom_line() +
-  geom_vline(xintercept = mean(beta_chosen_by_season$Beta), colour = "red") +
-  labs(y = "Mean squared rank error")
 ```
-From the first table, I will take the value of beta to be 0.473.
+The mean beta value is unreliable due to its high standard deviation.
+

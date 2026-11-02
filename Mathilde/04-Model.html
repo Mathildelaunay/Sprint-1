@@ -410,21 +410,25 @@ X25_26_training &lt;- X25_26_training %&gt;%
     values_from = c(Team, Goals, predicted_goals)
   ) %&gt;%
   mutate(
-    goal_difference =
-      predicted_goals_Home - predicted_goals_Away,
+    # Round each team&#39;s predicted goals
+    rounded_home_goals = round(predicted_goals_Home),
+    rounded_away_goals = round(predicted_goals_Away),
 
+    # Determine predicted outcome from rounded scores
     predicted_result = case_when(
-      abs(goal_difference) &lt;= 0.473  ~ &quot;D&quot;,
-      goal_difference &gt; 0.473    ~ &quot;H&quot;,
-      TRUE ~ &quot;A&quot;
+      rounded_home_goals &gt; rounded_away_goals ~ &quot;H&quot;,
+      rounded_home_goals &lt; rounded_away_goals ~ &quot;A&quot;,
+      TRUE ~ &quot;D&quot;
     ),
 
+    # Actual outcome
     actual_result = case_when(
       Goals_Home &gt; Goals_Away ~ &quot;H&quot;,
       Goals_Home &lt; Goals_Away ~ &quot;A&quot;,
       TRUE ~ &quot;D&quot;
     ),
 
+    # Predicted points
     predicted_home_points = case_when(
       predicted_result == &quot;H&quot; ~ 3,
       predicted_result == &quot;D&quot; ~ 1,
@@ -437,6 +441,7 @@ X25_26_training &lt;- X25_26_training %&gt;%
       TRUE ~ 0
     ),
 
+    # Actual points
     actual_home_points = case_when(
       actual_result == &quot;H&quot; ~ 3,
       actual_result == &quot;D&quot; ~ 1,
@@ -494,26 +499,26 @@ league_table_25_26</code></pre>
 <pre><code>## # A tibble: 20 × 5
 ##    Team           PredictedPoints ActualPoints PredictedRank ActualRank
 ##    &lt;chr&gt;                    &lt;dbl&gt;        &lt;dbl&gt;         &lt;int&gt;      &lt;int&gt;
-##  1 Arsenal                     99           85             1          1
-##  2 Man City                    93           78             2          2
-##  3 Man United                  64           71             6          3
-##  4 Aston Villa                 62           65             7          4
-##  5 Liverpool                   82           60             3          5
-##  6 Bournemouth                 62           57             8          6
-##  7 Sunderland                  16           54            18          7
-##  8 Brighton                    46           53            10          8
-##  9 Brentford                   38           53            12          9
-## 10 Chelsea                     71           52             4         10
-## 11 Fulham                      42           52            11         11
-## 12 Newcastle                   65           49             5         12
-## 13 Everton                     32           49            14         13
-## 14 Leeds                       25           47            17         14
-## 15 Crystal Palace              36           45            13         15
-## 16 Nott&#39;m Forest               59           44             9         16
-## 17 Tottenham                   30           41            15         17
-## 18 West Ham                    27           39            16         18
-## 19 Burnley                      8           22            20         19
-## 20 Wolves                      15           20            19         20</code></pre>
+##  1 Arsenal                     98           85             3          1
+##  2 Man City                   104           78             1          2
+##  3 Man United                  69           71             6          3
+##  4 Aston Villa                 69           65             5          4
+##  5 Liverpool                  100           60             2          5
+##  6 Bournemouth                 57           57             9          6
+##  7 Sunderland                  15           54            18          7
+##  8 Brighton                    50           53            10          8
+##  9 Brentford                   40           53            11          9
+## 10 Chelsea                     82           52             4         10
+## 11 Fulham                      40           52            13         11
+## 12 Newcastle                   69           49             7         12
+## 13 Everton                     29           49            15         13
+## 14 Leeds                       21           47            17         14
+## 15 Crystal Palace              40           45            12         15
+## 16 Nott&#39;m Forest               65           44             8         16
+## 17 Tottenham                   31           41            14         17
+## 18 West Ham                    23           39            16         18
+## 19 Burnley                      7           22            20         19
+## 20 Wolves                      14           20            19         20</code></pre>
 <pre class="r"><code>pm &lt;- function(predicted, actual) {
   
   n &lt;- length(actual)
@@ -592,9 +597,9 @@ pm_adjusted &lt;- function(predicted, actual, historical_features, season_featur
   return(adjusted_pm)
 }
 pm(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank)</code></pre>
-<pre><code>## [1] -2.170847</code></pre>
+<pre><code>## [1] -0.9854723</code></pre>
 <pre class="r"><code>pm_adjusted(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank, historical_features = 3, season_features = 7, total_features = 22, lambda_H = 1, lambda_S = 2)</code></pre>
-<pre><code>## [1] -2.943574</code></pre>
+<pre><code>## [1] -1.7582</code></pre>
 
 
 
