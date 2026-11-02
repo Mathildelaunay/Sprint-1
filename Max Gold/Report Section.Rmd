@@ -1,0 +1,53 @@
+---
+title: "Max's Section"
+author: "Max Gold"
+date: "2026-11-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Model Description and Assumptions
+
+I aim to predict the final ranking of the 2026/27 English Premier League season by estimating the home and away goals per match within the season in chronological order, outputting each team's goals scored and tabulating these results into a season ranking. We require that the match goal results be integers rather than probabilities or floating point numbers, and so I have decided as an initialisation to round any estimations to the nearest integer. I have decided to use a random forest method of predicting the goal outcomes of each match, using two different random forests to distinguish between whether a team is playing home or away, training them to infer a possible advantage or disadvantage playing home or away. As a group, we agreed to train our models on data from the 2014/15 to 2024/25 seasons, testing on the 2025/26 season, and predicting the 2026/27 season final rankings.
+
+I decided that in order to create my random forests I required two assumptions to drive the forecasts of my models: recent match data is more important than historical data, as a team's performance adjusts drastically compared to how it performs in previous matches let alone previous seasons, and so features must be weighted more towards recent data; secondly, intra-match data such as red cards, player injury, all independent and random events are difficult to forecast, whereas goal-related features are able to be calculated from historical goal data with more conviction. This is motivated by understanding what information is available to us before a match starts, and if we are predicting a season before it has happened it is difficult to know when these random events will take place, and since every match must have a result compared to red cards, this makes result data much more useful. Therefore, my features are entirely based on historical goal information with no dependency on non-goal match events. I also decided that instead of weighting features based on recency, I created rolling features which uses lagged match values such as the average goals in the last $k$ matches, where $k$ is our lag value. We will see below how varying $k$ affects how well our model predicts. 
+
+In order to use these rolling features, I used a recursive forecasting method which uses forecasted match results to influence the prediction of subsequent future results, similar to the method utilised in **Box-Jenkins** $h$-step ahead forecasting. The Box-Jenkins $h$-step ahead forecasting method is usually used in time series data and so usually wouldn't be fitting for match outcomes, but we adapt it in this setting because the matches are in chronological order, and it is reasonable to assume the performance of a team from very recent matches is influential in their performance of subsequent matches. 
+
+# Feature Engineering and Selection
+
+I have 3 different types of features:
+
+- historical result data purely from individual matches such as home goals, away goals, the day of the week of a match, and the side of the team (home or away),
+
+- lagged rolling window features such as a team's average goals scored and conceded in the last $k$ matches, the average points per match in the last $k$ games, and a team's average goals scored when they are on a certain side in the last $5$ matches where they were on that side, 
+
+- intra-season data, such as the current home ranking position before the match, their current points and goal difference, etc.
+
+
+I used two different types of feature selection algorithms to prune parsimoniously to minimise the number of features used in my random forests. Firstly, I tried implementing a feature selection wrapper called Boruta which determines which features are relevant enough to include, however of the 21 features it was fed, it determined 18 were relevant to include which seemed excessive, and so I decided instead to use a random forest across the entire training data to extract ranked feature importance. I then examined the correlation matrix of my features, analysing whether there was any shared correlation between features. After observing the correlation matrix of the training data in `02 - Feature Engineering and Selection`, the features `Home_Wins` and `Away_Wins` share a high correlation with `Home_Points` and `Away_Points`, as the points for a team are determined by $\#\text{Points} = 3\times \#\text{Wins} + \#\text{draws}$, and so wins are contained within points and thus we remove them from feature selection. As shown below, for both the home and away random forests, there appears to be a cutoff after the first 10 features where the majority of mean squared error is explained, and so we preserve these for training. **RF_HOME, RF_AWAY**
+
+
+# Training and Sensitivity Analysis
+
+Using our selected features, we can train our random forests on our training data of the 2014/15 to the 2024/25 seasons. We have two parameters we can tune which impact how well our model performs: $k$, the number of lags that we build our rolling features with that look at the last $k$ matches; and `ntree` in the `random_forest`. Investigating $k \in (1, 2, 5, 10)$ and `ntree = [250, 500, 1000, 1500]`, we can see that the combination of values that minimises the minimum absolute error (MAE) is: 
+
+# Testing
+
+In accordance with our group's performance metric, we are required to use a walk-forward forecast in testing. This means instead of using predicted match outcomes to forecast subsequent ones, we store our prediction for the ranking but update the model on the actual match outcome after we have done the prediction so as to not have any data leakage. We must however use recursive predictive forecasting in prediction when we have no such actual data with which to compare. 
+
+After training our features and random forests, we implement them on the test data of the 2025/26 season, creating a ranking and obtaining a score in our performance metric of: **SCORE**
+
+
+# Limitations
+
+The main limitation of my model is that we are assuming that the home and away goals are independent of each other, when in reality one team scoring a goal is usually a motivator for the other team to score a retaliatory goal or for the same team to continue pushing for subsequent goals. We also omit intra-match data such as red cards or injuries which even though they are complicated to forecast out-of-sample, they are very influential in the direction of a match, especially in the case when a good player is either injured or taken off which can heavily reduce a team's performance. 
+
+We also output floating-point goals from our random forests, and round them to the nearest integer. However, say the predicted match outcome is 1.6:1.4, this would be predicted as a 2:1 match where in reality the similarity in estimated goals is so close that it would be better to estimate it as a draw. This is similar to logistic regression, where if many points are clustered around $p=0.5$, they tend to be misclassified. 
+
+The initialised history of recently promoted teams from the Championship - the second division of football in England - is very limited, and so the features do not accurately represent their strength coming into the league.
+
+Finally, the use of recursive forecasting adds increasing uncertainty the more matches we forecast, as any uncertainty in the first couple of matches propagates throughout the season influentally, and so in situations where there is not enough prior history the model may not accurately predict future observations. 
