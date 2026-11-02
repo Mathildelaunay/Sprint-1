@@ -1,1 +1,4 @@
-hb
+In the Premier League, the bottom 3 teams get relegated which is a significant event for a team a they get demoted to a lower league which has huge effects on the club.
+The top few teams also get to play in the following season's Champions League, the exact number depends on how well English teams perform in the Champions League but usually its the top 4 or 5 most of the time.
+Playing in this competition is also of great significance for any team who qualify for it.
+With these in mind, we decided that our performance metric should mainly evaluate how well a model correctly predicts the top 5 and the bottom 3.
