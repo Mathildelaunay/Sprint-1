@@ -11,7 +11,7 @@
 
 <meta name="author" content="Mathilde Launay" />
 
-<meta name="date" content="2026-11-01" />
+<meta name="date" content="2026-11-02" />
 
 <title>model fitting</title>
 
@@ -352,7 +352,7 @@ display: none;
 
 <h1 class="title toc-ignore">model fitting</h1>
 <h4 class="author">Mathilde Launay</h4>
-<h4 class="date">2026-11-01</h4>
+<h4 class="date">2026-11-02</h4>
 
 </div>
 
@@ -591,8 +591,10 @@ pm_adjusted &lt;- function(predicted, actual, historical_features, season_featur
 
   return(adjusted_pm)
 }
-pm_adjusted(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank, historical_features = 3, season_features = 6, total_features = 22, lambda_H = 1, lambda_S = 2)</code></pre>
-<pre><code>## [1] -2.852665</code></pre>
+pm(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank)</code></pre>
+<pre><code>## [1] -2.170847</code></pre>
+<pre class="r"><code>pm_adjusted(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank, historical_features = 3, season_features = 7, total_features = 22, lambda_H = 1, lambda_S = 2)</code></pre>
+<pre><code>## [1] -2.943574</code></pre>
 
 
 

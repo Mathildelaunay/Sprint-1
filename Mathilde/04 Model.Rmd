@@ -222,6 +222,7 @@ pm_adjusted <- function(predicted, actual, historical_features, season_features,
 
   return(adjusted_pm)
 }
-pm_adjusted(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank, historical_features = 3, season_features = 6, total_features = 22, lambda_H = 1, lambda_S = 2)
+pm(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank)
+pm_adjusted(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank, historical_features = 3, season_features = 7, total_features = 22, lambda_H = 1, lambda_S = 2)
 ```
 
