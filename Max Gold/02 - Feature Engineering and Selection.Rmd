@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Libraries
 
-```{r echo=FALSE}
+```{r, warning=FALSE, message=FALSE}
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -741,7 +741,7 @@ importance(rf_home_initial)
 varImpPlot(
   rf_home_initial,
   type = 1,
-  main = "Random Forest Feature Importance"
+  main = "Home Random Forest Feature Importance"
 )
 importance_scores <- importance(rf_home_initial, type = 1)
 importance_sorted <- sort(importance_scores[, 1], decreasing = TRUE)
@@ -757,7 +757,7 @@ rf_away_initial <- randomForest(
   importance = TRUE
 )
 
-varImpPlot(rf_away_initial, type = 1)
+varImpPlot(rf_away_initial, type = 1, main="Away Random Forest Feature Importance")
 
 importance_scores_a <- importance(rf_away_initial, type = 1)
 importance_sorted_a <- sort(importance_scores_a[, 1], decreasing = TRUE)
