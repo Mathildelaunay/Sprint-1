@@ -17,7 +17,7 @@ The **idea** is to build a performance metric which will be used to compare ever
 Our **idea** is to build a performance metric which will add weights as:
 
 | Actual, $a_i$ | Prediction, $p_i$ | Weight, $w_i$ |
-|----|----|----|
+|------------------------|------------------------|------------------------|
 | Top 5 | Correct position | 1 |
 | Top 5 | Incorrect position but within top 5 | $w_i = \frac{\vert P_5 \cap A_5\vert}{5}$ |
 | Top 5 | Predicted outside top 5 | $f(x_i) = -(1-\exp^{-x_i})$ |
@@ -130,23 +130,47 @@ pm_adjusted <- function(predicted, actual, historical_features, season_features,
   return(adjusted_pm)
 }
 
+pm_adjusted <- function(predicted, actual, historical_features, season_features, total_features, lambda_S) {
+
+  original_pm <- pm(predicted, actual)
+
+  penalty_H <- historical_features / 22
+
+  penalty_S <- lambda_S *(season_features / 22)
+
+  adjusted_pm <- original_pm - penalty_H - penalty_S
+
+  return(adjusted_pm)
+}
+
 #check what's the maximum and minimum score
-pm_adjusted(predicted = actual_table$Position, actual = actual_table$Position, historical_features = 22 , season_features = 22, total_features = 22, lambda_H = 1, lambda_S = 2)
-pm_adjusted(predicted = 21-actual_table$Position, actual = actual_table$Position, historical_features = 22 , season_features = 22, total_features = 22, lambda_H = 1, lambda_S = 2)
+pm(predicted = actual_table$Position, actual = actual_table$Position)
+pm(predicted = 21-actual_table$Position, actual = actual_table$Position)
+
+#pm_adjusted(predicted = actual_table$Position, actual = actual_table$Position, historical_features = 22 , season_features = 22, total_features = 22, lambda_H = 2, lambda_S = 6)
+
+#pm_adjusted(predicted = 21-actual_table$Position, actual = actual_table$Position, historical_features = 22 , season_features = 22, total_features = 22, lambda_H = 2, lambda_S = 6)
 ```
 
 Now I check my prediction for 25/26 season
 
 ```{r}
 predicted_aligned <- predicted_table$Position[match(actual_table$Team, predicted_table$Team)]
-pm_adjusted(predicted = predicted_aligned, actual = actual_table$Position, historical_features = 0 , season_features = 12, total_features = 22, lambda_H = 1, lambda_S = 2)
+pm(predicted = predicted_aligned, actual = actual_table$Position)
+#pm_adjusted(predicted = predicted_aligned, actual = actual_table$Position, historical_features = 3 , season_features = 9, total_features = 22, lambda_H = 2, lambda_S = 6)
+
+upper_bound <- pm(predicted = actual_table$Position, actual = actual_table$Position)
+lower_bound<- pm(predicted = 21-actual_table$Position, actual = actual_table$Position)
+
+(pm(predicted = predicted_aligned, actual = actual_table$Position)- lower_bound)/(upper_bound - lower_bound)
 ```
 
 WOMP WOMP Bad prediction!
 
 ### Penalisation
 
-Indicator function = ( n/2 for historical data ( n for season data
+Indicator function = ( n/2 for historical data 
+                     ( n for season data
 
 Minimum Description Length
 
