@@ -99,10 +99,3 @@ The threshold technique would therefore have been better suited to a scenario wh
 
 I therefore reverted to using rounding in the final model since it is parameter-free, straightforward to interpret, and avoids introducing an additional parameter that is difficult to estimate reliably.
 
-
-## Model
-Look at 
-    Folder: Mathilde
-        Document: 04 Model
-
-I then fitted my model on 2025/26. Against the perfomance metric the team agreed upon, my model got a score of -1.7582.
