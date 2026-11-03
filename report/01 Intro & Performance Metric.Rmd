@@ -19,6 +19,51 @@ We will analyse how exactly we assign the weightings to positions in the metric,
 
 # Performance Metric
 
+Our goal was to develop a performance metric which allows us to compare the different models within our group.
+We all agreed that our models should output a final ranking for the 2026/27 Premier League season as our prediction.
+
+In the Premier League, the bottom 3 teams get relegated which is a significant event for a team as they get demoted to a lower league which has huge effects on the club.
+The top few teams also get to play in the following season's Champions League, the exact number depends on how well English teams perform in the Champions League.
+Playing in this competition is also of great significance for any team who qualify for it and usually it's the top 4 or 5 most of the time who qualify for it.
+With these facts in mind, we decided that our performance metric should mainly evaluate how well a model correctly predicts the top 5 and the bottom 3.
+Teams that finish in between these two groups don't really have anything significant happen to them, they just keep their spot in the Premier League for next season.
+Therefore we decided to place more importance on how good the predictions for the top 5 and bottom 3 teams were.
+
+To implement our idea, we decided to design appropriate weights which would reflect the importance of different predictions.
+If a team was correctly predicted to be somewhere within the bottom 3, then its weight is 1.
+Similarly, if a team in the top 5 was correctly predicted in the exact position, then its weight is also 1.
+For any team correctly predicted in the exact position which are outside of the top 5 or bottom 3, then its weight is 0.5.
+This way, we are weighting the top 5 and bottom 3 more to reflect its high importance.
+For a correct prediction of a team being in the top 5 but in the incorrect exact position, we used a formula based on how many teams were correctly placed in the top 5.
+For every team which is correctly placed somewhere in the top 5, we add 0.2 to the weight of each of these teams (except the ones that were also in the correct position).
+For example if our top 5 only correctly predicted 3 teams to be there, each of these 3 teams contributes a weight of 0.6 to the model.
+If we also had another team in the top 5 which was put in the correct position too, then this weight is 1 from earlier and the other 3 teams would get a weighting of 0.8 this time.
+This is because now 4 teams were correctly placed in the top 5 somewhere at least.
+We purposely did this in order to give extra reward to models that predicted both a team in the correct position in the top 5 as well as getting other top 5 teams somewhere in the top 5.
+
+For all other cases we wanted to focus on the distance between the predicted position and the actual position.
+We believed that the further away the predicted position was from the actual position, the less additional penalisation we should have.
+Our logic behind this was that for example, getting a team's position wrong by 3 places compared to 2 places is bad, but the difference between getting it wrong by 10 places and 11 places is less significant.
+A function that does this well is the exponential function with a minus sign in front of the x value.
+As we are penalising the model for incorrect predictions, we decided to make these weights negative too.
+Since our prediction for the top 5 are significant, we decided to decrease the coefficient of the x for any team outside the top 5 to 0.1 to make the drop off in weight values less steep.
+This meant that the weight function for the top 5 being predicted outside of the top 5 and teams outside of the top 5 (excluding the bottom 3) being incorrectly predicted in the top 5 is f(x) = -(1-exp(-x)).
+And teams outside of the top 5 (excluding the bottom 3) being predicted an incorrect position outside of the top 5 and the bottom 3 being predicted outside of the bottom 3 to be f(x) = -(1-exp(-0.1x)).
+
+We then wanted to penalise our performance metric by analysing the number of features used by each model.
+The idea behind this is that if we have two models which achieve similar accuracy but one is more complex than the other, we should choose the simpler model.
+We chose the penalisation term exp(-lambda*k_j) as it provides a natural way to penalise models based on the number of features used.
+So our new score for model j just becomes the product of performance metric number and this new penalisation term.
+This lambda allows us to control the strength of the complexity penalty, so a larger value of lambda will penalise additional features more heavily.
+We decided to use a value of 0.02 for lambda to provide a mild penalty for additional features.
+We did this because we believe the most important thing with our models is getting the prediction as accurate as possible and so more complex models shouldn't be penalised too much.
+Our choice of penalisation also has a Bayesian motivation, as it can be interpreted as assigning a higher prior probability to simpler models.
+This reflects our preference for models that achieve good predictive performance with fewer features.
+So our choice of the value 0.02 for lambda corresponds to each feature having an equal prior probability of being included with 49.5% probability.
+This comes from the formula lambda = ln((1-q)/q) which when rearranged for q, gives us a value of around 0.495 when lambda is 0.02.
+Our scoring system also takes inspiration from the Akaike Information Criterion (AIC), as both approaches aim to balance predictive performance against model complexity.
+If we log our new adjusted performance metric we actually get a similar form of AIC except we have replaced the likelihood function with our own performance metric value.
+
 ```{r} 
 library(readr)
 Mathilde_test <- readRDS("~/Documents/GitHub/Sprint-1/Mathilde/MathildeTestTable.rds")
