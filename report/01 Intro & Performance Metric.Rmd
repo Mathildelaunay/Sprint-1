@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(readr)
 Mathilde_test <- readRDS("~/Documents/GitHub/Sprint-1/Mathilde/MathildeTestTable.rds")
 Bobby_test <- read_csv("~/Documents/GitHub/Sprint-1/Bobby Harwood/test_25_26_predicted_vs_actual_rankings.csv")
-Anna_test <- readRDS("~/Documents/GitHub/Sprint-1/Anna Del Pino/AnnaTestTable.rds")
+Anna_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/AnnaTestTable.csv")
 Jonty_test <- read.csv("~/Documents/GitHub/Sprint-1/jonty_heffaran/epl_prediction.csv")
 Max_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/MG%20TABLE%20WALK-FORWARD.csv")
 
@@ -96,16 +96,16 @@ pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
   return(model_score)
 }
 
-pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
+#pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
 
-  prediction_score<-(pm(predicted , actual)- lower_bound)/(upper_bound - lower_bound)
+  #prediction_score<-(pm(predicted , actual)- lower_bound)/(upper_bound - lower_bound)
   
-  feature_penalisation <- exp(-lambda * number_features)
+  #feature_penalisation <- exp(-lambda * number_features)
   
-  model_score <- prediction_score * feature_penalisation
+  #model_score <- prediction_score * feature_penalisation
   
-  return(model_score)
-}
+  #return(model_score)
+#}
 ```
 Mathilde's model
 ```{r}
