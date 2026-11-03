@@ -16,25 +16,7 @@ library(dplyr)
 library(ggplot2)
 ```
 
-#Anna's Model \## Data Processing `Data cleaning.Rmd`
-
-The data preparation described in `Anna Del Pino` \> `Data cleaning.Rmd` combines Premier League match records from the 2014/15 to 2025/26 seasons and prepares 2026/27 fixtures for prediction.
-
-Here we keep match and performance statistics. I also created new counting columns as these will get used as features of my model. These cumulatively sum up the respective team's statistic up to the previous match. This way the model uses only the match statistics that have been seen. These are the following:
-
-```{r}
-names(train_data)
-```
-
-These statistics represent points, goals, shots, corners, fouls and cards for home and away teams. Their specific description can be found in `\Anna Del Pino > Premier League match events data > Notes.txt`. I removed betting odds because these reflect people’s expectations rather than what happens on the pitch which isn't well reflective of my model.
-
-The data is divided into training set to contain 2014/15-2024/25 seasons, a held out test set to be 2025/26 and 2026/27 prediction set. For each team, it calculates cumulative statistics and league points from earlier matches in the same season. Each match row therefore contains the team statistics available before that match. The model uses these features to predict match outcomes, which are then used to produce the season ranking.
-
-### Limitations
-
-Older seasons have fewer match statistics recorded, so there may be less information for the model to use for some matches. We use match statistics and test the model on the later 2025/26 season to see how well it works with data from a later season.
-
-Some statistics missing from older records may also be treated as zero when I calculate the cumulative features. This could affect the predictions, so differences in the data available for each season are still a limitation to consider when discussing the results and final ranking.
+# Anna's Model 
 
 ## Model `Model.RMD`
 
