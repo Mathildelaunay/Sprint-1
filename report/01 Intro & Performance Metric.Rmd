@@ -172,9 +172,8 @@ pm_adjusted(predicted = Mathilde_test$PredictedRank, actual = Mathilde_test$Actu
 ```
 Bobby's model 
 ```{r}
-Bobby_test$Predicted_Ranking[match(Mathilde_test$Team, Bobby_test$Team)]
-pm(predicted = Bobby_test$Predicted_Ranking, actual = Mathilde_test$ActualRank)
-pm_adjusted(predicted = Bobby_test$Predicted_Ranking, actual = Mathilde_test$ActualRank, 5, 0.01)
+pm(predicted = Bobby_test$Predicted_Ranking[match(Mathilde_test$Team, Bobby_test$Team)], actual = Mathilde_test$ActualRank)
+pm_adjusted(predicted = Bobby_test$Predicted_Ranking[match(Mathilde_test$Team, Bobby_test$Team)], actual = Mathilde_test$ActualRank, 5, 0.01)
 ```
 Anna's model
 ```{r}
