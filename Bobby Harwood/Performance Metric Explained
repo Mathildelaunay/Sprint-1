@@ -13,7 +13,12 @@ If a team was correctly predicted to be somewhere within the bottom 3, then its 
 Similarly, if a team in the top 5 was correctly predicted in the exact position, then its weight is also 1.
 For any team correctly predicted in the exact position outside which are outside of the top 5 or bottom 3, then its weight is 0.5.
 This way, we are weighting the top 5 and bottom 3 more to reflect its high importance.
-For a correct prediction of a team being in the top 5 but in the incorrect exact position, we used...................
+For a correct prediction of a team being in the top 5 but in the incorrect exact position, we used a formula based on how many teams were correctly placed in the top 5.
+For every team which is correctly placed somewhere in the top 5, we add 0.2 to the weight of each of these teams (except the ones that were also in the correct position).
+For example if our top 5 only correctly predicted 3 teams to be there, each of these 3 teams contributes a weight of 0.6 to the model.
+If we also had another team in the top 5 which was put in the correct position too, then this weight is 1 from earlier and the other 3 teams would get a weighting of 0.8 this time.
+This is because now 4 teams were correctly placed in the top 5 somewhere at least.
+We purposely did this in order to give extra reward to models who predicted both a team in the correct position in the top 5 as well as getting other top 5 teams somewhere in the top 5.
 
 For all other cases we wanted to focus on the distance between the predicted position and the actual position.
 We believed that the further away the predicted position was from the actual position, the less additional penalisation we should have.
