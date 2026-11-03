@@ -66,7 +66,7 @@ If we log our new adjusted performance metric we actually get a similar form of 
 
 ```{r} 
 library(readr)
-Mathilde_test <- readRDS("~/Documents/GitHub/Sprint-1/Mathilde/MathildeTestTable.rds")
+Mathilde_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Mathilde/MathildeTestTable.csv")
 Bobby_test <- read_csv("~/Documents/GitHub/Sprint-1/Bobby Harwood/test_25_26_predicted_vs_actual_rankings.csv")
 Anna_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/AnnaTestTable.csv")
 Jonty_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/jonty_heffaran/epl_prediction.csv")
@@ -137,11 +137,14 @@ pm <- function(predicted, actual) {
   return(sum(wt))
 }
 
+# Then we want to get the bounds to get the pm between 0 and 1.
+# We use Mathilde's table to get those since it contains the actual rank.
+upper_bound <- pm(predicted = Mathilde_test$ActualRank, actual = Mathilde_test$ActualRank)
+lower_bound<- pm(predicted = 21-Mathilde_test$ActualRank, actual = Mathilde_test$ActualRank)
+
+# Then we have a separate function taking into account the model size:
 pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
   
-  upper_bound <- pm(predicted = actual_table$Position, actual = actual_table$Position)
-  lower_bound<- pm(predicted = 21-actual_table$Position, actual = actual_table$Position)
-
   prediction_score<-(pm(predicted , actual)- lower_bound)/(upper_bound - lower_bound)
   
   feature_penalisation <- exp(-lambda * number_features)
