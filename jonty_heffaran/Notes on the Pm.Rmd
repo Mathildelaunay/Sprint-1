@@ -111,9 +111,13 @@ pm <- function(predicted, actual) {
 We then feed this into our adjusted function to give our final score:
 
 ```{r}
-pm_adjusted <- function(predicted, actual, number_features,                            lambda=0.01) {
+pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
+  
+  upper <- pm(predicted = epl_prediction$Actual_Rank, actual= epl_prediction$Actual_Rank)
 
-  prediction_score <- pm(predicted, actual)
+lower <- pm(predicted = 21- epl_prediction$Actual_Rank,  actual= epl_prediction$Actual_Rank)
+
+  prediction_score <- (pm(predicted, actual) -lower)/ (upper - lower)
   
   feature_penalisation <- exp(-lambda * number_features)
   
@@ -122,11 +126,5 @@ pm_adjusted <- function(predicted, actual, number_features,                     
   return(model_score)
 }
 
-```
-
-Test:
-
-```{r}
-print(pm_adjusted(predicted=epl_prediction_csv$Predicted_Rank, actual = epl_prediction_csv$Actual_Rank, number_features = 4, lambda = 0.01))
 ```
 
