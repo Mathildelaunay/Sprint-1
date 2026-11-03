@@ -519,7 +519,7 @@ league_table_25_26</code></pre>
 ## 18 West Ham                    23           39            16         18
 ## 19 Burnley                      7           22            20         19
 ## 20 Wolves                      14           20            19         20</code></pre>
-<pre class="r"><code>saveRDS(league_table_25_26, &quot;MathildeTestTable.rds&quot;)</code></pre>
+<pre class="r"><code>write.csv(league_table_25_26, &quot;MathildeTestTable.csv&quot;)</code></pre>
 <pre class="r"><code>pm &lt;- function(predicted, actual) {
   
   n &lt;- length(actual)

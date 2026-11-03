@@ -149,7 +149,7 @@ league_table_25_26 <- X25_26_training %>%
 
 league_table_25_26
 
-saveRDS(league_table_25_26, "MathildeTestTable.rds")
+write.csv(league_table_25_26, "MathildeTestTable.csv")
 ```
 ```{r}
 pm <- function(predicted, actual) {
