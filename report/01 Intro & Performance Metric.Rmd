@@ -1,5 +1,5 @@
 ---
-title: "Boom"
+title: "01 Introduction and Performance Metric"
 author: "Mathilde Launay"
 date: "`r Sys.Date()`"
 output: html_document
@@ -8,6 +8,16 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+
+# Introduction
+
+Our group sprint 1 task is to utilise different regression model types to predict the 2026/27 English Premier League season, training on the 2014/15 to 2024/25 seasons and testing on the 2025/26 season. We have each provided a candidate model using different regression formats ranging from generalised linear models to random forests, and creating and selecting different features from our season dataset. Each of these candidates predicts the number of home and away goals for each match within a season, with which we can make a league ranking table with the fact that each match has 3 outcomes based on the number of points: 3 points for the winning team with 0 going to the losing team, or 1 point for each team should there be a draw. Our models output these season rankings, and in order to select which model satisfies our subjective needs we must create a performance metric to order the models in terms of what we deem is a successful model. Our thought process behind creating an off-the-shelf performance metric is that our prior knowledge of how the Premier League structure operates means some rankings are more favourable than others, and a metric like Mean Absolute Error (MAE) could be formatted and weighted to emphasise certain characteristics of a ranking being more important; such as the fact that teams in the top 5 of the league proceed to Europe-wide competitions such as the UEFA Champions League or Europa league, and the bottom 3 teams in the standings are relegated to a lower team. With the possibility for teams to be relegated or permitted to enter different leagues, we approached the design of the metric from the perspective of a company that owns one of the teams playing in the league. We know that being in the top 5 and playing in European championships brings a significant increase in revenue and sponsorships, and likewise a team that is relegated will play in a league with less funding and smaller rewards, as well as a decrease in revenue and sponsorships. Therefore, we assume that travelling in either direction is important in magnitude and that a team cares about how much revenue it will gain equally as much as how much it will lose, so these two scenarios of promotion and relegation should be weighted higher than being in the middle of the standings where the financial pressure is less apparent. 
+
+We will analyse how exactly we assign the weightings to positions in the metric, and running each of our models through the metric will outline which model we subjectively prefer, and thus which model proceeds to forecasting the subsequent season. We cannot know what the results of the next season will be, but based on prior results and the score assigned to the model, the model we choose will be the one with the highest chance of success. 
+
+
+# Performance Metric
 
 ```{r} 
 library(readr)
