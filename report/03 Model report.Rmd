@@ -131,7 +131,7 @@ We can see that the current match statistics (i.e. `FTHG` up to `AR` ) are fille
 
 I believe that there is a correlation between the rankings of the ratios of goals scored to goals conceded for each Premier League team in a season and that same season's actual final ranking table. The reasoning behind this approach is that a team that consistently scores more goals than it concedes is likely to be more successful. The idea of my model is to be able to predict the total number of goals scored by each team over a single season, then do the same for goals conceded, calculate the ratio of these two (total goals scored divided by total goals conceded), and then finally rank these teams from highest ratio to lowest ratio which will be our prediction for the final league table for the 2026/27 Premier League season. By comparing the predicted goal ratios of all teams, I hope to identify a relationship between goal ratio and final league position. However, because the official Premier League table is determined directly by points, the rankings produced by my model may differ from the actual table.
 
-### Relevant Mathemtical Paper
+### Relevant Mathematical Paper
 
 A paper I read called "Football Match Result Prediction Using the Random Forest Classifier" published in August 2019 and written by Pakawan Pugsee and Pattarachai Pattawong investigates the use of machine learning to predict Premier League football match results using a Random Forest Classifier. They trained their model using historical data from 3 previous seasons, considering factors such as previous match results and home and away performance. Their model achieved an overall prediction accuracy of 80% when it was tested on 220 matches from the 2017/18 season, demonstrating the potential of Random Forest models for predicting football outcomes. However, they did notice that the model was less successful at predicting draws compared to home and away wins. The findings of this paper demonstrate the potential of Random Forest algorithms in football prediction, providing inspiration for my decision to use Random Forest regression models in my own project.
 
@@ -194,3 +194,44 @@ We also output floating-point goals from our random forests, and round them to t
 The initialised history of recently promoted teams from the Championship - the second division of football in England - is very limited, and so the features do not accurately represent their strength coming into the league.
 
 Finally, the use of recursive forecasting adds increasing uncertainty the more matches we forecast, as any uncertainty in the first couple of matches propagates throughout the season influentally, and so in situations where there is not enough prior history the model may not accurately predict future observations. 
+
+
+#Mathilde's Model 
+
+I decided to use a Poisson regression model to make predictions as Football scores are counts. I used the training dataset built in `Mathilde` \> `01 Feature Engineering.Rmd` and discussed in `report` \> `02 Feature Engineering.Rmd`.
+Instead of making 2 separate models (one for home and one for away), I wanted to fit a single model. I therefore split every row representing a match into two rows, each row focusing on a different team: Team of interest against Opponent. 
+
+## Feature Selection
+Look at `Mathilde` \> `02 Feature Selection.Rmd`
+        
+To find the variables that I wanted to keep, I used the forward, backward, and forward and backward selection using AIC. The motivation behind using this technique comes from the Linear and Generalised Linear Models (MATH30013) lecture notes by Haeran Cho.
+Given that they outputted different models, I chose one of the two which had less variables, and decided on the model which combined both forward and backward selection. 
+This kept TeamRankCategory, OpponentRankCategory, HomeAway, opp_defence_score, attack_score, DSTF, DCS, DSF, DYF, DLF. 
+Interestingly but not surprisingly, it did not keep the defence score for the Team for which the model is making the prediction, nor did it keep the attack score of the opponent. It kept the difference in the frequency of yellow cards but not red cards
+
+
+## Sensitivity Analysis
+Look at `Mathilde` \> `03 Sensitivity Analysis.Rmd`
+
+To construct a league table, the predictions made by the model must first be converted into points. I compared different approaches to doing so:
+
+The most obvious thing to try first was to round the predicted goals and compares the resulting scores. However, I thought that since most predicted goal values lie between approximately 0.8 and 2, this may result in more predicted draws than observed in the historical data.
+I also tried to explore using a threshold, beta, on the difference between the predicted goals. i.e. a match is classified as a draw if the absolute difference between the two predictions is at most beta and otherwise, the team with the higher predicted goals is classified as the winner. I made beta range 0.05 and 1.00, in increments of 0.01 to compare different values.
+To compare the two approaches, I used an expanding-window validation over the ten seasons from 2015/16 to 2024/25. The main evaluation criteria were the mean squared error (MSE) between predicted and actual league-table ranks, and Spearman's rank correlation.
+
+I also considered two ways of selecting beta. First, an "oracle" approach selected the best threshold separately for each validation season, using that season's actual league table. Since the optimal threshold could not be known before the season took place, I knew that the mean rank MSE would be relatively low, and the technique would probably not be applicable for testing an unseen season if there was too much variability for this value. The resulting optimal thresholds had a mean of 0.473 and  given that the standard deviation had a value of of 0.380, ranging from 0.09 to 0.95, this "oracle" was too unstable to be used on the test data. 
+The final plot also shows that this is not a good value because 0.473 lies above the line which shows the MSE of the rounding technique, so I might as well have just rounded the values. 
+I then considered a more realistic, leak-free approach to estimate beta. For each validation season, the threshold was selected by minimising the mean rank MSE across all earlier validated seasons, before being evaluated on the next season. Across the nine seasons for which this was possible, this approach achieved a mean rank MSE of 10.44, compared with 11.66 for rounding, and a mean Spearman correlation of 0.843, compared with 0.825 (a bit better). It also achieved a lower rank MSE than rounding in seven of the nine seasons if you look at the second table. However, again the selected threshold remained variable across validation seasons, ranging from 0.15 to 0.90. Although the threshold approach provided slight improvement in average ranking performance, it was too unstable to be used on an unseen season.
+
+I also used draw proportions as a secondary diagnostic tool. This came from the fact that machine learning models tend to perform poorly when predicting a correct proportion of matches outcoming in a draw, which I read about in  Choi, Bing & Foo, Lee-Kien & Chua, Sook-Ling. (2023). Predicting Football Match Outcomes with Machine Learning Approaches. MENDEL. 29. 229-236. 10.13164/mendel.2023.2.229.
+The leak-free threshold approach predicted draws in approximately 25.5% of matches, compared with 32.1% under rounding; the actual draw proportion across the corresponding validation seasons was approximately 22.8%. Although the threshold approach produced a draw proportion closer to the observed value, matching the draw proportion was not the objective used to select the outcome-mapping method. 
+The threshold technique would therefore have been better suited to a scenario where goal counts mattered, but here the primary objective was to obtain an accurate league-table ranking.
+
+I therefore reverted to using rounding in the final model since it is parameter-free, straightforward to interpret, and avoids introducing an additional parameter that is difficult to estimate reliably.
+
+`Mathilde` \> `04 Model.Rmd` then contains the codes where i created the testing set, trained the Poisson model on the training set and made this trained model produce predictions. These predictions were then rounded, then changed into points, and then made into a ranking. This ranking was saved and is the one that can be found in `report` \> `01 - Introduction & Performance Metric.Rmd`
+
+## Limitations
+The key assumption when using a Poisson regression model is that goals arrive independently at a constant rate given the covariates, with mean equal to variance. This introduces a limitation: the model treats the two rows of a match as independent, when in real life if a team scores, the opponent will get more competitive and may be more likely to score (this is a simplification, but is just to illustrate that this assumption is an important limitating factor).
+As I mentioned in `02 Feature Engineering.Rmd`, I used a predetermined value of alpha which influences the model to a certain degree that is teste-able, but that I did not get around to doing fully. Making a decision based on personal beliefs is a limitation in itself.
+Another limitation is to assume that promoted teams have about the same attack and defence strength as the last three teams of the previous season. In the same sense, modelling the initial attack and defense scores to be the same as it finished on in the previous year for a non promoted team is a strong assumption to make. 
