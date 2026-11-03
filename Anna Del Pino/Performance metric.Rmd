@@ -117,39 +117,26 @@ pm <- function(predicted, actual) {
   return(sum(wt))
 }
 
-pm_adjusted <- function(predicted, actual, historical_features, season_features, total_features, lambda_H = 1, lambda_S = 2) {
+pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
+  
+  upper_bound <- pm(predicted = actual_table$Position, actual = actual_table$Position)
+  lower_bound<- pm(predicted = 21-actual_table$Position, actual = actual_table$Position)
 
-  original_pm <- pm(predicted, actual)
-
-  penalty_H <- lambda_H *(historical_features / total_features)
-
-  penalty_S <- lambda_S *(season_features / total_features)
-
-  adjusted_pm <- original_pm - penalty_H - penalty_S
-
-  return(adjusted_pm)
-}
-
-pm_adjusted <- function(predicted, actual, historical_features, season_features, total_features, lambda_S) {
-
-  original_pm <- pm(predicted, actual)
-
-  penalty_H <- historical_features / 22
-
-  penalty_S <- lambda_S *(season_features / 22)
-
-  adjusted_pm <- original_pm - penalty_H - penalty_S
-
-  return(adjusted_pm)
+  prediction_score<-(pm(predicted , actual)- lower_bound)/(upper_bound - lower_bound)
+  
+  feature_penalisation <- exp(-lambda * number_features)
+  
+  model_score <- prediction_score * feature_penalisation
+  
+  return(model_score)
 }
 
 #check what's the maximum and minimum score
 pm(predicted = actual_table$Position, actual = actual_table$Position)
 pm(predicted = 21-actual_table$Position, actual = actual_table$Position)
 
-#pm_adjusted(predicted = actual_table$Position, actual = actual_table$Position, historical_features = 22 , season_features = 22, total_features = 22, lambda_H = 2, lambda_S = 6)
-
-#pm_adjusted(predicted = 21-actual_table$Position, actual = actual_table$Position, historical_features = 22 , season_features = 22, total_features = 22, lambda_H = 2, lambda_S = 6)
+pm_adjusted(predicted = actual_table$Position, actual = actual_table$Position, 22, lambda=0.01)
+pm_adjusted(predicted = 21-actual_table$Position, actual = actual_table$Position, 22, lambda=0.01)
 ```
 
 Now I check my prediction for 25/26 season
@@ -162,7 +149,10 @@ pm(predicted = predicted_aligned, actual = actual_table$Position)
 upper_bound <- pm(predicted = actual_table$Position, actual = actual_table$Position)
 lower_bound<- pm(predicted = 21-actual_table$Position, actual = actual_table$Position)
 
-(pm(predicted = predicted_aligned, actual = actual_table$Position)- lower_bound)/(upper_bound - lower_bound)
+pm_mine<-(pm(predicted = predicted_aligned, actual = actual_table$Position)- lower_bound)/(upper_bound - lower_bound)
+
+pm_adjusted(predicted = predicted_aligned, actual = actual_table$Position, 12, lambda=0.01)
+
 ```
 
 WOMP WOMP Bad prediction!

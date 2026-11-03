@@ -41,7 +41,7 @@ Some statistics missing from older records may also be treated as zero when I ca
 
 The aim of our model is to predict the goals scored by the home and away teams in each match, then use these predictions to create a final league ranking. I was inspired by `Anna Del Pino` \> `Premier League goal prediction.pdf`, which fits separate Poisson regression models for home and away goal rates and then combines these results to simulate match scores and season rankings. I also chose to model home and away goals separately because I think playing at home or away can affect a team’s performance. A home team may feel more comfortable playing in front of its own supporters, while an away team is playing in front of a crowd that may not support it.
 
-Goals are non-negative counts, so we use two Poisson generalised linear models (GLMs): one for home goals and one for away goals. For match i, we represent the goal counts as $$Y_{H,i} \sim \text{Poisson}(\lambda_{H,i}), \\ Y_{A,i} \sim \text{Poisson}(\lambda_{A,i}),$$ where $\lambda_{H,i}$ and $\lambda_{A,i}$ are the expected goal count of the home and away teams. The models use a log link: $$\log(\lambda_{H,i})=\beta_{H,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_H, \\ \log(\lambda_{A,i})=\beta_{A,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_A$$ The log link function gives a positive expected goal rate.The paper also uses Poisson modelling by treating goals as count data.
+Goals are non negative counts, so we use two Poisson generalised linear models (GLMs): one for home goals and one for away goals. For match i, we represent the goal counts as $$Y_{H,i} \sim \text{Poisson}(\lambda_{H,i}), \\ Y_{A,i} \sim \text{Poisson}(\lambda_{A,i}),$$ where $\lambda_{H,i}$ and $\lambda_{A,i}$ are the expected goal count of the home and away teams. The models use a log link: $$\log(\lambda_{H,i})=\beta_{H,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_H, \\ \log(\lambda_{A,i})=\beta_{A,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_A$$ The log link function gives a positive expected goal rate.The paper also uses Poisson modelling by treating goals as count data.
 
 First we plotted the distribution of goals in the training data to explore the observed scores.
 
@@ -66,3 +66,13 @@ For the 2026/27 season, results are available for matches played up to 19 Octobe
 Some teams have less data available than others. For example, Coventry has only a few months of 2026/27 data because it has not appeared in the earlier seasons included in our dataset. This means the model has less information about Coventry’s performance. The model also does not give more weight to recent seasons, so it may not fully reflect changes in how teams perform over time.
 
 In our model, we round the predicted goals to get a score for each match. This is different from the paper’s simulation approach, so it may affect the predicted number of wins, draws and losses, and therefore the final ranking. Rounding can also affect the errors used to evaluate the model.
+
+- maths behind model
+
+- data cleaning - fixtures addition with NAs
+
+- feature selection - forwaard backward, adding new columns
+
+- pearson rank correlation - add reference
+
+- 
