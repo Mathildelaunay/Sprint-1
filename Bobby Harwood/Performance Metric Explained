@@ -29,4 +29,10 @@ Since our prediction for the top 5 are significant, we decided to decrease the c
 This meant that the weight function for the top 5 being predicted outside of the top 5 and teams outside of the top 5 (excluding the bottom 3) being incorrectly predicted in the top 5 is f(x) = -(1-exp(-x)).
 And teams outside of the top 5 (excluding the bottom 3) being predicted an incorrect position outside of the top 5 and the bottom 3 being predicted outside of the bottom 3 to be f(x) = -(1-exp(-0.1x)).
 
-Then talk about Jonty's lambda thing (last bit to get a final score for overall evaluation from performance metric).
+We then wanted to penalise our performance metric by analysing the number of features used by each model.
+The idea behind this is that if we have two models which achieve similar accuracy but one is more complex than the other, we should choose the simpler model.
+We chose the penalisation term exp(-lambda*k_j) as it provides a natural way to penalise models based on the number of features used.
+So our new score for model j just becomes the product of performance metric number and this new penalisation term.
+This lambda allows us to control the strength of the complexity penalty, so the a larger value of lambda will penalise additional features more heavily.
+We decided to use a value of 0.02 for lambda to provide a mild penalty for additional features.
+We did this because we believe the most important thing with our models is getting the prediction as accurate as possible and so more complex models shouldn't be penalised too much.
