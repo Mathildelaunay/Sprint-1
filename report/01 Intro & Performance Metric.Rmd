@@ -130,7 +130,6 @@ pm_adjusted(predicted = Jonty_test$Predicted_Rank,
 Max's model
 ```{r}
 
-pm_adjusted(predicted)
 
 ```
 
