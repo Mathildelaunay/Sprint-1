@@ -472,7 +472,7 @@ our new score for model <span class="math inline">\(j\)</span> just
 becomes the product of performance metric number and this new
 penalisation term. This lambda allows us to control the strength of the
 complexity penalty, so a larger value of lambda will penalise additional
-features more heavily. We decided to use a value of 0.02 for lambda to
+features more heavily. We decided to use a value of 0.01 for lambda to
 provide a mild penalty for additional features. We did this because we
 believe the most important thing with our models is getting the
 prediction as accurate as possible and so more complex models shouldn’t
@@ -480,11 +480,11 @@ be penalised too much. Our choice of penalisation also has a Bayesian
 motivation, as it can be interpreted as assigning a higher prior
 probability to simpler models. This reflects our preference for models
 that achieve good predictive performance with fewer features. So our
-choice of the value 0.02 for lambda corresponds to each feature having
+choice of the value 0.01 for lambda corresponds to each feature having
 an equal prior probability of being included with 49.5% probability.
 This comes from the formula <span class="math inline">\(\lambda =
 \ln((1-q)/q)\)</span> which when rearranged for q, gives us a value of
-around 0.495 when lambda is 0.02. Our scoring system also takes
+around 0.495 when lambda is 0.01. Our scoring system also takes
 inspiration from the Akaike Information Criterion (AIC), as both
 approaches aim to balance predictive performance against model
 complexity. If we log our new adjusted performance metric we actually
