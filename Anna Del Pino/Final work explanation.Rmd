@@ -19,13 +19,13 @@ library(ggplot2)
 
 The data preparation described in `Anna Del Pino` \> `Data cleaning.Rmd` combines Premier League match records from the 2014/15 to 2025/26 seasons and prepares 2026/27 fixtures for prediction.
 
-The script keeps match details and performance statistics including the following
+The script keeps match details and performance statistics. I also created new counting columns at will get used as features of my model. These cumulatively sum up the respective team's statistic up to the previous match. This way the model uses only the match statististics that have been played. These are the following
 
 ```{r}
 names(train_data)
 ```
 
-These statistics represent points, goals, shots, corners, fouls and cards for home and away teams. We removed betting odds because these reflect people’s expectations rather than what happens on the pitch.
+These statistics represent points, goals, shots, corners, fouls and cards for home and away teams. Their specific description can be found in `\Anna Del Pino > Premier League match events data > Notes.txt`. I removed betting odds because these reflect people’s expectations rather than what happens on the pitch which isn't well reflective of my model.
 
 The data is divided into training set to contain 2014/15-2024/25 seasons, a held out test set to be 2025/26 and 2026/27 prediction set. For each team, it calculates cumulative statistics and league points from earlier matches in the same season. Each match row therefore contains the team statistics available before that match. The model uses these features to predict match outcomes, which are then used to produce the season ranking.
 
@@ -33,9 +33,11 @@ The data is divided into training set to contain 2014/15-2024/25 seasons, a held
 
 Older seasons have fewer match statistics recorded, so there may be less information for the model to use for some matches. We use match statistics and test the model on the later 2025/26 season to see how well it works with data from a later season.
 
-From the file `Anna Del Pino` \> `Test and Notes` we can see that on this test set, the model’s home and away goal MAEs are lower than those of a baseline that predicts the training set’s average goals (`MAE_home =0.9394737`, `MAE_away=0.8184211`, `MAE_home_baseline=0.9961496`,`MAE_away_baseline=0.8746034`). This shows that the model performs better than the baseline on the test season, but it does not show that the difference is due to the data being more recent.
+####From the file `Anna Del Pino` \> `Test and Notes` we can see that on this test set, the model’s home and away goal MAEs are lower than those of a baseline that predicts the training set’s average goals (`MAE_home =0.9394737`, `MAE_away=0.8184211`, `MAE_home_baseline=0.9961496`,`MAE_away_baseline=0.8746034`). This shows that the model performs better than the baseline on the test season, but it does not show that the difference is due to the data being more recent.
 
 Some statistics missing from older records may also be treated as zero when I calculate the cumulative features. This could affect the predictions, so differences in the data available for each season are still a limitation to consider when discussing the results and final ranking.
+
+For the 2026/27 prediction dataset I only have data up to and including 19-10-26 so for the model to know which match it will be predicting in the future, I wrote the remaining fixtures (i.e. from 30-10-27 to 30-05-2027) as rows filled only with `Date`,  `HomeTeam` and `AwayTeam` information and the newly created cumulative columns 
 
 # Model `Model.RMD`
 

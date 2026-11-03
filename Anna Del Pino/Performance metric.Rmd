@@ -143,7 +143,7 @@ Now I check my prediction for 25/26 season
 
 ```{r}
 predicted_aligned <- predicted_table$Position[match(actual_table$Team, predicted_table$Team)]
-pm(predicted = predicted_aligned, actual = actual_table$Position)
+#pm(predicted = predicted_aligned, actual = actual_table$Position)
 #pm_adjusted(predicted = predicted_aligned, actual = actual_table$Position, historical_features = 3 , season_features = 9, total_features = 22, lambda_H = 2, lambda_S = 6)
 
 upper_bound <- pm(predicted = actual_table$Position, actual = actual_table$Position)
