@@ -11,7 +11,7 @@
 
 <meta name="author" content="Mathilde Launay" />
 
-<meta name="date" content="2026-11-02" />
+<meta name="date" content="2026-11-03" />
 
 <title>model fitting</title>
 
@@ -352,7 +352,7 @@ display: none;
 
 <h1 class="title toc-ignore">model fitting</h1>
 <h4 class="author">Mathilde Launay</h4>
-<h4 class="date">2026-11-02</h4>
+<h4 class="date">2026-11-03</h4>
 
 </div>
 
@@ -519,6 +519,7 @@ league_table_25_26</code></pre>
 ## 18 West Ham                    23           39            16         18
 ## 19 Burnley                      7           22            20         19
 ## 20 Wolves                      14           20            19         20</code></pre>
+<pre class="r"><code>saveRDS(league_table_25_26, &quot;MathildeTestTable.rds&quot;)</code></pre>
 <pre class="r"><code>pm &lt;- function(predicted, actual) {
   
   n &lt;- length(actual)
@@ -584,22 +585,41 @@ league_table_25_26</code></pre>
   return(sum(wt))
 }
 
-pm_adjusted &lt;- function(predicted, actual, historical_features, season_features, total_features, lambda_H = 1, lambda_S = 2) {
+pm_adjusted &lt;- function(predicted, actual, number_features, lambda=0.01) {
+  
+  upper_bound &lt;- pm(predicted = actual_table$Position, actual = actual_table$Position)
+  lower_bound&lt;- pm(predicted = 21-actual_table$Position, actual = actual_table$Position)
 
-  original_pm &lt;- pm(predicted, actual)
-
-  penalty_H &lt;- lambda_H *(historical_features / total_features)
-
-  penalty_S &lt;- lambda_S *(season_features / total_features)
-
-  adjusted_pm &lt;- original_pm - penalty_H - penalty_S
-
-  return(adjusted_pm)
+  prediction_score&lt;-(pm(predicted , actual)- lower_bound)/(upper_bound - lower_bound)
+  
+  feature_penalisation &lt;- exp(-lambda * number_features)
+  
+  model_score &lt;- prediction_score * feature_penalisation
+  
+  return(model_score)
 }
-pm(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank)</code></pre>
-<pre><code>## [1] -0.9854723</code></pre>
-<pre class="r"><code>pm_adjusted(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank, historical_features = 3, season_features = 7, total_features = 22, lambda_H = 1, lambda_S = 2)</code></pre>
-<pre><code>## [1] -1.7582</code></pre>
+
+upper_bound &lt;- pm(predicted = league_table_25_26$ActualRank, actual = league_table_25_26$ActualRank)
+lower_bound &lt;- pm(predicted = 21 - league_table_25_26$ActualRank, actual = league_table_25_26$ActualRank)
+lower_bound</code></pre>
+<pre><code>## [1] -13.68928</code></pre>
+<pre class="r"><code>upper_bound</code></pre>
+<pre><code>## [1] 14</code></pre>
+<pre class="r"><code>(pm(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank) - lower_bound)/(upper_bound - lower_bound)</code></pre>
+<pre><code>## [1] 0.4587988</code></pre>
+<pre class="r"><code>pm_adjusted &lt;- function(predicted, actual, number_features, lambda=0.01) {
+
+  prediction_score&lt;-(pm(predicted , actual)- lower_bound)/(upper_bound - lower_bound)
+  
+  feature_penalisation &lt;- exp(-lambda * number_features)
+  
+  model_score &lt;- prediction_score * feature_penalisation
+  
+  return(model_score)
+}
+
+pm_adjusted(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank, 10, 0.01)</code></pre>
+<pre><code>## [1] 0.4151383</code></pre>
 
 
 

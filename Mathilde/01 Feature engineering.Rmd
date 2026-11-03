@@ -29,7 +29,7 @@ build_season_dataset <- function(current_data,
         row_number()
       )
     ) %>%
-    arrange(Date, match_id)
+    arrange(Date, match_id) # This is just preparing the dataset, creating a match id for individual matches
 
   previous_season_matches <- bind_rows(
     previous_data %>%
@@ -42,7 +42,7 @@ build_season_dataset <- function(current_data,
           FTR == "A" ~ "L",
           FTR == "D" ~ "D"
         )
-      ),
+      ), # here, we collect the results for the previous season's matches for the home team
 
     previous_data %>%
       transmute(
@@ -54,39 +54,40 @@ build_season_dataset <- function(current_data,
           FTR == "H" ~ "L",
           FTR == "D" ~ "D"
         )
-      )
+      ) # here, we collect the results for the previous season's matches for the away team
   )
 
   previous_season_stats <- previous_season_matches %>%
-    group_by(Team) %>%
+    group_by(Team) %>% # all the calculations are performed for individual teams
     summarise(
       previous_season_goals_scored_per_match =
-        mean(goals_for),
+        mean(goals_for), # get an everage of goals scored
 
       previous_season_goals_conceded_per_match =
-        mean(goals_against),
+        mean(goals_against), # average of goals against
 
       previous_season_wins = sum(result == "W"),
       previous_season_draws = sum(result == "D"),
       previous_season_losses = sum(result == "L"),
-
+          # sum up the amount of wins, draws and losses
+      
       previous_season_points =
         sum(if_else(
           result == "W", 3,
           if_else(result == "D", 1, 0)
-        )),
+        )),  # total amount of points each team got in the previous season
 
       previous_season_goal_difference =
-        sum(goals_for - goals_against),
+        sum(goals_for - goals_against), # Makes sure that every team has a unique rank if teams have the same amount of points
 
-      previous_season_goals_scored = sum(goals_for),
+      previous_season_goals_scored = sum(goals_for), # Makes sure that every team has a unique rank if teams have the same amount of points
 
       .groups = "drop"
     ) %>%
     arrange(
       desc(previous_season_points),
       desc(previous_season_goal_difference),
-      desc(previous_season_goals_scored)
+      desc(previous_season_goals_scored) # team ranking during the previous season
     ) %>%
     mutate(
       previous_season_ranking = row_number(),
@@ -96,10 +97,10 @@ build_season_dataset <- function(current_data,
         previous_season_ranking <= 12 ~ "8to12",
         previous_season_ranking <= 17 ~ "13to17",
         TRUE ~ NA_character_
-      )
+      ) # we don't care about the last three because they do not participate in the following season
     )
 
-  # Promoted teams: mean of the previous season's bottom three
+  # Promoted teams: mean of the previous season's bottom three statistics 
   bottom3 <- previous_season_stats %>%
     slice_max(previous_season_ranking, n = 3)
 
@@ -107,7 +108,7 @@ build_season_dataset <- function(current_data,
   promoted_conceded <- mean(bottom3$previous_season_goals_conceded_per_match)
 
 
-  home_data <- matches %>%
+  home_data <- matches %>% # retrieves data for the home team of any match
     transmute(
       match_id, Date, Year,
       Team = HomeTeam,
@@ -120,7 +121,7 @@ build_season_dataset <- function(current_data,
         FTR == "H" ~ "W",
         FTR == "D" ~ "D",
         FTR == "A" ~ "L"
-      ),
+      ), 
 
       red_cards = HR,
       yellow_cards = HY,
@@ -130,7 +131,7 @@ build_season_dataset <- function(current_data,
       shots_on_target = HST
     )
 
-  away_data <- matches %>%
+  away_data <- matches %>% # retrieves data for the away team of any match
     transmute(
       match_id, Date, Year,
       Team = AwayTeam,
@@ -154,33 +155,38 @@ build_season_dataset <- function(current_data,
     )
 
   team_matches <- bind_rows(home_data, away_data) %>%
-    arrange(Date, match_id, HomeAway)
+    arrange(Date, match_id, HomeAway) 
+  # this just lists fixtures with their respective match id
 
-
-  team_features <- team_matches %>%
-    group_by(Team) %>%
+  team_features <- team_matches %>% # adds data to the fixtures 
+    group_by(Team) %>% # information is sorted out by team names
     arrange(Date, match_id, .by_group = TRUE) %>%
     mutate(
-      matches_played = row_number() - 1L,
+      matches_played = row_number() - 1L, 
+    # this ensures that there is no info on the current match in the match's row
 
       previous_match_date = lag(Date),
 
       days_since_last_match = as.numeric(
         Date - previous_match_date
-      ),
+      ), # pretty self explanatory 
 
-      wins = lag(cumsum(result == "W"), default = 0L),
+      wins = lag(cumsum(result == "W"), default = 0L), 
       draws = lag(cumsum(result == "D"), default = 0L),
       losses = lag(cumsum(result == "L"), default = 0L),
-
+  # proportion of wins, draws and losses in games the team has played so far
+  
       goals_scored_total =
-        lag(cumsum(goals_for), default = 0),
+        lag(cumsum(goals_for), default = 0), 
+  # proportion of goals scored in games the team has played so far
 
       goals_conceded_total =
         lag(cumsum(goals_against), default = 0),
+  # proportion of goals conceded in games the team has played so far
 
       red_cards_total =
         lag(cumsum(red_cards), default = 0),
+  # proportion of red cards in games the team has played so far
 
       yellow_cards_total =
         lag(cumsum(yellow_cards), default = 0),
@@ -313,7 +319,7 @@ build_season_dataset <- function(current_data,
       matches_played,
       days_since_last_match,
       RankCategory,
-
+  
       win_frequency,
       loss_frequency,
       draw_frequency,
@@ -332,11 +338,12 @@ build_season_dataset <- function(current_data,
       -c(match_id, Team)
     ) %>%
     rename(Opponent = Team)
+  # This take team features and mirrors the structure to reflect opponent features within a given match
 
   team_features %>%
     left_join(
       opponent_features,
-      by = c("match_id", "Opponent")
+      by = c("match_id", "Opponent") # For the appropriate match, add the opponent features
     ) %>%
     mutate(
       TeamRankCategory = RankCategory,
@@ -353,7 +360,7 @@ build_season_dataset <- function(current_data,
         Days >= 2   ~ "More",
         Days <= -2  ~ "Less",
         TRUE        ~ "Equal"
-      ),
+      ), # Creates a categorical variable
 
       DWF = win_frequency - opp_win_frequency,
       DLF = loss_frequency - opp_loss_frequency,
@@ -370,7 +377,7 @@ build_season_dataset <- function(current_data,
       across(
         c(DRF, DYF, DFF, DCS, DSTF, DSF),
         ~ replace_na(.x, 0)
-      )
+      ) # Starting values are 0s rather than NA
     ) %>%
     transmute(
       match_id, Year, Date, Team, Opponent, HomeAway,
@@ -401,13 +408,13 @@ X22_23 <- read.csv("Premier League match events data/22_23.csv")
 X23_24 <- read.csv("Premier League match events data/23_24.csv")
 X24_25 <- read.csv("Premier League match events data/24_25.csv")
 X25_26 <- read.csv("Premier League match events data/25_26.csv")
-keep_cols <- names(X14_15)[1:23]
+keep_cols <- names(X14_15)[1:23] # don't need the odds columns
 
 match_data <- c("X14_15", "X15_16", "X16_17", "X17_18", "X18_19",
                 "X19_20", "X20_21", "X21_22", "X22_23", "X23_24", "X24_25")
 
 for (nm in match_data) {
-  assign(nm, get(nm)[, keep_cols])
+  assign(nm, get(nm)[, keep_cols])  # get rid of odds columns for all datasets
 }
 X14_15 <- X14_15[-381,]
 
@@ -448,8 +455,9 @@ training_datasets <- lapply(
       season_label = names(season_data)[i],
       0.1)
   }
-)
+) # this builds our training dataset 
 
 training_data <- bind_rows(training_datasets)
-saveRDS(training_data, "training_data.rds")
+saveRDS(training_data, "training_data.rds") 
+# saves it so that we don't need to recreate it, can call it later on.
 ```

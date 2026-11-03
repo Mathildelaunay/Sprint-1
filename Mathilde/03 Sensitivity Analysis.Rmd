@@ -21,6 +21,7 @@ training_data <- readRDS("training_data.rds")
 
 poisson_formula <- Goals ~ DSTF + TeamRankCategory + HomeAway + opp_defence_score + 
     attack_score + DCS + DSF + DYF + OpponentRankCategory + DLF
+# formula chosen in 02 Feature selection 
 
 beta_grid <- seq(0.05, 1, by = 0.01)
 
@@ -34,21 +35,28 @@ season_table <- function(df, beta = NULL, method = c("beta", "round")) {
     pivot_wider(names_from = HomeAway,
                 values_from = c(Team, Goals, predicted_goals)) %>%
     mutate(gd = predicted_goals_Home - predicted_goals_Away)
-
+  # store the difference in prediction for every match
+  
   if (method == "beta") {
     mp <- mp %>% mutate(
       pred_res = case_when(abs(gd) <= beta ~ "D", gd > beta ~ "H", TRUE ~ "A"))
+  # use beta as a threshold determining the outcome of the match based on the difference in predictions
+    
   } else {
     rh <- round(mp$predicted_goals_Home)
     ra <- round(mp$predicted_goals_Away)
     mp$pred_res <- case_when(rh > ra ~ "H", rh < ra ~ "A", TRUE ~ "D")
+  # the round method just rounds the goals and then the outcome is determined from the rounded values
   }
-
+  
+  
   mp <- mp %>% mutate(
     act_res = case_when(Goals_Home > Goals_Away ~ "H",
                         Goals_Home < Goals_Away ~ "A", TRUE ~ "D"))
+  # this stores the actual results 
 
   pts <- function(res, side) case_when(res == side ~ 3, res == "D" ~ 1, TRUE ~ 0)
+  # calculates points from outcomes
 
   tab <- bind_rows(
     mp %>% transmute(Team = Team_Home,
@@ -59,6 +67,8 @@ season_table <- function(df, beta = NULL, method = c("beta", "round")) {
                      pred_pts = pts(pred_res, "A"), act_pts = pts(act_res, "A"),
                      pred_gd = -gd, act_gd = Goals_Away - Goals_Home,
                      act_gf = Goals_Away)
+    # stores predicted and actual points and predicted and actual goal difference
+    
   ) %>%
     group_by(Team) %>%
     summarise(across(everything(), sum), .groups = "drop") %>%
@@ -67,7 +77,8 @@ season_table <- function(df, beta = NULL, method = c("beta", "round")) {
     arrange(desc(act_pts), desc(act_gd), desc(act_gf), Team) %>%
     mutate(act_rank = row_number()) %>%
     arrange(Team)
-
+  
+  # sum up all the predicted and actual results for every team 
   list(tab = tab, mp = mp)
 }
 
@@ -83,21 +94,30 @@ score_table <- function(st, season, method, beta = NA_real_) {
     act_draw  = mean(st$mp$act_res == "D")
   )
 }
+# this makes a function analysing the quality of each method
 
-beta_cv <- function(training_data, poisson_formula, beta_grid, min_train = 1) {
+# Expanding-window cross-validation to compare rounding and beta thresholds:
+beta_cv <- function(training_data, poisson_formula, beta_grid, min_train = 1) { # value of min_train sets the first validation year. Here, as 2015/16
   seasons <- training_data %>%
     distinct(Year) %>%
-    mutate(s = as.integer(substr(Year, 1, 4))) %>%
+    mutate(s = as.integer(substr(Year, 1, 4))) %>% # extracts the starting year from labels
     arrange(s) %>% pull(Year)
+  # arrange converts years as a number so that seasons can be sorted chronologically
+  # pull(year) extracts the season labels as a vector.
 
   map_dfr((min_train + 1):length(seasons), function(i) {
     train_fold <- training_data %>% filter(Year %in% seasons[1:(i - 1)])
     valid_fold <- training_data %>% filter(Year == seasons[i])
-
+  # separating training validation and training data
+  # the training fold contains all seasons before the current validation season
+  # the validating fold contains a single season
+    
     m <- glm(poisson_formula, data = train_fold,
              family = stats::poisson(link = "log"))
     valid_fold <- valid_fold %>%
       mutate(predicted_goals = predict(m, newdata = valid_fold, type = "response"))
+  # poisson is trained on the training fold
+    
 
     bind_rows(
       # rounding: no parameter to tune
@@ -118,19 +138,19 @@ round_results <- all_results %>% filter(method == "round")
 ```{r}
 seasons_v <- unique(beta_results$Season)
 
-# (a) Oracle: best beta per season (optimistic upper bound)
+# best beta per season: "oracle"
 oracle <- beta_results %>%
   group_by(Season) %>%
-  slice_min(rank_mse, n = 1, with_ties = FALSE) %>%
-  ungroup() %>% mutate(method = "beta (oracle, best per season)")
+  slice_min(rank_mse, n = 1, with_ties = FALSE) %>% # selects the row with smallest MSE
+  ungroup() %>% mutate(method = "beta (oracle)")
 
-# (b) Fair: beta chosen using only earlier validated seasons
+# beta chosen using only earlier validated seasons
 fair <- map_dfr(2:length(seasons_v), function(j) {
   b <- beta_results %>%
     filter(Season %in% seasons_v[1:(j - 1)]) %>%
     group_by(Beta) %>%
     summarise(m = mean(rank_mse), .groups = "drop") %>%
-    slice_min(m, n = 1, with_ties = FALSE) %>% pull(Beta)
+    slice_min(m, n = 1, with_ties = FALSE) %>% pull(Beta) # selects the row with smallest MSE
   beta_results %>%
     filter(Season == seasons_v[j], Beta == b) %>%
     mutate(method = "beta (chosen on earlier seasons)")

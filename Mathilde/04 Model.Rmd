@@ -148,6 +148,8 @@ league_table_25_26 <- X25_26_training %>%
   )
 
 league_table_25_26
+
+saveRDS(league_table_25_26, "MathildeTestTable.rds")
 ```
 ```{r}
 pm <- function(predicted, actual) {
@@ -215,19 +217,38 @@ pm <- function(predicted, actual) {
   return(sum(wt))
 }
 
-pm_adjusted <- function(predicted, actual, historical_features, season_features, total_features, lambda_H = 1, lambda_S = 2) {
+pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
+  
+  upper_bound <- pm(predicted = actual_table$Position, actual = actual_table$Position)
+  lower_bound<- pm(predicted = 21-actual_table$Position, actual = actual_table$Position)
 
-  original_pm <- pm(predicted, actual)
-
-  penalty_H <- lambda_H *(historical_features / total_features)
-
-  penalty_S <- lambda_S *(season_features / total_features)
-
-  adjusted_pm <- original_pm - penalty_H - penalty_S
-
-  return(adjusted_pm)
+  prediction_score<-(pm(predicted , actual)- lower_bound)/(upper_bound - lower_bound)
+  
+  feature_penalisation <- exp(-lambda * number_features)
+  
+  model_score <- prediction_score * feature_penalisation
+  
+  return(model_score)
 }
-pm(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank)
-pm_adjusted(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank, historical_features = 3, season_features = 7, total_features = 22, lambda_H = 1, lambda_S = 2)
+
+upper_bound <- pm(predicted = league_table_25_26$ActualRank, actual = league_table_25_26$ActualRank)
+lower_bound <- pm(predicted = 21 - league_table_25_26$ActualRank, actual = league_table_25_26$ActualRank)
+lower_bound
+upper_bound
+
+(pm(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank) - lower_bound)/(upper_bound - lower_bound)
+
+pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
+
+  prediction_score<-(pm(predicted , actual)- lower_bound)/(upper_bound - lower_bound)
+  
+  feature_penalisation <- exp(-lambda * number_features)
+  
+  model_score <- prediction_score * feature_penalisation
+  
+  return(model_score)
+}
+
+pm_adjusted(predicted = league_table_25_26$PredictedRank, actual = league_table_25_26$ActualRank, 10, 0.01)
 ```
 

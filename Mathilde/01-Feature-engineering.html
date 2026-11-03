@@ -11,7 +11,7 @@
 
 <meta name="author" content="Mathilde Launay" />
 
-<meta name="date" content="2026-11-01" />
+<meta name="date" content="2026-11-03" />
 
 <title>My dataset</title>
 
@@ -352,7 +352,7 @@ display: none;
 
 <h1 class="title toc-ignore">My dataset</h1>
 <h4 class="author">Mathilde Launay</h4>
-<h4 class="date">2026-11-01</h4>
+<h4 class="date">2026-11-03</h4>
 
 </div>
 
@@ -389,7 +389,7 @@ build_season_dataset &lt;- function(current_data,
         row_number()
       )
     ) %&gt;%
-    arrange(Date, match_id)
+    arrange(Date, match_id) # This is just preparing the dataset, creating a match id for individual matches
 
   previous_season_matches &lt;- bind_rows(
     previous_data %&gt;%
@@ -402,7 +402,7 @@ build_season_dataset &lt;- function(current_data,
           FTR == &quot;A&quot; ~ &quot;L&quot;,
           FTR == &quot;D&quot; ~ &quot;D&quot;
         )
-      ),
+      ), # here, we collect the results for the previous season&#39;s matches for the home team
 
     previous_data %&gt;%
       transmute(
@@ -414,39 +414,40 @@ build_season_dataset &lt;- function(current_data,
           FTR == &quot;H&quot; ~ &quot;L&quot;,
           FTR == &quot;D&quot; ~ &quot;D&quot;
         )
-      )
+      ) # here, we collect the results for the previous season&#39;s matches for the away team
   )
 
   previous_season_stats &lt;- previous_season_matches %&gt;%
-    group_by(Team) %&gt;%
+    group_by(Team) %&gt;% # all the calculations are performed for individual teams
     summarise(
       previous_season_goals_scored_per_match =
-        mean(goals_for),
+        mean(goals_for), # get an everage of goals scored
 
       previous_season_goals_conceded_per_match =
-        mean(goals_against),
+        mean(goals_against), # average of goals against
 
       previous_season_wins = sum(result == &quot;W&quot;),
       previous_season_draws = sum(result == &quot;D&quot;),
       previous_season_losses = sum(result == &quot;L&quot;),
-
+          # sum up the amount of wins, draws and losses
+      
       previous_season_points =
         sum(if_else(
           result == &quot;W&quot;, 3,
           if_else(result == &quot;D&quot;, 1, 0)
-        )),
+        )),  # total amount of points each team got in the previous season
 
       previous_season_goal_difference =
-        sum(goals_for - goals_against),
+        sum(goals_for - goals_against), # Makes sure that every team has a unique rank if teams have the same amount of points
 
-      previous_season_goals_scored = sum(goals_for),
+      previous_season_goals_scored = sum(goals_for), # Makes sure that every team has a unique rank if teams have the same amount of points
 
       .groups = &quot;drop&quot;
     ) %&gt;%
     arrange(
       desc(previous_season_points),
       desc(previous_season_goal_difference),
-      desc(previous_season_goals_scored)
+      desc(previous_season_goals_scored) # team ranking during the previous season
     ) %&gt;%
     mutate(
       previous_season_ranking = row_number(),
@@ -456,10 +457,10 @@ build_season_dataset &lt;- function(current_data,
         previous_season_ranking &lt;= 12 ~ &quot;8to12&quot;,
         previous_season_ranking &lt;= 17 ~ &quot;13to17&quot;,
         TRUE ~ NA_character_
-      )
+      ) # we don&#39;t care about the last three because they do not participate in the following season
     )
 
-  # Promoted teams: mean of the previous season&#39;s bottom three
+  # Promoted teams: mean of the previous season&#39;s bottom three statistics 
   bottom3 &lt;- previous_season_stats %&gt;%
     slice_max(previous_season_ranking, n = 3)
 
@@ -467,7 +468,7 @@ build_season_dataset &lt;- function(current_data,
   promoted_conceded &lt;- mean(bottom3$previous_season_goals_conceded_per_match)
 
 
-  home_data &lt;- matches %&gt;%
+  home_data &lt;- matches %&gt;% # retrieves data for the home team of any match
     transmute(
       match_id, Date, Year,
       Team = HomeTeam,
@@ -480,7 +481,7 @@ build_season_dataset &lt;- function(current_data,
         FTR == &quot;H&quot; ~ &quot;W&quot;,
         FTR == &quot;D&quot; ~ &quot;D&quot;,
         FTR == &quot;A&quot; ~ &quot;L&quot;
-      ),
+      ), 
 
       red_cards = HR,
       yellow_cards = HY,
@@ -490,7 +491,7 @@ build_season_dataset &lt;- function(current_data,
       shots_on_target = HST
     )
 
-  away_data &lt;- matches %&gt;%
+  away_data &lt;- matches %&gt;% # retrieves data for the away team of any match
     transmute(
       match_id, Date, Year,
       Team = AwayTeam,
@@ -514,33 +515,38 @@ build_season_dataset &lt;- function(current_data,
     )
 
   team_matches &lt;- bind_rows(home_data, away_data) %&gt;%
-    arrange(Date, match_id, HomeAway)
+    arrange(Date, match_id, HomeAway) 
+  # this just lists fixtures with their respective match id
 
-
-  team_features &lt;- team_matches %&gt;%
-    group_by(Team) %&gt;%
+  team_features &lt;- team_matches %&gt;% # adds data to the fixtures 
+    group_by(Team) %&gt;% # information is sorted out by team names
     arrange(Date, match_id, .by_group = TRUE) %&gt;%
     mutate(
-      matches_played = row_number() - 1L,
+      matches_played = row_number() - 1L, 
+    # this ensures that there is no info on the current match in the match&#39;s row
 
       previous_match_date = lag(Date),
 
       days_since_last_match = as.numeric(
         Date - previous_match_date
-      ),
+      ), # pretty self explanatory 
 
-      wins = lag(cumsum(result == &quot;W&quot;), default = 0L),
+      wins = lag(cumsum(result == &quot;W&quot;), default = 0L), 
       draws = lag(cumsum(result == &quot;D&quot;), default = 0L),
       losses = lag(cumsum(result == &quot;L&quot;), default = 0L),
-
+  # proportion of wins, draws and losses in games the team has played so far
+  
       goals_scored_total =
-        lag(cumsum(goals_for), default = 0),
+        lag(cumsum(goals_for), default = 0), 
+  # proportion of goals scored in games the team has played so far
 
       goals_conceded_total =
         lag(cumsum(goals_against), default = 0),
+  # proportion of goals conceded in games the team has played so far
 
       red_cards_total =
         lag(cumsum(red_cards), default = 0),
+  # proportion of red cards in games the team has played so far
 
       yellow_cards_total =
         lag(cumsum(yellow_cards), default = 0),
@@ -673,7 +679,7 @@ build_season_dataset &lt;- function(current_data,
       matches_played,
       days_since_last_match,
       RankCategory,
-
+  
       win_frequency,
       loss_frequency,
       draw_frequency,
@@ -692,11 +698,12 @@ build_season_dataset &lt;- function(current_data,
       -c(match_id, Team)
     ) %&gt;%
     rename(Opponent = Team)
+  # This take team features and mirrors the structure to reflect opponent features within a given match
 
   team_features %&gt;%
     left_join(
       opponent_features,
-      by = c(&quot;match_id&quot;, &quot;Opponent&quot;)
+      by = c(&quot;match_id&quot;, &quot;Opponent&quot;) # For the appropriate match, add the opponent features
     ) %&gt;%
     mutate(
       TeamRankCategory = RankCategory,
@@ -713,7 +720,7 @@ build_season_dataset &lt;- function(current_data,
         Days &gt;= 2   ~ &quot;More&quot;,
         Days &lt;= -2  ~ &quot;Less&quot;,
         TRUE        ~ &quot;Equal&quot;
-      ),
+      ), # Creates a categorical variable
 
       DWF = win_frequency - opp_win_frequency,
       DLF = loss_frequency - opp_loss_frequency,
@@ -730,7 +737,7 @@ build_season_dataset &lt;- function(current_data,
       across(
         c(DRF, DYF, DFF, DCS, DSTF, DSF),
         ~ replace_na(.x, 0)
-      )
+      ) # Starting values are 0s rather than NA
     ) %&gt;%
     transmute(
       match_id, Year, Date, Team, Opponent, HomeAway,
@@ -758,13 +765,13 @@ X22_23 &lt;- read.csv(&quot;Premier League match events data/22_23.csv&quot;)
 X23_24 &lt;- read.csv(&quot;Premier League match events data/23_24.csv&quot;)
 X24_25 &lt;- read.csv(&quot;Premier League match events data/24_25.csv&quot;)
 X25_26 &lt;- read.csv(&quot;Premier League match events data/25_26.csv&quot;)
-keep_cols &lt;- names(X14_15)[1:23]
+keep_cols &lt;- names(X14_15)[1:23] # don&#39;t need the odds columns
 
 match_data &lt;- c(&quot;X14_15&quot;, &quot;X15_16&quot;, &quot;X16_17&quot;, &quot;X17_18&quot;, &quot;X18_19&quot;,
                 &quot;X19_20&quot;, &quot;X20_21&quot;, &quot;X21_22&quot;, &quot;X22_23&quot;, &quot;X23_24&quot;, &quot;X24_25&quot;)
 
 for (nm in match_data) {
-  assign(nm, get(nm)[, keep_cols])
+  assign(nm, get(nm)[, keep_cols])  # get rid of odds columns for all datasets
 }
 X14_15 &lt;- X14_15[-381,]
 
@@ -805,10 +812,11 @@ training_datasets &lt;- lapply(
       season_label = names(season_data)[i],
       0.1)
   }
-)
+) # this builds our training dataset 
 
 training_data &lt;- bind_rows(training_datasets)
-saveRDS(training_data, &quot;training_data.rds&quot;)</code></pre>
+saveRDS(training_data, &quot;training_data.rds&quot;) 
+# saves it so that we don&#39;t need to recreate it, can call it later on.</code></pre>
 
 
 

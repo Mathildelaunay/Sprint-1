@@ -486,16 +486,21 @@ However, again the selected threshold remained variable across
 validation seasons, ranging from 0.15 to 0.90. Although the threshold
 approach provided slight improvement in average ranking performance, it
 was too unstable to be used on an unseen season.</p>
-<p>I also used draw proportions as a secondary diagnostic tool. The
-leak-free threshold approach predicted draws in approximately 25.5% of
-matches, compared with 32.1% under rounding; the actual draw proportion
-across the corresponding validation seasons was approximately 22.8%.
-Although the threshold approach produced a draw proportion closer to the
-observed value, matching the draw proportion was not the objective used
-to select the outcome-mapping method. The threshold technique would
-therefore have been better suited to a scenario where goal counts
-mattered, but here the primary objective was to obtain an accurate
-league-table ranking.</p>
+<p>I also used draw proportions as a secondary diagnostic tool. This
+came from the fact that machine learning models tend to perform poorly
+when predicting a correct proportion of matches outcoming in a draw,
+which I read about in Choi, Bing &amp; Foo, Lee-Kien &amp; Chua,
+Sook-Ling. (2023). Predicting Football Match Outcomes with Machine
+Learning Approaches. MENDEL. 29. 229-236. 10.13164/mendel.2023.2.229.
+The leak-free threshold approach predicted draws in approximately 25.5%
+of matches, compared with 32.1% under rounding; the actual draw
+proportion across the corresponding validation seasons was approximately
+22.8%. Although the threshold approach produced a draw proportion closer
+to the observed value, matching the draw proportion was not the
+objective used to select the outcome-mapping method. The threshold
+technique would therefore have been better suited to a scenario where
+goal counts mattered, but here the primary objective was to obtain an
+accurate league-table ranking.</p>
 <p>I therefore reverted to using rounding in the final model since it is
 parameter-free, straightforward to interpret, and avoids introducing an
 additional parameter that is difficult to estimate reliably.</p>
