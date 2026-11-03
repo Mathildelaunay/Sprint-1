@@ -14,14 +14,8 @@ This way of scoring our models is backed by at least some theory, if not somewha
 
 First, what are we hoping to achieve with our score function? We want to select the best model out of our group. Our idea of the best model is one which predicts the rankings of teams accurately, espescially within the head and tail of the league table. This is captured by our Pm function. Further, we want a penalisation for the number of features a model uses for it's predictions. That is, if a complex model and a simple mode achieve similar predictive success, then we would want to choose the simpler model.
 
-To achieve a balance between these objectives, we produced the above score function. It is a relativley natural function, where the lambda term has a somewhat nice interpretation when viewed through the lense of the bayesian model selection framework.
-That is $$P(M_j|D) \propto P(D|M_j)P(M_j)$$
-
-Suppose we set our prior belief of model $M_j = e^{-\lambda k_j}$. We can then look to choose $\lambda$ with respect to our prior belief about the probability of the model $M_j$. That is, suppose for each feature which we could have chosen to include in our model, we have a uniform prior belief as to if we will include it $\mathbb{P}($include feature $l$ in mode$) = q_l$. Then we can also have $P(M_j) = e^{-\lambda k_j}\propto (\frac{q}{1-q})^{k_j}$. Thus we can rearange to find lambda in terms of our prior beliefs about any feature being included in our model. We have: $$\lambda = \ln(\frac{1-q}{q}).$$
-
-Thus, if for each feature, we have the prior belief that it is to be included in our model just below half the time, ie $q = 0.495$, then we get $\lambda \approx 0.02$. This is a relativley mild penalisation but it is pretty apt for our case since we want to bound our model scores to $[0,1]$.
-
-Note that in the context of the general bayesian framework, we now have $$P(M_j|D) \propto \text{Pm}(M_j)e^{-\lambda k_j}$$, which gives us our scoring system.
+To achieve a balance between these objectives, we produced the above score function. It is a relativley natural function, where the lambda term has a somewhat nice interpretation when viewed through the lense of the bayesian model selection framework, which we will explore later. We choose our lambda value to have a meaningful penalisation over our proposed models.
+That is $$P(M_j|D) \propto P(D|M_j)P(M_j).$$
 
 Our scoring system is also somewhat similar to AIC. Note that if we take the log of our score, we get:
 
@@ -35,3 +29,11 @@ Note however, that rather than the likelihood function, our score measures model
 Thus, although somewhat ad-hoc, our model selection score is similar in approach to that of AIC, and also has a somewhat nice intuition under the Bayesian framework.
 
 We choose lambda = 0.02 so that the models which are more complex are penalised to some extent, but not so much so that we artifically force models to be overly simple. We expect this should strike a balance between over fitting and under fitting our models
+
+
+Suppose we set our prior belief of model $M_j = e^{-\lambda k_j}$. We can then look to choose $\lambda$ with respect to our prior belief about the probability of the model $M_j$. That is, suppose for each feature which we could have chosen to include in our model, we have a uniform prior belief as to if we will include it $\mathbb{P}($include feature $l$ in mode$) = q_l$. Then we can also have $P(M_j) = e^{-\lambda k_j}\propto (\frac{q}{1-q})^{k_j}$. Thus we can rearange to find lambda in terms of our prior beliefs about any feature being included in our model. We have: $$\lambda = \ln(\frac{1-q}{q}).$$
+
+Thus, if for each feature, we have the prior belief that it is to be included in our model just below half the time, ie $q = 0.495$, then we get $\lambda \approx 0.02$. This is a relativley mild penalisation but it is pretty apt for our case since we want to bound our model scores to $[0,1]$.
+
+Note that in the context of the general bayesian framework, we now have $$P(M_j|D) \propto \text{Pm}(M_j)e^{-\lambda k_j}$$, which gives us our scoring system.
+
