@@ -129,8 +129,7 @@ pm_adjusted(predicted = Jonty_test$Predicted_Rank,
 ```
 Max's model
 ```{r}
-
-
+pm_adjusted(predicted = Max_test$Position[match(Mathilde_test$Team, Max_test$Team)], actual=Mathilde_test$ActualRank, 5, 0.01)
 ```
 
 
