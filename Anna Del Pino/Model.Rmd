@@ -190,6 +190,7 @@ table_comparison$PositionDifference <- table_comparison$Position_Predicted - tab
 table_comparison <- table_comparison[order(table_comparison$Position_Actual),] #order wrt actual position
 
 table_comparison
+saveRDS(table_comparison, "AnnaTestTable.rds")
 ```
 
 ## 2026/27 season prediction
