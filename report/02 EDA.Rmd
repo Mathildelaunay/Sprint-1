@@ -12,27 +12,27 @@ source("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/mai
 
 # Introduction
 
-# Anna
+## Anna
 
 ### Data Processing `Data cleaning.Rmd`
 
 The data preparation described in `Anna Del Pino` \> `Data cleaning.Rmd` combines Premier League match records from the 2014/15 to 2025/26 seasons and prepares 2026/27 fixtures for prediction.
 
-Here we keep match and performance statistics. I also created new counting columns as these will get used as features of my model. These cumulatively sum up the respective team's statistic up to the previous match. This way the model uses only the match statistics that have been seen. These are the following:
+I kept match and performance statistics and created new cumulative columns to use as features in my model.These add up each team’s statistics up to the previous match, so the model only uses information that was available before each match. These are the following:
 
 ```{r}
 names(train_data)
 ```
 
-These statistics represent points, goals, shots, corners, fouls and cards for home and away teams. Their specific description can be found in `\Anna Del Pino > Premier League match events data > Notes.txt`. I removed betting odds because these reflect people’s expectations rather than what happens on the pitch which isn't well reflective of my model.
+These statistics represent points, goals, shots, corners, fouls and cards for home and away teams. Their specific descriptions can be found in `\Anna Del Pino > Premier League match events data > Notes.txt`. I removed betting odds because these reflect people’s expectations rather than what happens on the pitch and I did not want them to influence the model.
 
-The data is divided into training set to contain 2014/15-2024/25 seasons, a held out test set to be 2025/26 and 2026/27 prediction set. For each team, it calculates cumulative statistics and league points from earlier matches in the same season. Each match row therefore contains the team statistics available before that match. The model uses these features to predict match outcomes, which are then used to produce the season ranking.
+The data is divided into training set to contain 2014/15-2024/25 seasons, a held out test set to be 2025/26 and 2026/27 prediction set. The 2026/27 dataset includes matches played up to 19 October 2026 and rows for the remaining fixtures, which are used to predict their goal outcomes. For each team, the cumulative statistics and league points are calculated from earlier matches in the same season. Each match row therefore contains the team statistics available before that match. The model uses these features to predict match outcomes, which are then used to produce the season ranking.
 
 ### Limitations
 
-Older seasons have fewer match statistics recorded, so there may be less information for the model to use for some matches. We use match statistics and test the model on the later 2025/26 season to see how well it works with data from a later season.
+Looking at the full dataset, older seasons do not contain the odds columns found in newer seasons. Since I am not using odds data, I removed the odds columns from every dataset. This leaves all the match statistics needed for my analysis in each dataset. Keeping only the columns I need also makes the datasets the same size and avoids issues with different dimensions or missing data.
 
-Some statistics missing from older records may also be treated as zero when I calculate the cumulative features. This could affect the predictions, so differences in the data available for each season are still a limitation to consider when discussing the results and final ranking.
+Another limitation is that the cumulative statistics reset at the beginning of every season. This means that the model has less information about the team's performance at the start as it doesn't use statistics from the previous season.
 
 # Max
 
