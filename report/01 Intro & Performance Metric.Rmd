@@ -169,26 +169,29 @@ pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
 
 # Model Output
 
-Mathilde's model
+Mathilde's model:
 ```{r}
 pm_adjusted(predicted = Mathilde_test$PredictedRank, actual = Mathilde_test$ActualRank, 10, 0.01)
 ```
-Bobby's model 
+
+Bobby's model:
 ```{r}
-pm(predicted = Bobby_test$Predicted_Ranking[match(Mathilde_test$Team, Bobby_test$Team)], actual = Mathilde_test$ActualRank)
 pm_adjusted(predicted = Bobby_test$Predicted_Ranking[match(Mathilde_test$Team, Bobby_test$Team)], actual = Mathilde_test$ActualRank, 5, 0.01)
 ```
-Anna's model
+
+Anna's model:
 ```{r}
 pm_adjusted(predicted = Anna_test$Position_Predicted, actual = Anna_test$Position_Actual, 12, lambda=0.01)
 ```
-Jonty's model
+
+Jonty's model:
 ```{r jontys pm score}
 pm_adjusted(predicted = Jonty_test$Predicted_Rank,
             actual = Jonty_test$Actual_Rank,
             number_features = 8, lambda = 0.01)
 ```
-Max's model
+
+Max's model:
 ```{r}
 pm_adjusted(predicted = Max_test$Position[match(Mathilde_test$Team, Max_test$Team)], actual=Mathilde_test$ActualRank, 5, 0.01)
 ```
