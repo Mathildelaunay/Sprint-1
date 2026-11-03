@@ -19,6 +19,7 @@ library(randomForest)
 library(lubridate)
 library(corrplot)
 library(readr)
+library(Boruta)
 ```
 
 # Feature Creation
@@ -616,6 +617,8 @@ write.csv(
 Now we must choose which of the features we have selected to include in our home and away random forest. We first split our combined match data into training, testing, and prediction data, and then extract the features that are present within the training period. 
 
 ```{r}
+features_5 = read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/features_5.csv")
+
 training_data <- combined_data |>
   filter(SeasonStart >= 2014,
          SeasonStart <= 2024,
