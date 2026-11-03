@@ -1,5 +1,5 @@
 ---
-title: "02 EDA"
+title: "02 Feature Engineering"
 author: "Anna Del Pino"
 date: "2026-11-03"
 output: html_document
@@ -11,6 +11,8 @@ source("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/mai
 ```
 
 # Introduction
+
+To ensure that each group member has access to the same data and same features and that one person's model is not exposed to substantially more informative data, we have all agreed to use the data and features provided on `football-data.co.uk`, specifically "https://football-data.co.uk/englandm.php". This provides a `.csv` for each season with information about each match, such as the teams playing and the goals they scored, the number of cards accumulated per game, and corner events. There is also a large amount of betting information saved on this dataset, however we mutually agreed that feeding our models data that is the opinion of external entities can introduce bias into our models and as such we omit them from our feature engineering. This still leaves many features for each of the models to be built upon, and some models use the features provided to create new features that can provide new information than just the existing match data. We agreed that building from existing data within the dataset is permissible since it does not draw on other datasets to create it. Each model uses the data differently, and below we examine how each model builds and adapts the data to their own idiosyncratic methods. 
 
 ## Anna
 
