@@ -16,7 +16,7 @@ library(dplyr)
 library(ggplot2)
 ```
 
-# Data Processing `Data cleaning.Rmd`
+#Anna's Model \## Data Processing `Data cleaning.Rmd`
 
 The data preparation described in `Anna Del Pino` \> `Data cleaning.Rmd` combines Premier League match records from the 2014/15 to 2025/26 seasons and prepares 2026/27 fixtures for prediction.
 
@@ -30,13 +30,13 @@ These statistics represent points, goals, shots, corners, fouls and cards for ho
 
 The data is divided into training set to contain 2014/15-2024/25 seasons, a held out test set to be 2025/26 and 2026/27 prediction set. For each team, it calculates cumulative statistics and league points from earlier matches in the same season. Each match row therefore contains the team statistics available before that match. The model uses these features to predict match outcomes, which are then used to produce the season ranking.
 
-## Limitations
+### Limitations
 
 Older seasons have fewer match statistics recorded, so there may be less information for the model to use for some matches. We use match statistics and test the model on the later 2025/26 season to see how well it works with data from a later season.
 
 Some statistics missing from older records may also be treated as zero when I calculate the cumulative features. This could affect the predictions, so differences in the data available for each season are still a limitation to consider when discussing the results and final ranking.
 
-# Model `Model.RMD`
+## Model `Model.RMD`
 
 The aim of my model is to predict the goals scored by the home and away teams in each match, then use these predictions to create a final league ranking. Goals are non negative counts, so we use two Poisson generalised linear models (GLMs): one for home goals and one for away goals. For match i, we represent the goal counts as $$Y_{H,i} \sim \text{Poisson}(\lambda_{H,i}), \\ Y_{A,i} \sim \text{Poisson}(\lambda_{A,i}),$$ where $\lambda_{H,i}$ and $\lambda_{A,i}$ are the expected goal count of the home and away teams. The models use a log link: $$\log(\lambda_{H,i})=\beta_{H,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_H, \\ \log(\lambda_{A,i})=\beta_{A,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_A$$ The log link function gives a positive expected goal rate.The paper also uses Poisson modelling by treating goals as count data.
 
@@ -74,13 +74,13 @@ print(c(MAE_HG, MAE_AG, train_MAE_HG, train_MAE_AG, MAE_pos, rank_corr))
 
 These results show taht the model performs better than the training baseline. \* Home goal MAE: 0.939 goals, compared with 0.996 from the train model error so a 5.7% reduction. \* Away goal MAE: 0.818 goals, compared with 0.875 from the train model error so a 6.5% reduction. \* Mean position error: 2.1 places. On average, a team’s predicted position was about two places away from its actual position. \* Spearman rank correlation: 0.862, showing that the predicted and actual ranking orders were fairly similar. The **Spearman correlation** between two variables will be high when observations have a similar (or equal with correlation = 1) rank between the two variables. The model improved goal predictions over the baseline and reproduced the overall team ranking reasonably well on the test season.
 
-## Limitations
+### Limitations
 
 Some teams have less data available than others. For example, Coventry has only a few months of 2026/27 data because it has not appeared in the earlier seasons included in our dataset. This means the model has less information about Coventry’s performance. The model also does not give more weight to recent seasons, so it may not fully reflect changes in how teams perform over time.
 
 In our model, we round the predicted goals to get a score for each match. This is different from the paper’s simulation approach, so it may affect the predicted number of wins, draws and losses, and therefore the final ranking. Rounding can also affect the errors used to evaluate the model.
 
-# 2026/27 Prediction
+## 2026/27 Prediction
 
 Since my models had the highest score after applying the performance metric, we will produce a prediciton of the 2026/27 end of season ranking table.
 
@@ -111,7 +111,7 @@ predicted_2026_27_table
 
 For the 2026/27 season, results are available for matches played up to 19 October, while the remaining fixtures have missing match results because they have not yet been played. I use actual goals for completed matches and predict goals for the remaining fixtures using our Poisson GLMs before calculating the final ranking using our `ranking()` function.
 
-##Limitations
+### Limitations
 
 For the 2026/27 prediction dataset I only have data up to and including 19-10-26 so for the model to know which match it will be predicting in the future, I wrote the remaining fixtures (i.e. from 30-10-27 to 30-05-2027) as rows filled only with `Date`, `HomeTeam` and `AwayTeam` information and the newly created cumulative columns just repeat the value over and over again as we don't have any new information of the statistics. Note that the cumulative goals columns also keeps repeating as this doesn't include the predicted new goals. This does bring a limitation to the model as it's assuming that no changes in perfomance of each respective team has happened. For example here are the first 10 matches of Arsenal.
 
@@ -120,4 +120,3 @@ head(prediction_data[prediction_data$HomeTeam == "Arsenal" |prediction_data$Away
 ```
 
 We can see that the current matches statistics (i.e FTHG up to AR ) are filled with `NA` for unseen matches and the cumulative statistcis columns show the last seen result. As these statistcis are the cumulative sum of the previous ones, it includes all seen information for each respective statistic. Furthermore, the dataset adds two columns of `PredHomeGoals` and `PredAwayGoals` which are the predictions $\hat\lambda_H$ and $\hat\lambda_A$ of expected home and away goals for each match $i$.
-

@@ -359,8 +359,7 @@ display: none;
 
 <pre class="r"><code>library(dplyr)
 library(ggplot2)</code></pre>
-<div id="data-processing-data-cleaning.rmd" class="section level1">
-<h1>Data Processing <code>Data cleaning.Rmd</code></h1>
+<p>#Anna’s Model ## Data Processing <code>Data cleaning.Rmd</code></p>
 <p>The data preparation described in <code>Anna Del Pino</code> &gt;
 <code>Data cleaning.Rmd</code> combines Premier League match records
 from the 2014/15 to 2025/26 seasons and prepares 2026/27 fixtures for
@@ -407,8 +406,8 @@ from earlier matches in the same season. Each match row therefore
 contains the team statistics available before that match. The model uses
 these features to predict match outcomes, which are then used to produce
 the season ranking.</p>
-<div id="limitations" class="section level2">
-<h2>Limitations</h2>
+<div id="limitations" class="section level3">
+<h3>Limitations</h3>
 <p>Older seasons have fewer match statistics recorded, so there may be
 less information for the model to use for some matches. We use match
 statistics and test the model on the later 2025/26 season to see how
@@ -419,9 +418,8 @@ predictions, so differences in the data available for each season are
 still a limitation to consider when discussing the results and final
 ranking.</p>
 </div>
-</div>
-<div id="model-model.rmd" class="section level1">
-<h1>Model <code>Model.RMD</code></h1>
+<div id="model-model.rmd" class="section level2">
+<h2>Model <code>Model.RMD</code></h2>
 <p>The aim of my model is to predict the goals scored by the home and
 away teams in each match, then use these predictions to create a final
 league ranking. Goals are non negative counts, so we use two Poisson
@@ -519,8 +517,8 @@ two variables will be high when observations have a similar (or equal
 with correlation = 1) rank between the two variables. The model improved
 goal predictions over the baseline and reproduced the overall team
 ranking reasonably well on the test season.</p>
-<div id="limitations-1" class="section level2">
-<h2>Limitations</h2>
+<div id="limitations-1" class="section level3">
+<h3>Limitations</h3>
 <p>Some teams have less data available than others. For example,
 Coventry has only a few months of 2026/27 data because it has not
 appeared in the earlier seasons included in our dataset. This means the
@@ -534,8 +532,8 @@ final ranking. Rounding can also affect the errors used to evaluate the
 model.</p>
 </div>
 </div>
-<div id="prediction" class="section level1">
-<h1>2026/27 Prediction</h1>
+<div id="prediction" class="section level2">
+<h2>2026/27 Prediction</h2>
 <p>Since my models had the highest score after applying the performance
 metric, we will produce a prediciton of the 2026/27 end of season
 ranking table.</p>
@@ -588,7 +586,8 @@ because they have not yet been played. I use actual goals for completed
 matches and predict goals for the remaining fixtures using our Poisson
 GLMs before calculating the final ranking using our
 <code>ranking()</code> function.</p>
-<p>##Limitations</p>
+<div id="limitations-2" class="section level3">
+<h3>Limitations</h3>
 <p>For the 2026/27 prediction dataset I only have data up to and
 including 19-10-26 so for the model to know which match it will be
 predicting in the future, I wrote the remaining fixtures (i.e. from
@@ -687,6 +686,7 @@ information for each respective statistic. Furthermore, the dataset adds
 two columns of <code>PredHomeGoals</code> and <code>PredAwayGoals</code>
 which are the predictions <span class="math inline">\(\hat\lambda_H\)</span> and <span class="math inline">\(\hat\lambda_A\)</span> of expected home and away
 goals for each match <span class="math inline">\(i\)</span>.</p>
+</div>
 </div>
 
 
