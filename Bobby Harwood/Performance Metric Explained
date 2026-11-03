@@ -12,6 +12,16 @@ To implement our idea, we decided to design appropriate weights which would refl
 If a team was correctly predicted to be somewhere within the bottom 3, then its weight is 1.
 Similarly, if a team in the top 5 was correctly predicted in the exact position, then its weight is also 1.
 For any team correctly predicted in the exact position outside which are outside of the top 5 or bottom 3, then its weight is 0.5.
-This way, we are weighting the top 5 and bottom 3 more to reflect its high importance. 
-For a correct prediction of a team being in the top 5 but in the incorrect exact position, we used...
+This way, we are weighting the top 5 and bottom 3 more to reflect its high importance.
+For a correct prediction of a team being in the top 5 but in the incorrect exact position, we used...................
 
+For all other cases we wanted to focus on the distance between the predicted position and the actual position.
+We believed that the further away the predicted position was from the actual position, the less additional penalisation we should have.
+Our logic behind this was that for example, getting a team's position wrong by 3 places compared to 2 place is bad, but the difference between getting it wrong by 10 places and 11 places isn't that significant.
+A function that does this well is the exponential function with a minus sign in front of the x value.
+As we are penalising the model for incorrect predictions, we decided to make these weights negative too.
+Since our prediction for the top 5 are significant, we decided to decrease the coefficient of the x for any team outside the top 5 to 0.1 to make the drop off in weight values less steep.
+This meant that the weight function for the top 5 being predicted outside of the top 5 and teams outside of the top 5 (excluding the bottom 3) being incorrectly predicted in the top 5 is f(x) = -(1-exp(-x)).
+And teams outside of the top 5 (excluding the bottom 3) being predicted an incorrect position outside of the top 5 and the bottom 3 being predicted outside of the bottom 3 to be f(x) = -(1-exp(-0.1x)).
+
+Then talk about Jonty's lambda thing (last bit to get a final score for overall evaluation from performance metric).
