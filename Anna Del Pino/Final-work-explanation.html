@@ -365,8 +365,11 @@ library(ggplot2)</code></pre>
 <code>Data cleaning.Rmd</code> combines Premier League match records
 from the 2014/15 to 2025/26 seasons and prepares 2026/27 fixtures for
 prediction.</p>
-<p>The script keeps match details and performance statistics including
-the following</p>
+<p>Here we keep match and performance statistics. I also created new
+counting columns as these will get used as features of my model. These
+cumulatively sum up the respective team’s statistic up to the previous
+match. This way the model uses only the match statistics that have been
+seen. These are the following:</p>
 <pre class="r"><code>names(train_data)</code></pre>
 <pre><code>##  [1] &quot;Date&quot;                    &quot;HomeTeam&quot;               
 ##  [3] &quot;AwayTeam&quot;                &quot;FTHG&quot;                   
@@ -391,8 +394,12 @@ the following</p>
 ## [41] &quot;HTPA&quot;                    &quot;ATPB&quot;                   
 ## [43] &quot;ATPA&quot;</code></pre>
 <p>These statistics represent points, goals, shots, corners, fouls and
-cards for home and away teams. We removed betting odds because these
-reflect people’s expectations rather than what happens on the pitch.</p>
+cards for home and away teams. Their specific description can be found
+in
+<code>\Anna Del Pino &gt; Premier League match events data &gt; Notes.txt</code>.
+I removed betting odds because these reflect people’s expectations
+rather than what happens on the pitch which isn’t well reflective of my
+model.</p>
 <p>The data is divided into training set to contain 2014/15-2024/25
 seasons, a held out test set to be 2025/26 and 2026/27 prediction set.
 For each team, it calculates cumulative statistics and league points
@@ -406,15 +413,6 @@ the season ranking.</p>
 less information for the model to use for some matches. We use match
 statistics and test the model on the later 2025/26 season to see how
 well it works with data from a later season.</p>
-<p>From the file <code>Anna Del Pino</code> &gt;
-<code>Test and Notes</code> we can see that on this test set, the
-model’s home and away goal MAEs are lower than those of a baseline that
-predicts the training set’s average goals
-(<code>MAE_home =0.9394737</code>, <code>MAE_away=0.8184211</code>,
-<code>MAE_home_baseline=0.9961496</code>,<code>MAE_away_baseline=0.8746034</code>).
-This shows that the model performs better than the baseline on the test
-season, but it does not show that the difference is due to the data
-being more recent.</p>
 <p>Some statistics missing from older records may also be treated as
 zero when I calculate the cumulative features. This could affect the
 predictions, so differences in the data available for each season are
@@ -424,19 +422,11 @@ ranking.</p>
 </div>
 <div id="model-model.rmd" class="section level1">
 <h1>Model <code>Model.RMD</code></h1>
-<p>The aim of our model is to predict the goals scored by the home and
+<p>The aim of my model is to predict the goals scored by the home and
 away teams in each match, then use these predictions to create a final
-league ranking. I was inspired by <code>Anna Del Pino</code> &gt;
-<code>Premier League goal prediction.pdf</code>, which fits separate
-Poisson regression models for home and away goal rates and then combines
-these results to simulate match scores and season rankings. I also chose
-to model home and away goals separately because I think playing at home
-or away can affect a team’s performance. A home team may feel more
-comfortable playing in front of its own supporters, while an away team
-is playing in front of a crowd that may not support it.</p>
-<p>Goals are non-negative counts, so we use two Poisson generalised
-linear models (GLMs): one for home goals and one for away goals. For
-match i, we represent the goal counts as <span class="math display">\[Y_{H,i} \sim \text{Poisson}(\lambda_{H,i}), \\
+league ranking. Goals are non negative counts, so we use two Poisson
+generalised linear models (GLMs): one for home goals and one for away
+goals. For match i, we represent the goal counts as <span class="math display">\[Y_{H,i} \sim \text{Poisson}(\lambda_{H,i}), \\
 Y_{A,i} \sim \text{Poisson}(\lambda_{A,i}),\]</span> where <span class="math inline">\(\lambda_{H,i}\)</span> and <span class="math inline">\(\lambda_{A,i}\)</span> are the expected goal count
 of the home and away teams. The models use a log link: <span class="math display">\[\log(\lambda_{H,i})=\beta_{H,0} +
 \mathbf{x}_i^\text{T}\mathbf{\beta}_H, \\
@@ -444,23 +434,45 @@ of the home and away teams. The models use a log link: <span class="math display
 \mathbf{x}_i^\text{T}\mathbf{\beta}_A\]</span> The log link function
 gives a positive expected goal rate.The paper also uses Poisson
 modelling by treating goals as count data.</p>
-<p>First we plotted the distribution of goals in the training data to
-explore the observed scores.</p>
-<pre class="r"><code>goal_data &lt;- data.frame(Goals = c(train_data$FTHG, train_data$FTAG))
-
-ggplot(goal_data, aes(x = Goals)) + geom_bar() + scale_x_continuous(breaks = 0:max(goal_data$Goals, na.rm = TRUE)) +labs(title = &quot;Goals scored per match&quot;,x = &quot;Goals&quot;,y = &quot;Number of team performances&quot;) + theme_minimal()</code></pre>
-<p><img role="img" aria-label src="data:image/png;base64,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kEc9JY56PngINLUY66iQRz0ljno+eAg0tRjrqJBHPSWOej54CDS1GOuokEc9JY56PngINLUY66iQRz0ljno+eAg0tRjrqJBHPSWOej54CDS1GOuokEc9JY56PngINLUY66iQRz0ljno+eAg0tRjrqJBHPSWOej54CDS1GOuokEc9JY56PngINLUY66iQRz0ljno+eAg0tRjrqJBHPSWOej54CDS1GOuokEc9JY56PngINLUY66iQRz0ljno+eAg0tRjrqJBHPSWOej54CDS1GOuokEc9JY56PngINLUY66iQRz0ljno+eAg0tRjrqJBHPSWOej54CDS1GOuokEc9JY56PngINLUY66iQRz0ljno+eAg0tRjrqJBHPSWOej54CDS12EYv4j/mSHv1vOOoJ+V1vB4CTQaB6ut5x1FPyut4PQSaDALV1/OOo56U1/F6CDQZBKqv5x1HPSmv4/UQaDIIVF/PO456Ul7H6yHQZBCovp53HPWkvI7XQ6DJIFB9Pe846kl5Ha+HQJNBoPp63nHUk/I6Xg+BJoNA9fW846gn5XW8HgJNBoHq63nHUU/K63g9BJoMAtXX846jnpTX8XoINBkEqq/nHUc9Ka/j9RBoMghUX887jnpSXsfrIdBkEKi+nncc9aS8jtdDoMkgUH097zjqSXkdr4dAk0Gg+nrecdST8jpeD4Emg0D19bzjqCfldbweAk0GgerrecdRT8rreD0EmgwC1dfzjqOelNfxegg0GQSqr+cdRz0pr+P1EGgyCFRfzzuOelJex+sh0GQQqL6edxz1pLyO10OgySBQfT3vOOpJeR2vh0CTQaD6et5x1JPyOl4PgSaDQPX1vOOoJ+V1vB4CTQaB6ut5x1FPyut4PQSaDALV1/OOo56U1/F6CDQZBKqv5x1HPSmv4/UQaDIIVF/PO456Ul7H6yHQZBCovp53HPWkvI7XQ6DJIFB9Pe846kl5Ha+HQJNBoPp63nHUk/I6Xg+BJoNA9fW846gn5XW8HgJNBoHq63nHUU/K63g9BJoMAtXX846jnpTX8XoINBkEqq/nHUc9Ka/j9RBoMghUX887jnpSXsfrIdBkEKi+nncc9aS8jtdDoMkgUH097zjqSXkdr4dAk0Gg+nrecdST8jpeD4Emg0D19bzjqCfldbweAk0GgerrecdRT8rreD0EmgwC1dfzjqOelNfxegg0GQSqr+cdRz0pr+P1EGgyCFRfzzuOelJex+sh0GQQqL6edxz1pLyO10OgySBQfT3vOOpJeR2vh0CTQaD6et5x1JPyOl4PgSaDQPX1vOOoJ+V1vB4CTQaB6ut5x1FPyut4PQSaDALV1/OOo56U1/F6CDQZBKqv5x1HPSmv4/UQaDIIVF/PO456Ul7H6yHQZBCovp53HPWkvI7XQ6DJIFB9Pe846kl5Ha+HQJNBoPp63nHUk/I6Xg+BJoNA9fW846gn5XW8HgJNBoHq63nHUU/K63g9BJoMAtXX846jnpTX8XoINBkEqq/nHUc9Ka/j9RBoMghUX887jnpSXsfrbZdAvwuRLAJtuyQhZKU4EOjKYQtUX887jnpSXsfrbdcW6MpBoPp63nHUk/I6Xg+BJoNA9fW846gn5XW8HgJNBoHq63nHUU/K63g9BJoMAtXX846jnpTX8XoINBkEqq/nHUc9Ka/j9RBoMghUX887jnpSXsfrIdBkEKi+nncc9aS8jtdDoMkgUH097zjqSXkdr4dAk0Gg+nrecdST8jpeD4Emg0D19bzjqCfldbweAk0GgerrecdRT8rreD0EmgwC1dfzjqOelNfxegg0GQSqr+cdRz0pr+P1EGgyCFRfzzuOelJex+sh0GQQqL6edxz1pLyO10OgySBQfT3vOOpJeR2vh0CTQaD6et5x1JPyOl4PgSaDQPX1vOOoJ+V1vB4CTQaB6ut5x1FPyut4PQSaDALV1/OOo56U1/F6CDQZBKqv5x1HPSmv4/UQaDIIVF/PO456Ul7H6yHQZBCovp53HPWkvI7XQ6DJIFB9Pe846kl5Ha+HQJNBoPp63nHUk/I6Xg+BJoNA9fW846gn5XW8HgJNBoHq63nHUU/K63g9BJoMAtXX846jnpTX8XoINBkEqq/nHUc9Ka/j9RBoMghUX887jnpSXsfrIdBkEKi+nncc9aS8jtdDoMkgUH097zjqSXkdr4dAk0Gg+nrecdST8jpeD4Emg0D19bzjqCfldbweAk0GgerrecdRT8rreD0EmgwC1dfzjqOelNfxegg0GQSqr+cdRz0pr+P1EGgyCFRfzzuOelJex+sh0GQQqL6edxz1pLyO10OgySBQfT3vOOpJeR2vh0CTQaD6et5x1JPyOl4PgSaDQPX1vOOoJ+V1vB4CTQaB6ut5x1FPyut4PQSaDALV1/OOo56U1/F6CDQZBKqv5x1HPSmv4/UQaDIIVF/PO456Ul7H6yHQZBCovp53HPWkvI7XQ6DJIFB9Pe846kl5Ha+HQJNBoPp63nHUk/I6Xg+BJoNA9fW846gn5XW8HgJNBoHq63nHUU/K63g9BJoMAtXX846jnpTX8XoINBkEqq/nHUc9Ka/j9RBoMghUX887jnpSXsfrIdBkEKi+nncc9aS8jtdDoMkgUH097zjqSXkdr4dAk0Gg+nrecdST8jpeD4Emg0D19bzjqCfldbweAk0GgerrecdRT8rreD0EmgwC1dfzjqOelNfxegg0mXHLbEJDoA5w1JPyOl4PgSaDQBufFUZQyKOeEheGh0ANhIZAHeCoJ+V1vB4CTQaBNj4rjKCQRz0lLgwPgRoIDYE6wFFPyut4PQSaDAJtfFYYQSGPekpcGB4CNRAaAnWAo56U1/F6CDQZBNr4rDCCQh71lLgwPARqIDQE6gBHPSmv4/UQaDIItPFZYQSFPOopcWF4CNRAaAjUAY56Ul7H6yHQZBBo47PCCAp51FPiwvAQqIHQEKgDHPWkvI7XQ6DJINDGZ4URFPKop8SF4SFQA6EhUAc46kl5Ha+HQJNBoI3PCiMo5FFPiQvDQ6AGQkOgDnDUk/I6Xg+BJoNAG58VRlDIo54SF4aHQA2EhkAd4Kgn5XW8HgJNBoE2PiuMoJBHPSUuDA+BGggNgTrAUU/K63g9BJoMAm18VhhBIY96SlwYHgI1EBoCdYCjnpTX8XoINBkE2visMIJCHvWUuDA8BGogNATqAEc9Ka/j9RBoMgi08VlhBIU86ilxYXgI1EBoCNQBjnpSXsfrIdBkEGjjs8IICnnUU+LC8BCogdAQqAMc9aS8jtdDoMkg0MZnhREU8qinxIXhIVADoSFQBzjqSXkdr4dAk0Ggjc8KIyjkUU+JC8NDoAZCQ6AOcNST8jpeD4Emg0AbnxVGUMijnhIXhodADYSGQB3gqCfldbweAk0GgTY+K4ygkEc9JS4MD4EaCA2BOsBRT8rreD0EmgwCbXxWGEEhj3pKXBgeAjUQGgJ1gKOelNfxegg0GQTa+KwwgkIe9ZS4MDwEaiA0BOoARz0pr+P1EGgyCLTxWWEEhTzqKXFheAjUQGgI1AGOelJex+sh0GQQaOOzwggKedRT4sLwEKiB0BCoAxz1pLyO10OgySDQxmeFERTyqKfEheEhUAOhIVAHOOpJeR2vh0CTQaCNzwojKORRT4kLw0OgBkJDoA5w1JPyOl4PgSaDQBufFUZQyKOeEheGh0ANhIZAHeCoJ+V1vJ5bgQ7+dvOTTRGbB4E2PiuMoJBHPSUuDM9OoI/++73h8Oi1oihOv7spZNMg0MZnhREU8qinxIXhmQn0oHju8+FwvyhT/q3VINDGZ4URFPKop8SF4VkJ9LDS5sNecebeo73iwqaUDYNAG58VRlDIo54SF4ZnJdD9kTlLje68W/5/+fc2g0AbnxVGUMijnhIXhmck0MH10py1Ro/22t6HR6CNzwojKORRT4kLwzMS6NiZR3vF2SECNefFWEejjAT1HODC8EwF+rBXXBkiUHNejHU0ykhQzwEuDM90F/6geguU90CteTHW0SgjQT0HuDA8u4NIZ8vD76U5OQpvzYuxjkYZCeo5wIXhWQn0sDoBdLQHP3i7GG+HthkE2visMIJCHvWUuDA8K4GOdt9HOVsdSNq5silk0yDQxmeFERTyqKfEheGZCXT46J03boz+OPrZ+c82ZWwcBNr4rDCCQh71lLgwPDuBegoCbXxWGEEhj3pKXBierUAHdzd9eE0QaOOzwggKedRT4sLwDAV6+/Xyevijn725fA7TN//c77/01hfjL56+f7Xf//EvNgkCbXxWGEEhj3pKXBiemUAHH4zvw3S0V5xePI3+L/0qL/2p/OKHa9UXL/81/cVGQaCNzwojKORRT4kLwzMT6H5RnP5577nPB78vFs+jf9B/6bfD4ZP3xmq81X/1i/KLV79NfrFREGjjs8IICnnUU+LC8KwEelgUl+trOL8aX9A5zdP3+r8r/xxtYI7+/P5qpdEfrpXboyd/sVkQaOOzwggKedRT4sLwrAS6X159VF8Ef1DdUmSaH67VO+W3+r8eDu/3f1p9cT/9xWZBoI3PCiMo5FFPiQvDMxLo+Fr4WqAPe803E6kEemu8OTrar/9p6ovNgkAbnxVGUMijnhIXhmck0Mnt7CpznnA3pmrf/Ol79Q7691df/fbkLxZ+6fWSQ2iZcf94YllCiMfIBFrtoiNQGY8Q4j/PJNDB9fLAUW3O5tvZPahOY5rR5Mt/PfmLRsizh134xmeFnUAhj3pKXBie1UGkg/GNREqBjmR6dvkHHlx9qXyLc60t0JWDQBufFUZQyKOeEheGZyXQh73ixXuVQB+91nQ7u/v1afQIVMCLsY5GGQnqOcCF4VkJtLqd3W5v59zzoz+X76f8l/7k5E6Owm/Oi7GORhkJ6jnAheGZCXT4Za+os+TPp7f6r0ze1pyc5Vmf+nnSF5sFgTY+K4ygkEc9JS4Mz06gw8cf7Y7searhdqC3Zq7O5EqkzXkx1tEoI0E9B7gwPEOBnpj7s1e3P32v/8r0iveTv9gsCLTxWWEEhTzqKXFheC0ItL7JUpnyzc0ns/dcOvmLjYJAG58VRlDIo54SF4ZnLtA7S//yoD8n0OGT90d/e6veyjz5i02CQBufFUZQyKOeEheGZyfQwUcvVBcjFXwmkjUvxjoaZSSo5wAXhmcm0MNeMb6as+BTOa15MdbRKCNBPQe4MDwrgT7s1fdR/tvbPT4X3pgXYx2NMhLUc4ALw7MS6H5xerLn3nwpZ9Yg0MZnhREU8qinxIXhGQn0aG9mq/Ok+4HmCwJtfFYYQSGPekpcGJ6ZQGececLt7DIGgTY+K4ygkEc9JS4Mjy1QA6EhUAc46kl5Ha/nTaDD/Zn3Pfd5D9SWF2MdjTIS1HOAC8OzEuhhUZy/W/3t8QdF0fZ5TAi08VlhBIU86ilxYXhWAi0/F77Y2d3dLe/J1PYGKAJtflYYQSGPekpcGJ6ZQAcfTu5mt/PLTRkbB4E2PiuMoJBHPSUuDM9MoCOF3r442gI994eGz0PKHQTa+KwwgkIe9ZS4MDxDgToKAm18VhhBIY96SlwYHgI1EBoCdYCjnpTX8Xo+BXpnkrubUjYMAm18VhhBIY96SlwYnplAH71dHIcT6U15MdbRKCNBPQe4MDwrgZa3sUOgmXgx1tEoI0E9B7gwPCuBHhTF6V/cnOSTlo/EI9DGZ4URFPKop8SF4RkJ1MEt7GaDQBufFUZQyKOeEheGZyTQuZuJtB8E2visMIJCHvWUuDA8M4G2/bbnXLZCoNlwjKADHPV88Mx24dkCzYFDoG541FPiwvDsDiJd2PSRhUGgShwj6ABHPR88K4GONkEvb/rQuiBQJY4RdICjng+e1S78OxeLYufcpTpvcBqTJQ+BOuBRT4kLwzM7iFRwIn02HgJ1wKOeEheGh0DNDJMDh0Dd8KinxIXhWb0H6isIVIljBB3gqOeDh0DNDJMDh0Dd8KinxIXhIVAzw+TAIVA3POopcWF4lgIdTG4HevufeA/UkodAHfCop8SF4ZkJlPuB5sAhUDc86ilxYXhWAp0/DH8GgVryEKgDHvWUuDA8K4EelOfRX+yV/yvavyYJgSpxjKADHPV88IwEOrhenLlX/v+V0qVn2v5kYwSqxDGCDnDU88EzEmh9P9DxLUX2S422GgSqxDGCDnDU88EzE2h13Oiwui/9Yet3p0egShwj6ABHPR88a4GWe+9He23vwyNQJY4RdICjng+e2Xug1S78w17p0fZvT49AlThG0AGOej54Vkfh96t3P8dvhY412mYQqBLHCDrAUc8Hz0qgD3vF+c/Kw/AXSpmyC2/KQ6AOeNRT4sLwrAQ6smZ5/dFhUez0itY/3gOBKnGMoAMc9XzwzAQ6/LLccR/sVxcicR6oKQ+BOuBRT4kLw7MT6HD4byNvDr7a3X2zbX8iUCmOEXSAo54PnqVA/QSBKnGMoAMc9XzwEKiZYXLgEKgbHvWUuDA8Q4H+7eY0n3AU3pKHQB3wqKfEheGZCfTLHvcDzcVDoA541FPiwvCsBHrIp3LmwCFQNzzqKXFheEYCHVwvdm7cmebuppQNg0CVOEbQAY56PnhGAj3aa/0WdrNBoEocI+gARz0fPDOBtr3XPhcEqsQxgg5w1PPBM9uFR6A5cAjUDY96SlwYntVBpAN24XPgEKgbHvWUuDA8K4HWn+nhJAhUiWMEHeCo54NnJdDho73i9KVJ3uBEekseAnXAo54SF4ZnJtAPOA80Gw+BOuBRT4kLw7N7DxSBZuMhUAc86ilxYXhmR+GLnRut38VuGgSqxDGCDnDU88EzEqivY0gIVIpjBB3gqOeDZybQtvfa54JAlThG0AGOej54ZrvwCDQHDoG64VFPiQvDszuI1PYHyc0GgSpxjKADHPV88KwEOri+c3nTh9YFgSpxjKADHPV88Kx24d+5WBQ75ziRPgsPgTrgUU+JC8MzO4jEeaA5cAjUDY96SlwYHgI1M0wOHAJ1w6OeEheGZ/UeqK8gUCWOEXSAo54PHgI1M0wOHAJ1w6OeEheGZyXQ/fOfbfrIwiBQJY4RdICjng+e3Xug3FA5Gw+BOuBRT4kLwzMTaNvHjeaCQJU4RtABjno+eEYCHVznZiI5cAjUDY96SlwYntV7oAfFGUdvgiJQJY4RdICjng+elUAff1gUp7gSKQ8PgTrgUU+JC8OzO4jEifTZeAjUAY96SlwYHgI1M0wOHAJ1w6OeEheGZ7UL7ysIVIljBB3gqOeDh0DNDJMDh0Dd8KinxIXhIVAzw+TAIVA3POopcWF4hgJ9/NFuUezsvnl3U8TmQaBKHCPoAEc9Hzw7gR5/Mnz7H+6BQJU4RtABjno+eGYCLf156tyli897MCgCVeIYQQc46vngWQn0YW9yKdKj60Xrl3UiUCWOEXSAo54PnpVA94szk6uPBteLs5tSNgwCVeIYQQc46vngGQl07mYiD3tnuJTTkodAHfCop8SF4RkJdO52du3f2w6BKnGMoAMc9XzwEKiZYXLgEKgbHvWUuDA8s134mTvSHxbswpvyEKgDHvWUuDA8DiKZGSYHDoG64VFPiQvDMzyN6fSn1d++fo3TmIx5CNQBj3pKXBielUDHFyLt7u66uBQJgSpxjKADHPV88MwEOvyqV1/JuXN5U8bGQaBKHCPoAEc9Hzw7gQ4Hty+OtkDP3Wj5AFIZBKrEMYIOcNTzwZMLtD6F/rGDezAdB4EqcYygAxz1fPDkAh2f9Nn+qZ9zQaBKHCPoAEc9HzwDgZZboAgUgS69CEFGgnoOcGF4BrvwxZlP7ny999ynd47T9v48AlXiGEEHOOr54OkPIh0Uy2l7cxSBKnGMoAMc9Xzw9AIdfIBAEWjTixBkJKjnABeGZ3Ea0+DOzY97O3+8eZxPuBbekodAHfCop8SF4f24tgEAACAASURBVFkIdMhBpFw4BOqGRz0lLgzPSKCDd95wcP78NAhUiWMEHeCo54NnJNDh/vnPNn1kYRCoEscIOsBRzwfPbBd+5n6g7QeBKnGMoAMc9XzweA/UzDA5cAjUDY96SlwYntV7oNdbvwfobBCoEscIOsBRzwfP6j3Qg8nHwrsIAlXiGEEHOOr54FkJ9PGHRXHq3KU6bR+SR6BKHCPoAEc9Hzy7g0hciZSNh0Ad8KinxIXhIVAzw+TAIVA3POopcWF4VrvwvoJAlThG0AGOej54CNTMMDlwCNQNj3pKXBierUAHbd8ItA4CVeIYQQc46vngGQr09uvlm59HP3uz/aviEagSxwg6wFHPB89MoOPbgo4Eulecbv2iJASqxDGCDnDU88EzE+h+UZz+ee+5zwe/L4ozbW+DIlAljhF0gKOeD56VQA+L4nJ9RfxXvdZvLIJAlThG0AGOej54VgLdLy5MbylyUJzdlLJhEKgSxwg6wFHPB89IoOObidQCfdjjRHpTHgJ1wKOeEheGZyTQsTprgbZ/bzsEqsQxgg5w1PPBQ6BmhsmBQ6BueNRT4sLwzHbhywNHtTkPWz8Mj0CVOEbQAY56PnhWB5GqA0djgY5kykEkUx4CdcCjnhIXhmcl0Ie94sV7lUAfvVa0fnd6BKrEMYIOcNTzwbMS6GgTtCh2ezvnnh/9eWFTyKZBoEocI+gARz0fPDOBDr/sTe4GKvfnd+slh2Ey43Lz1nzmCSF1nlWgw8cf7Y7secrDB8SzBarEsQ3jAEc9Hzy7LVBPQaBKHCPoAEc9Hzxjgd7Z9OE1QaBKHCPoAEc9HzxDgZb3Ay2KHXbhzXkI1AGPekpcGJ6ZQAfXpx8p92Lbd7NDoFIcI+gARz0fPCuBlv7cOffHm3++2CtaP48egUpxjKADHPV88KwEelAUPxlveA4+LLgfqC0PgTrgUU+JC8MzEuhoA/T47M/91jdBEagSxwg6wFHPB89IoEd7M5dvcj9QYx4CdcCjnhIXhmcm0Blncjs7Yx4CdcCjnhIXhme2Cz+3Bcrt7Ex5CNQBj3pKXBie3UGks41/bycIVIljBB3gqOeDZ3ga0+T0z4Oi7T14BCrFMYIOcNTzwbPahX+nPP/z3Js3Py7/fOFSlTda25FHoEocI+gARz0fPLODSMVy2tsQRaBKHCPoAEc9HzwEamaYHDgE6oZHPSUuDM/qPVBfQaBKHCPoAEc9HzwEamaYHDgE6oZHPSUuDA+BmhkmBw6BuuFRT4kLw0OgZobJgUOgbnjUU+LC8BComWFy4BCoGx71lLgwPARqZpgcOATqhkc9JS4MD4GaGSYHDoG64VFPiQvDQ6BmhsmBQ6BueNRT4sLwEKiZYXLgEKgbHvWUuDA8BGpmmBw4BOqGRz0lLgwPgZoZJgcOgbrhUU+JC8MzFOjfbk7zCTdUtuQhUAc86ilxYXhmAv2y5+I2IuMgUCWOEXSAo54PnpVAD53ch2kcBKrEMYIOcNTzwTMS6OB6sXPjzjR3N6VsGASqxDGCDnDU88EzEujRXnFl00cWBoEqcYygAxz1fPDMBNr2XvtcEKgSxwg6wFHPB89sFx6B5sAhUDc86ilxYXhWB5EO2IXPgUOgbnjUU+LC8KwEerS38+6mD60LAlXiGEEHOOr54FkJdPhorzh9aZL2PtB4HASqxDGCDnDU88EzE+gHnAeajYdAHfCop8SF4dm9B4pAs/EQqAMe9ZS4MDyzo/DFzo2W99tngkCVOEbQAY56PnhGAvV1DAmBSnGMoAMc9XzwzATa9l77XBCoEscIOsBRzwfPbBcegebAIVA3POopcWF4dgeRLmz6yMIgUCWOEXSAo54PnpVAB9d3Lm/60LogUCWOEXSAo54PntUu/DsXi2LnHCfSZ+EhUAc86ilxYXhmB5E4DzQHDoG64VFPiQvDQ6BmhsmBQ6BueNRT4sLwrN4D9RUEqsQxgg5w1PPBQ6BmhsmBQ6BueNRT4sLwEKiZYXLgEKgbHvWUuDA8S4EOJp8pd/ufeA/UkodAHfCop8SF4ZkJ9NHbHETKxUOgDnjUU+LC8KwEOn8Y/gwCteQhUAc86ilxYXhWAj0oz6O/2Cv/V7R/TRICVeIYQQc46vngGQl0cL04c6/8/yulS8+0fWdQBKrEMYIOcNTzwTMSaH0/0PEtRfZb/4ROBKrEMYIOcNTzwTMTaHXc6LA4O/3/NoNAlThG0AGOej541gIt996P9treh0egShwj6ABHPR88s/dAq134h73So+3fnh6BKnGMoAMc9XzwrI7C71fvfo7fCh1rtM0gUCWOEXSAo54PnpVAH/aK85+Vh+EvlDJlF96Uh0Ad8KinxIXhWQl0ZM3y+qPDotjpFa1/vAcCVeIYQQc46vngmQl0+GW54z7Yry5E4jxQUx4CdcCjnhIXhmcn0OHw30beHHy1u/tm2/5EoFIcI+gARz0fPEuB+gkCVeIYQQc46vng2Qp0cHfTh9cEgSpxjKADHPV88AwFevv18jjS0c/a34NHoFIcI+gARz0fPDOBDj4Y3wj0aK843fJZoAhUi2MEHeCo54NneRrT6Z/3nvt88HuOwlvzEKgDHvWUuDA8K4EeFsXl+hrOr3rcjcmWh0Ad8KinxIXhWQm0upSzvgj+gLsx2fIQqAMe9ZS4MDwjgY5vJlILlGvhjXkI1AGPekpcGJ6RQMfqrAXK3ZiMeQjUAY96SlwYHgI1M0wOHAJ1w6OeEheGZ7YLXx44mrutcptBoEocI+gARz0fPKuDSNWBo7FARzLlIJIpD4E64FFPiQvDsxLow17x4r1KoI9eK6q707cZBKrEMYIOcNTzwbMSaPnB8MVub+fc80X7twNFoFIcI+gARz0fPDOBDr/sFXVa9ycCleIYQQc46vng2Ql0+Pij3ZE9T53/bFPE5kGgShwj6ABHPR88Q4E6CgJV4hhBBzjq+eBZncb0zhvHZy49vPjvOI3JkodAHfCop8SF4RkJdO7ceU6kN+YhUAc86ilxYXg5BMq18MY8BOqARz0lLgxPL9CjvWIpXIlkykOgDnjUU+LC8Ay2QA+XBcr9QE15CNQBj3pKXBiegUAH//PSpYu9nXOXJvnFp5tCNg0CVeIYQQc46vng5XgPtP0gUCWOEXSAo54PXo7TmNoPAlXiGEEHOOr54BkJ1FkQqBLHCDrAUc8HD4GaGSYHDoG64VFPiQvDQ6BmhsmBQ6BueNRT4sLwEKiZYXLgEKgbHvWUuDA8BGpmmBw4BOqGRz0lLgwPgZoZJgcOgbrhUU+JC8NDoGaGyYFDoG541FPiwvDkAh1crz4B6fHdTR9YGQSqxDGCDnDU88GTC3TuE+G9BIEqcYygAxz1fPAMBFpugSJQBLr0IgQZCeo5wIXhGezCF2c+ufP13nOf3jlO2/vzCFSJYwQd4Kjng6c/iHSwfDe7ou3NUQSqxDGCDnDU88HTC3TwAQJFoE0vQpCRoJ4DXBiexWlMgzs3P+7t/PHmcT7hjvSWPATqgEc9JS4Mz0KgQw4i5cIhUDc86ilxYXhGAuV+oAh06UUIMhLUc4ALwzMSqLMgUCWOEXSAo54PnqFAH3+0WxQ7u2+2fQ7TEIFqcYygAxz1fPDsBHp8OtOFTRkbB4EqcYygAxz1fPDMBFr689S5Sxef92BQBKrEMYIOcNTzwbMS6MNeceaz6m+PrhfV7UXaDAJV4hhBBzjq+eBZCXS/ODM5DD+4XpzdlLJhEKgSxwg6wFHPB8/qNKbrM1udD3tnOJHekodAHfCop8SF4RkJdO5E+vbPqkegShwj6ABHPR88BGpmmBw4BOqGRz0lLgzPbBe+uDL94rBgF96Uh0Ad8KinxIXhcRDJzDA5cAjUDY96SlwYnuFpTKc/rf729WucxmTMQ6AOeNRT4sLwrAQ6vhBpd3fXxaVICFSJYwQd4Kjng2cm0OFXvfpKzp3LmzI2DgJV4hhBBzjq+eDZCXQ4uH1xtAV67oaD+9ohUCWOEXSAo54PnqFAHQWBKnGMoAMc9XzwEKiZYXLgEKgbHvWUuDA8BGpmmBw4BOqGRz0lLgwPgZoZJgcOgbrhUU+JC8NDoGaGyYFDoG541FPiwvAQqJlhcuAQqBse9ZS4MLzWBPrDtZ/Wf3v6/tV+/60vfuyLTYJAlThG0AGOej54rQn0Vr8W6A/X+mVe/mv6i42CQJU4RtABjno+eC0J9Omt/kSgt/qvfjF88l7/1W+TX2wUBKrEMYIOcNTzwbMS6P75zxILffOb/kSg31+ttjB/uPbSn1JfbBYEqsQxgg5w1PPBMxLo0d7M/UCXcr/f/9Xfa4Hen/7569QXmwWBKnGMoAMc9XzwzASaugn9/Vf+dfig1uOt/u+qP6uvT/5isyBQJY4RdICjng+ekUDnPlSuMbUWn75X76B/f/XVb0/+Yn7Z79ZLDsNkxuXmrfnME0LqPJNAhweTj4VHoF3ibbDeEEK+e1aBPv6wKE6du1TnjeVb2i0L9OW/nvxF0sU/HnbhlTh2Ah3gqOeDZ3cQaTYNb4husgW6chCoEscIOsBRzwcPgZoZJgcOgbrhUU+JC8Nr6UT6IUfhhTwE6oBHPSUuDK91gU7O8qxP/Tzpi82CQJU4RtABjno+eLYCHdw98VsPuBJJxkOgDnjUU+LC8AwFevv18s3Po5+92fipchOBPn2v/8r0iveTv9gsCFSJYwQd4Kjng2cm0MEH46NHR3vF6aaLkqbvbD6ZvefSyV9sFASqxDGCDnDU88EzE+h+UZz+ee+5zwe/L4ozDdugx4eGnrw/suRb3/7YF5sEgSpxjKADHPV88KwEelgUl+sr4r/qpW4skiUIVIljBB3gqOeDZyXQ/eLC9JYiB8XZTSkbBoEqcYygAxz1fPCMBDq+mUgt0Ie91K2ZcgSBKnGMoAMc9XzwjAQ6Vmct0PS97XIEgSpxjKADHPV88BComWFy4BCoGx71lLgwPLNd+PLAUW3Ow8bD8DmDQJU4RtABjno+eFYHkaoDR2OBjmTKQSRTHgJ1wKOeEheGZyXQh73ixXuVQB+9VvzY3enNg0CVOEbQAY56PnhWAh1tghbFbm/n3POjPy9sCtk0CFSJYwQd4Kjng2cm0OGXvcndQFv3JwKV4hhBBzjq+eDZCXT4+KPdkT1PJT8gPlMQqBLHCDrAUc8Hz1CgjoJAlThG0AGOej54tgId3Nn04TVBoEpcO/VWf9ExjJDX8XoeBVreD3QUduHNeVtRb/UXHcMIeR2v50+gg+vTj5R7seXT6LfEMNlwCNQBjno+eFYCLf25c+4PN/98cWTQts+j3w7DZMMhUAc46vngWQn0cHr20uDDgvuB2vK2ot7qLzqGEfI6Xs+bQEcboMdnf+63vgm6FYbJhkOgDnDU88EzEujR3szlm9wP1Ji3FfVWf9ExjJDX8Xr+BDrjTG5nZ8zbinqrv+gYRsjreD1vAh3fkb7Owx63szPlbUW91V90DCPkdbyeN4HOfQ7SQetXw2+FYbLhEKgDHPV88KwEerRX/KTe7Dwo2t6D3w7DZMMhUAc46vngyQU6eOdSlYvj80A/vtQrinNvsAtvyduKequ/6BhGyOt4PT8CHW16LqftTdCtMEw2HAJ1gKOeDx4CNZh4BCrlxRjBKBNPPSnP6j1QX9kKw2TDIVAHOOr54CFQg4lHoFJejBGMMvHUk/IQqMHEI1ApL8YIRpl46kl5hgL9281pPuEovCVvK+qt/qJjGCGv4/X8CfT4M+U4iGTN24p6q7/oGEbI63g9dwI95Ch8DhwCTbzoGEbI63g9bwIdXC92btyZ5u6mlA2zFYbJhkOgDnDU88EzEujRXus3UZ7NVhgmGw6BOsBRzwfPTKBt77XPZSsMkw2HQB3gqOeDZ7YLj0Bz4BBo4kXHMEJex+t5E+jwgF34HDgEmnjRMYyQ1/F67gQ695kerWcrDJMNh0Ad4Kjng2cl0OGjveL0pUm4nZ0pbyvqrf6iYxghr+P1/An0A84Dzcbbinqrv+gYRsjreD13Aj3gRPocOASaeNExjJDX8XreBFqdSN/yfvtMtsIw2XAI1AGOej54RgL1dQxpOwyTDYdAHeCo54NnJtC299rnshWGyYZDoA5w1PPBM9uFR6A5cAg08aJjGCGv4/W8CdTBZ8HPZisMkw2HQB3gqOeDZyXQwfWdy5s+tC5bYZhsOATqAEc9HzyrXfh3qs+F50T6LLytqLf6i45hhLyO1/Mm0IUPN277DdGtMEw2HAJ1gKOeDx4CNZh4BCrlxRjBKBNPPSnP6j1QX9kKw2TDIVAHOOr54CFQg4lHoFJejBGMMvHUk/IQqMHEI1ApL8YIRpl46kl5VgJ9fGc2fKicKW8r6q3+omMYIa/j9bwJlINICFTGizGCUSaeelIeAjWYeAQq5cUYwSgTTz0pz0igg7/drPMvrxU7f/yEE+kteVtRb/UXHcMIeR2v502gs3nYO9P2nUG3wjDZcAjUAY56Png5jsK3f2ORrTBMNhwCdYCjng9eDoG2vwm6FYbJhkOgDnDU88HLIdD27668FYbJhkOgDnDU88HLswWKQE15W1Fv9Rcdwwh5Ha/nWaCD/YJdeFPeVtRb/UXHMEJex+t5E+jgncmtQC9d7BUcRLLlbUW91V90DCPkdbyeN4HOn0jf9gbodhgmGw6BOsBRzwcvg0BPvdm2P7fDMNlwCNQBjno+eDkOIrWfrTBMNhwCdYCjng8eAjWYeAQq5cUYwSgTTz0pD4EaTDwClfJijGCUiaeelIdADSYegUp5MUYwysRTT8qTC3TmBKbj8LHGprytqLf6i45hhLyO1/Mj0IU7gXI/0Ay8rai3+ouOYYS8jtdDoMlshWGy4RCoAxz1fPDM3wO93Su4EsmYtxX1Vn/RMYyQ1/F6XgU6eHukz9OfbQrZNFthmGw4BOoARz0fPFuBfjXa/Nxp/0Kk7TBMNhwCdYCjng+epUCdbH4Ot8Qw2XAI1AGOej54hgKtNj9/uenjS7IVhsmGQ6AOcNTzwTMT6CM3m5/DLTFMNhwCdYCjng+elUAdbX4Ot8Qw2XAI1AGOej54NgJ9dL28C6iTzc/hlhgmGw6BOsBRzwfPRKDV5uflTR9ZmK0wTDYcAnWAo54PnoFAvW1+DrfEMNlwCNQBjno+eHqBfult83O4JYbJhkOgDnDU88GTC5Rr4YcIVMuLMYJRJp56Uh4CNZh4BCrlxRjBKBNPPSlPLlDuBzpEoFpejBGMMvHUk/JsTmPylq0wTDYcAnWAo54PHgI1mHgEKuXFGMEoE089KQ+BGkw8ApXyYoxglImnnpSHQA0mHoFKeTFGMMrEU0/KQ6AGE49ApbwYIxhl4qkn5SFQg4lHoFJejBGMMvHUk/IQqMHEI1ApL8YIRpl46kl5CNRg4hGolBdjBKNMPPWkPARqMPEIVMqLMYJRJp56Uh4CNZh4BCrlxRjBKBNPPSkPgRpMPAKV8mKMYJSJp56Uh0ANJh6BSnkxRjDKxFNPykOgBhOPQKW8GCMYZeKpJ+UhUIOJR6BSXowRjDLx1JPyEKjBxCNQKS/GCEaZeOpJeQjUYOIRqJQXYwSjTDz1pDwEajDxCFTKizGCUSaeelIeAjWYeAQq5cUYwSgTTz0pD4EaTDwClfJijGCUiaeelIdADSYegUp5MUYwysRTT8pDoAYTj0ClvBgjGGXiqSflIVCDiUegUl6MEYwy8dST8hCowcQjUCkvxghGmXjqSXkI1GDiEaiUF2MEo0w89aQ8BGow8QhUyosxglEmnnpSHgI1mHgEKuXFGMEoE089KQ+BGkw8ApXyYoxglImnnpSHQA0mHoFKeTFGMMrEU0/KQ6AGE49ApbwYIxhl4qkn5SFQg4lHoFJejBGMMvHUk/IQqMHEI1ApL8YIRpl46kl5CNRg4hGolBdjBKNMPPWkPARqMPEIVMqLMYJRJp56Uh4CNZh4BCrlxRjBKBNPPSkPgRpMPAKV8mKMYJSJp56Uh0ANJh6BSnkxRjDKxFNPykOgBhOPQKW8GCMYZeKpJ+UhUIOJR6BSXowRjDLx1JPyQgr0u/WSY+Iz43LzWqxHSCfiQKArZys20bLh2AJ1gKOeD17ILdCVsxWGyYZDoA5w1PPBQ6AGE49ApbwYIxhl4qkn5SFQg4lHoFJejBGMMvHUk/IQqMHEI1ApL8YIRpl46kl5CNRg4hGolBdjBKNMPPWkPARqMPEIVMqLMYJRJp56Uh4CNZh4BCrlxRjBKBNPPSkPgRpMPAKV8mKMYJSJp56Uh0ANJh6BSnkxRjDKxFNPykOgBhOPQKW8GCMYZeKpJ+UhUIOJR6BSXowRjDLx1JPyEKjBxCNQKS/GCEaZeOpJeQjUYOIRqJQXYwSjTDz1pDwEajDxCFTKizGCUSaeelIeAjWYeAQq5cUYwSgTTz0pD4EaTDwClfJijGCUiaeelIdADSYegUp5MUYwysRTT8pDoAYTj0ClvBgjGGXiqSflIVCDiUegUl6MEYwy8dST8hCowcQjUCkvxghGmXjqSXkI1GDiEaiUF2MEo0w89aQ8BGow8QhUyosxglEmnnpSHgI1mHgEKuXFGMEoE089KQ+BGkw8ApXyYoxglImnnpSHQA0mHoFKeTFGMMrEU0/KQ6AGE49ApbwYIxhl4qkn5SFQg4lHoFJejBGMMvHUk/IQqMHEI1ApL8YIRpl46kl5CNRg4hGolBdjBKNMPPWkPARqMPEIVMqLMYJRJp56Uh4CNZh4BCrlxRjBKBNPPSkPgRpMPAKV8mKMYJSJp56Uh0ANJh6BSnkxRjDKxFNPykOgBhOPQKW8Vuqtvo4FmXjqSXkI1GwEc+AQqB6HYRzgwvAQqNkI5sAhUD0OwzjAheEhULMRzIFDoHochnGAC8NDoGYjmAOHQPU4DOMAF4aHQM1GMAcOgepxGMYBLgwPgZqNYA4cAtXjMIwDXBgeAjUbwRw4BKrHYRgHuDA8BGo2gjlwCFSPwzAOcGF4CNRsBHPgEKgeh2Ec4MLwEKjZCObAIVA9DsM4wIXhIVCzEcyBQ6B6HIZxgAvDQ6BmI5gDh0D1OAzjABeGh0DNRjAHDoHqcRjGAS4MD4GajWAOHALV4zCMA1wYHgI1G8EcOASqx2EYB7gwPARqNoI5cAhUj8MwDnBheAjUbARz4BCoHodhHODC8BCo2QjmwCFQPQ7DOMCF4SFQsxHMgUOgehyGcYALw0OgZiOYA4dA9TgM4wAXhodAzUYwBw6B6nEYxgEuDA+Bmo1gDhwC1eMwjANcGB4CNRvBHDgEqsdhGAe4MDwEajaCOXAIVI/DMA5wYXgI1GwEc+AQqB6HYRzgwvAQqNkI5sAhUD0OwzjAheEhULMRzIFDoHochnGAC8NDoGYjmAOHQPU4DOMAF4aHQM1GMAcOgepxGMYBLgwPgZqNYA4cAtXjMIwDXBgeAjUbwRw4BKrHYRgHuDA8BGo2gjlwCFSPwzAOcGF4CNRsBHPgEKgeh2Ec4MLwEKjZCObAIVA9DsM4wIXhIVCzEcyBQ6B6HIZxgAvDQ6BmI5gDh0D1OAzjABeGh0DNRjAHDoHqcRjGAS4MD4GajWAOHALV4zCMA1wYHgI1G8EcOASqx2EYB7gwPARqNoI5cAhUj8MwDnBheAjUbARz4BCoHodhHODC8BCo2QjmwCFQPQ7DOMCF4SFQsxHMgUOgehyGcYALw0OgZiOYA4dA9TgM4wAXhodAzUYwBw6B6nEYxgEuDA+Bmo1gDhwC1eMwjANcGB4CNRvBHDgEqsdhGAe4MDwEajaCOXAIVI/DMA5wYXgI1GwEc+AQqB6HYRzgwvAQqNkI5sAhUD0OwzjAheEhULMRzIFDoHochnGAC8NDoGYjmAOHQPU4DOMAF4aHQM1GMAcOgepxGMYBLgwPgZqNYA4cAtXjMIwDXBgeAjUbwRw4BKrHYRgHuDA8BGo2gjlwCFSPwzAOcGF4CNRsBHPgEKgeh2Ec4MLwEKjZCObAIVA9DsM4wIXhIVCzEcyBQ6B6HIZxgAvDQ6BmI5gDh0D1OAzjABeGh0DNRjAHDoHqcRjGAS4MD4GajWAOHALV4zCMA1wYHgI1G8EcOASqx2EYB7gwPARqNoI5cAhUj8MwDnBheAjUbARz4BCoHtdOvdXXaQTqgYdADUYCw0h5W1Fv9XUagXrgIVCDkcAwUt5W1Ft9nUagHngI1GAkMIyUtxX1Vl+nEagHHgI1GAkMI+VtRb3V12kE6oGHQA1GAsNIeVtRb/V1GoF64CFQg5HAMFLeVtRbfZ1GoB54CNRgJDCMlLcV9VZfpxGoBx4CNRgJDCPlbUW91ddpBOqBh0ANRgLDSHlbUW/1dRqBeuAhUIORwDBS3lbUW32dRqAeeAjUYCQwjJS3FfVWX6cRqAceAjUYCQwj5W1FvdXXaQTqgYdADUYCw0h5W1Fv9XUagXrgIVCDkcAwUt5W1Ft9nUagHngI1GAkMIyUtxX1Vl+nEagHHgI1GAkMI+VtRb3V12kE6oGHQA1GAsNIeVtRb/V1GoF64CFQg5HAMFLeVtRbfZ1GoB54CNRgJDCMlLcV9VZfpxGoBx4CNRgJDCPlbUW91ddpBOqBh0ANRgLDSHlbUW/1dRqBeuAhUIORwDBS3lbUW32dRqAeeAjUYCQwjJS3FfVWX6cRqAceAjUYCQwj5W1FvdXXaQTqgYdADUYCw0h5W1Fv9XUagXrgIVCDkcAwUh71lDgEKuUhULN1NAcOw+hxW1Fv9REKIjQEahFGUImjnpSHQCPzXAv06ftX+/23vtj8gRhBJY56Uh4CjczzLNAfrvXLvPzXjR+JEVTiqCflIdDIPM8CvdV/9Yvhk/f6r3676SMxgkoc9aQ8BBqZ51ig31+ttj1/uPbSnzZ9KEZQiaOelIdAI/McC/R+/6f1n7/e9KEYQSWOelLeVtRbfWQR6Ka51f9d9eeDWqQbZCvW0Ww46kl5W1FvBvglhgAACeBJREFU9ZFFoBvm6Xv1rvv3VxffBP1uveRYZzLjcvOoF5lHPSveKokrUEIIaTktCHTjE5li7EZE2WuhngMc9XzwQu7Cr5wYL2KUdYZ6DnDU88FDoKnFWEeFPOopcdTzwfMrUP1R+NUXYx0V8qinxFHPB8+xQCfnf8rOA119MdZRIY96Shz1fPAcC1R+JdLqi7GOCnnUU+Ko54PnWKBP3+u/Ir0WfvXFWEeFPOopcdTzwXMs0OET8d2YVl+MdVTIo54SRz0fPM8CHT55f+TPtzbe/ozyIkZZZ6jnAEc9HzzXApUlxosYZZ2hngMc9XzwEGhqMdZRIY96Shz1fPAQaGox1lEhj3pKHPV88BBoajHWUSGPekoc9XzwEGhqMdZRIY96Shz1fPAQaGox1lEhj3pKHPV88BBoajHWUSGPekoc9XzwEGhqMdZRIY96Shz1fPAQaGox1lEhj3pKHPV88BBoajHWUSGPekoc9XzwEGhqMdZRIY96Shz1fPAQaGox1lEhj3pKHPV88BBoajHWUSGPekoc9XzwEGhqMdZRIY96Shz1fPAQaGox1lEhj3pKHPV88BBoajHWUSGPekoc9XzwEGhqMdZRIY96Shz1fPAQaGox1lEhj3pKHPV88BBoajHWUSGPekoc9XzwEGhqMdZRIY96Shz1fPAQaGox1lEhj3pKHPV88BBoajHWUSGPekoc9XzwEGhqMdZRIY96Shz1fPAQaGox1lEhj3pKHPV88BBoajHWUSGPekoc9XzwEGhqMdZRIY96Shz1fPC2Q6CEEOIxCJQQQtYMAiWEkDWDQAkhZM0gUEIIWTMIlBBC1gwCJYSQNYNACSFkzSBQQghZMwiUEELWDAIlhJA1g0AJIWTNIFBCCFkzCJQQQtYMAiWEkDWDQAkhZM10VqBP37/a77/1RUbiD9d+mg/2zT/3+y/lq/fNb0a4//ptLlyV76++mgn4w7V+lZf/moc3fPqX0cr5D7/Nw3qvP0mufk9GK2fO2St5udfOSboq0Homso3EKLf6+QT6l/FEvPSnPLj7Y9wrGZ/NcvBzCfT7q5kFUwv7Vzlg+QVaP525Vs7h31tYO6fpqkBv9V/9Yvgk3wwOn97q5xPog/5Lvx2W9fKMxPdXK9xvMv4XopJ2rhfvQdZipdJe+WL49H/lU0yZ0YuYB1f+ly/n7I18PeI9/Uu+WZ9NRwX6/dVKLT9cy7WOlvu42cZwtIr+rvxztJn9uxy8W/1fl3/UT2qelJsxuSbiVp6ncZIH9X/37uf09mid+XUeUu7Zu1WvJ5lfxTodFehk3byfaa0ZbS796u/Z5uGHa7XJbuUainlshozm/b/keg/06XtZNwUn//nLm/u5t+dz1ZxyMu9H1OmoQG9lflLvv/KvbbyAeQWa76hO9YZyNtwP117536MdiP+c6ahHzv8OzUCzWTvzFuj0P385V8/jdFOgrTyp+QWa7x2KMn+/mm/L6cFoeynbazc5hpSpXtnr7/+x3x/9NzdfMr5dMH0PNA8RgRpkSwSa8020W/3+S9kmvvovQ7bX7kG//6tvh//v/UwHdUa93h8LO9/uQ9b/1D4dnyPyq2zvYP+0/hOBqjIj0Hy7S9kF+iDjYdyn/+M/Xe2/9N8y0aq3JrIJ9P50ArMY7cFYLiPN5Hv5HuSUy/e/GZ9WlOktkdEOxPjpzHrS4iSdF2h3t0AfXH0p78GIb3Ltw48PeGTfJctkmQeTTc98Jw5nPW41FVrms5SzHXScCwKVJbNA7+c9jbBMJsPUZyxmF2im3ZXpCZn5CmY9Ae1W9v8+fFMdAuQ9UGFyH4XPzSqvRcruz1wTf3966UzenbJM9aY2y6e1nKtmawd1OI1JmMn5n7nOAy2TdS29lfHKtekOYDcFmvtEwqlh8r0xmfN0t9YEmvecvkk6KtDsVyIN8wo07xHH4+OcOf8bn20Ab+U983vm6cw08XmvFMi9C39/cp1c/l2yYWcFOr7cOOe18FkFmu+ykirZDwvU1HzngY7qPflNxou33/oi59OZ99T9B5lPMhjfGOKbq61sgHZVoJMb3uRdcfJdyjndx82DfFDf/CnrUf98u4D1ewYv57oB24OreZ/OzDvTk7dgcgmtvjVZK/cS6axAh0/Kk5Xfyvmc5hPog35mgY7vuJj17qpZx76ql+vE75JX3qw216Wjmc8CHeX/lvcDzVdvWF7X9Q+/zYabS2cFSggh1kGghBCyZhAoIYSsGQRKCCFrBoESQsiaQaCEELJmECghhKwZBEoIIWsGgRJCyJpBoIQQsmYQKCGErBkESgghawaBEkLImkGgJFgef/R6ryiK3TfvPusS+8WZe5a/EdneIFASKo/eLqY5/4xaRKDEKgiURMrDXjGT058/00IIlFgFgZJAqfz5wo1Sh1+/Pfr72WdaCoESqyBQEieD60Xx3GeTrx7tFTvvPstiCJRYBYGSODkc+XNmr320PfpMm6AIlFgFgZI42S+KK7Nff3D+xvgvj8r9+Z3z043Tav++2H3zXr3YWKDVTxUv3Mj2+5LOB4GSMDnam9sAPc5BfVBp55fVl4MP5o8y1QL9asVjT4T8aBAoCZOTdtlH/jz96Wiz87V6A3X09YsjYz56rT7KNBboaOkzo03UwYfPeuyJkB8NAiVhclgUFxr+ebRhOt5FH1yvtlBHX5+d+8ZYoAeTzdf9E7ZjCVk5CJSEybFAy8Px4532d0szTg7GjzYyL5Q/Vn9dC3Uq0Gc7Zk/IsweBkjA5QaDHW5TTbc86+7MCPSwPM32a+VcmHQ8CJWFy/B7orEBHf5+cpTTz18df33zn+WJWoMPxoaVTz34NPSE/FgRKwmT6ZuckB7VAp5udk+Ptz08OuM8KdHj79fooPCcyEVEQKImTxfNADxq3QMebp7uX/nB3f16go3z9TuXWK0NCFEGgJE4WrkSqjwstvgdan8U0XHgPdJLyPCauTCKaIFASJ+W25cyh9EfX66Pwky3K6ijT8Rbp5MT7/Xq7dLKnz3lMRBUESgJlpMTyLczyMNCdP79WH4VfOA/0WKAHReNpTDP7/IRsFgRKIuXha7P3Ay1OV1e/z1yJdGE43YX/eiLYWqAjz+5cvldtt/IeKBEFgZJQOb7OvRj7sMz8tfBHE8me/3Csyvo90OObMTddz0TIGkGgJFgGt6vPRDo1e1L8+G5ML9ZneA4+en580nx9Yv3kINLgo91ywRc5EZSogkAJIWTNIFBCCFkzCJQQQtYMAiWEkDWDQAkhZM0gUEIIWTMIlBBC1gwCJYSQNYNACSFkzSBQQghZMwiUEELWDAIlhJA1g0AJIWTNIFBCCFkzCJQQQtYMAiWEkDWDQAkhZM0gUEIIWTMIlBBC1gwCJYSQNfP/AV8TEgCHMXtBAAAAAElFTkSuQmCC" alt width="672" /></p>
-<p>Then we used statistics from previous matches as predictors,
-including goals, shots, shots on target, corners, fouls and cards. These
-are “before” features, so they contain information available before the
-match being predicted. The home model predicts <code>FTHG</code>= Full
-Time Home Goals, and the away model predicts <code>FTAG</code>= Full
-Time Away Goals.</p>
-<p>For each model, we use forward and backward stepwise selection with
-AIC to choose predictors from the full set. I compare the selected
-models with null and full models. The home and away models can select
-different predictors because the factors associated with home and away
-goals may differ.</p>
+<p>To choose which features to use I used a backward-forward selection
+method with AIC. This can be found in
+<code>\Anna Del Pino &gt; Model.Rmd</code>. Using this made me choose
+the following two models.</p>
+<pre class="r"><code>formula(home_final_model)</code></pre>
+<pre><code>## FTHG ~ HTPB + ATPB + AwayCornersBefore + HomeFoulsBefore + HomeShotsBefore + 
+##     AwayYellowCardsBefore + AwayFoulsBefore + HomeCornersBefore</code></pre>
+<pre class="r"><code>formula(away_final_model)</code></pre>
+<pre><code>## FTAG ~ HTPB + HomeShotsBefore + AwayShotsOnTargetBefore + AwayFoulsBefore + 
+##     AwayShotsBefore + HomeYellowCardsBefore + HomeFTGoalsBefore + 
+##     AwayRedCardsBefore</code></pre>
+<p>As we can see, the two models use different features which makes
+sense since we’re assumig that a team playing at home or away makes a
+difference in their perfomrance in a match. The
+<code>AwayYellowCardsBefore</code>, <code>HomeYellowCardsBefore</code>
+and <code>AwayRedCardsBefore</code> features are intersting to explore
+as their importance to the model show that as the away team is assigned
+a yellow card, the home team might work to perform better and avoid the
+possible future faults that they might commint. Similarly with the home
+team yeallow cards to the away team and furthermore they consider their
+own yellow and red cards more as they proplay think that the need to
+take further caution as theyre playing against a team that has larger
+odds of winning.</p>
+<p>The idea of fitting two different models for home and away teams is
+also used in <code>Anna Del Pino</code> &gt;
+<code>Premier League goal prediction.pdf</code>, which fits separate
+Poisson regression models for home and away goal rates and then combines
+these results to simulate match scores and season rankings. I also chose
+to model home and away goals separately because I think playing at home
+or away can affect a team’s performance. A home team may feel more
+comfortable playing in front of its own supporters, while an away team
+is playing in front of a crowd that may not support it.</p>
+<p>The main difference between my model and the one explained in the
+article is that I predict each matches’s goals scored for each team
+while the article assigns “scoring rates” for each team. I do this by
+using the <code>round()</code> function within my prediction which
+allows us to determine a winner for each match whcih allows me then to
+assign points to each team to then rank the teams when all the season
+data is predicted.</p>
 <p>We check the selected models using residual plots and Pearson
 dispersion ratios. On <code>Model.Rmd</code> we see that the Pearson
 ratios are close to 1, which suggests there is no strong sign of
@@ -472,18 +484,41 @@ mean absolute position error of 2.1 places and a Spearman correlation of
 0.862 with the actual ranking, indicating a similar ordering of teams in
 the test season.(<code>Anna Del Pino</code> &gt;
 <code>Test and Notes</code>)</p>
+<p>Finally, to produce the final league ranking I built a
+<code>ranking()</code> function which uses the predicted goals for each
+match, assigns points to the respective teams depending on the predicted
+score and finally builds a table to add up all of the points and
+calculates the goal difference of each team to rank them wrt the size of
+points and gd.</p>
 <p>To produce the league table, we combine the predicted home and away
 goals for each match. We built a <code>ranking()</code> function which
 does this by: * uses each matches <code>FTHG</code> and
 <code>FTAG</code> (i.e. response variables) to calculate league points,
 * adds up each team’s points and goal difference, * ranks teams by
 points, using goal difference to break ties.</p>
-<p>For the 2026/27 season, results are available for matches played up
-to 19 October, while the remaining fixtures have missing match results
-because they have not yet been played. I use actual goals for completed
-matches and predict goals for the remaining fixtures using our Poisson
-GLMs before calculating the final ranking using our
-<code>ranking()</code> function.</p>
+<p>After testing the model by using the 2025/26 season I wanted to see
+how the model performed wrt the training set.</p>
+<pre class="r"><code>MAE_HG &lt;- mean(abs(test_data$FTHG - test_data$PredHomeGoals))
+MAE_AG &lt;- mean(abs(test_data$FTAG - test_data$PredAwayGoals))
+train_MAE_HG &lt;- mean(abs(test_data$FTHG - mean(train_data$FTHG)))
+train_MAE_AG &lt;- mean(abs(test_data$FTAG - mean(train_data$FTAG)))
+MAE_pos &lt;- mean(abs(table_comparison$PositionDifference))
+rank_corr &lt;- cor(table_comparison$Position_Predicted, table_comparison$Position_Actual,method = &quot;spearman&quot;, use = &quot;complete.obs&quot;)
+
+print(c(MAE_HG, MAE_AG, train_MAE_HG, train_MAE_AG, MAE_pos, rank_corr))</code></pre>
+<pre><code>## [1] 0.9394737 0.8105263 0.9961496 0.8746034 1.8000000 0.8827068</code></pre>
+<p>These results show taht the model performs better than the training
+baseline. * Home goal MAE: 0.939 goals, compared with 0.996 from the
+train model error so a 5.7% reduction. * Away goal MAE: 0.818 goals,
+compared with 0.875 from the train model error so a 6.5% reduction. *
+Mean position error: 2.1 places. On average, a team’s predicted position
+was about two places away from its actual position. * Spearman rank
+correlation: 0.862, showing that the predicted and actual ranking orders
+were fairly similar. The <strong>Spearman correlation</strong> between
+two variables will be high when observations have a similar (or equal
+with correlation = 1) rank between the two variables. The model improved
+goal predictions over the baseline and reproduced the overall team
+ranking reasonably well on the test season.</p>
 <div id="limitations-1" class="section level2">
 <h2>Limitations</h2>
 <p>Some teams have less data available than others. For example,
@@ -498,6 +533,160 @@ affect the predicted number of wins, draws and losses, and therefore the
 final ranking. Rounding can also affect the errors used to evaluate the
 model.</p>
 </div>
+</div>
+<div id="prediction" class="section level1">
+<h1>2026/27 Prediction</h1>
+<p>Since my models had the highest score after applying the performance
+metric, we will produce a prediciton of the 2026/27 end of season
+ranking table.</p>
+<pre class="r"><code>played_26_27 &lt;- prediction_data[prediction_data$Date &lt;= as.Date(&quot;2026-10-19&quot;),] 
+unplayed &lt;- prediction_data$Date &gt; as.Date(&quot;2026-10-19&quot;)
+
+final_train_data &lt;- bind_rows(train_data, test_data, played_26_27) #known data that will get used to train the model
+
+home_final_model &lt;- glm(formula(home_step), data = final_train_data, family = poisson) 
+away_final_model &lt;- glm(formula(away_step), data = final_train_data, family = poisson)
+
+#initialise prediction column filled with NAs
+prediction_data$PredHomeGoals &lt;- NA_real_ 
+prediction_data$PredAwayGoals &lt;- NA_real_
+
+prediction_data$PredHomeGoals[unplayed] &lt;- round(predict(home_final_model, newdata = prediction_data[unplayed, ], type = &quot;response&quot;))
+prediction_data$PredAwayGoals[unplayed] &lt;- round(predict(away_final_model, newdata = prediction_data[unplayed, ], type = &quot;response&quot;))
+
+final_home_goals &lt;- ifelse(unplayed,prediction_data$PredHomeGoals,prediction_data$FTHG) 
+final_away_goals &lt;- ifelse(unplayed,prediction_data$PredAwayGoals,prediction_data$FTAG)
+
+#builds the prediction table
+predicted_2026_27_table &lt;- ranking(prediction_data,final_home_goals,final_away_goals)
+
+predicted_2026_27_table</code></pre>
+<pre><code>##    Position           Team Points  GD
+## 1         1       Man City     81  27
+## 2         2        Arsenal     73  17
+## 3         3       Brighton     71  29
+## 4         4        Chelsea     67  14
+## 5         5      Liverpool     63   8
+## 6         6     Man United     59   7
+## 7         7        Everton     55   4
+## 8         8      Brentford     53   6
+## 9         9          Leeds     51   5
+## 10       10      Tottenham     49   0
+## 11       11  Nott&#39;m Forest     44  -6
+## 12       12         Fulham     43  -6
+## 13       13           Hull     40  -6
+## 14       14    Aston Villa     40 -10
+## 15       15        Ipswich     38 -11
+## 16       16      Newcastle     38 -11
+## 17       17    Bournemouth     37 -11
+## 18       18 Crystal Palace     32 -17
+## 19       19       Coventry     29 -18
+## 20       20     Sunderland     23 -21</code></pre>
+<p>For the 2026/27 season, results are available for matches played up
+to 19 October, while the remaining fixtures have missing match results
+because they have not yet been played. I use actual goals for completed
+matches and predict goals for the remaining fixtures using our Poisson
+GLMs before calculating the final ranking using our
+<code>ranking()</code> function.</p>
+<p>##Limitations</p>
+<p>For the 2026/27 prediction dataset I only have data up to and
+including 19-10-26 so for the model to know which match it will be
+predicting in the future, I wrote the remaining fixtures (i.e. from
+30-10-27 to 30-05-2027) as rows filled only with <code>Date</code>,
+<code>HomeTeam</code> and <code>AwayTeam</code> information and the
+newly created cumulative columns just repeat the value over and over
+again as we don’t have any new information of the statistics. Note that
+the cumulative goals columns also keeps repeating as this doesn’t
+include the predicted new goals. This does bring a limitation to the
+model as it’s assuming that no changes in perfomance of each respective
+team has happened. For example here are the first 10 matches of
+Arsenal.</p>
+<pre class="r"><code>head(prediction_data[prediction_data$HomeTeam == &quot;Arsenal&quot; |prediction_data$AwayTeam == &quot;Arsenal&quot;,],10)</code></pre>
+<pre><code>##            Date      HomeTeam AwayTeam FTHG FTAG  FTR HTHG HTAG  HTR    Referee
+## 4561 2026-08-21       Arsenal Coventry    3    0    H    2    0    H  T Bramall
+## 4580 2026-08-31   Aston Villa  Arsenal    0    1    A    0    0    D  J Gillett
+## 4590 2026-09-06       Arsenal  Chelsea    2    1    H    1    1    D C Kavanagh
+## 4597 2026-09-12    Sunderland  Arsenal    0    2    A    0    0    D   J Brooks
+## 4603 2026-09-19      Brighton  Arsenal    3    0    H    2    0    H  D England
+## 4611 2026-10-10       Arsenal    Leeds    2    1    H    0    0    D  P Tierney
+## 4629 2026-10-18 Nott&#39;m Forest  Arsenal    0    1    A    0    0    D   M Oliver
+## 4639 2026-11-01     Liverpool  Arsenal   NA   NA &lt;NA&gt;   NA   NA &lt;NA&gt;       &lt;NA&gt;
+## 4643 2026-11-07       Arsenal     Hull   NA   NA &lt;NA&gt;   NA   NA &lt;NA&gt;       &lt;NA&gt;
+## 4657 2026-11-21     Newcastle  Arsenal   NA   NA &lt;NA&gt;   NA   NA &lt;NA&gt;       &lt;NA&gt;
+##      HS AS HST AST HC AC HF AF HY AY HR AR Season HomeFTGoalsBefore
+## 4561 20  4   6   1  8  2 10 13  1  1  0  0   2026                 0
+## 4580  7  7   0   2  2  4 17  6  3  1  0  0   2026                 0
+## 4590 16 13   9   5  5  3 13 16  2  4  0  0   2026                 4
+## 4597 12 11   3   5  4  2 18 11  6  2  1  0   2026                 3
+## 4603 17 11   5   2  5  6 13 11  4  1  0  0   2026                13
+## 4611 13 11   6   5  2  4 12 20  1  4  0  0   2026                 8
+## 4629 14  9   2   1  8  6 14  8  1  1  0  0   2026                 5
+## 4639 NA NA  NA  NA NA NA NA NA NA NA NA NA   2026                 9
+## 4643 NA NA  NA  NA NA NA NA NA NA NA NA NA   2026                11
+## 4657 NA NA  NA  NA NA NA NA NA NA NA NA NA   2026                10
+##      AwayFTGoalsBefore HomeHTGoalsBefore AwayHTGoalsBefore HomeShotsBefore
+## 4561                 0                 0                 0               0
+## 4580                 3                 0                 2               6
+## 4590                 7                 2                 5              27
+## 4597                 6                 1                 3              37
+## 4603                 8                 6                 3              78
+## 4611                 7                 3                 4              65
+## 4629                10                 2                 3             106
+## 4639                11                 2                 3             110
+## 4643                 8                 3                 4              87
+## 4657                11                 4                 3              86
+##      AwayShotsBefore HomeShotsOnTargetBefore AwayShotsOnTargetBefore
+## 4561               0                       0                       0
+## 4580              20                       0                       6
+## 4590              35                       8                      12
+## 4597              43                      13                      17
+## 4603              54                      24                      22
+## 4611              61                      24                      18
+## 4629              78                      23                      30
+## 4639              87                      35                      31
+## 4643              75                      31                      24
+## 4657              87                      25                      31
+##      HomeCornersBefore AwayCornersBefore HomeFoulsBefore AwayFoulsBefore
+## 4561                 0                 0               0               0
+## 4580                 2                 8              11              10
+## 4590                12                 8              16              13
+## 4597                11                17              33              29
+## 4603                22                19              52              40
+## 4611                25                22              51              53
+## 4629                25                27              85              63
+## 4639                34                33              97              71
+## 4643                33                26              71              76
+## 4657                32                33              85              71
+##      HomeYellowCardsBefore AwayYellowCardsBefore HomeRedCardsBefore
+## 4561                     0                     0                  0
+## 4580                     3                     1                  1
+## 4590                     2                     4                  0
+## 4597                     5                     4                  0
+## 4603                     8                     6                  0
+## 4611                     7                     7                  0
+## 4629                    15                     8                  0
+## 4639                    19                     9                  1
+## 4643                     9                    21                  0
+## 4657                    19                     9                  0
+##      AwayRedCardsBefore HTPB HTPA ATPB ATPA PredHomeGoals PredAwayGoals
+## 4561                  0    0    3    0    0            NA            NA
+## 4580                  0    0    0    3    6            NA            NA
+## 4590                  0    6    9    6    6            NA            NA
+## 4597                  0    4    4    9   12            NA            NA
+## 4603                  0    7   10   12   12            NA            NA
+## 4611                  0   12   15    9    9            NA            NA
+## 4629                  0    5    5   15   18            NA            NA
+## 4639                  0   12   12   18   18             1             1
+## 4643                  0   18   18    9    9             2             1
+## 4657                  0    8    8   18   18             1             1</code></pre>
+<p>We can see that the current matches statistics (i.e FTHG up to AR )
+are filled with <code>NA</code> for unseen matches and the cumulative
+statistcis columns show the last seen result. As these statistcis are
+the cumulative sum of the previous ones, it includes all seen
+information for each respective statistic. Furthermore, the dataset adds
+two columns of <code>PredHomeGoals</code> and <code>PredAwayGoals</code>
+which are the predictions <span class="math inline">\(\hat\lambda_H\)</span> and <span class="math inline">\(\hat\lambda_A\)</span> of expected home and away
+goals for each match <span class="math inline">\(i\)</span>.</p>
 </div>
 
 
