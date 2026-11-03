@@ -585,18 +585,7 @@ pm_adjusted &lt;- function(predicted, actual, number_features, lambda=0.01) {
   model_score &lt;- prediction_score * feature_penalisation
   
   return(model_score)
-}
-
-#pm_adjusted &lt;- function(predicted, actual, number_features, lambda=0.01) {
-
-  #prediction_score&lt;-(pm(predicted , actual)- lower_bound)/(upper_bound - lower_bound)
-  
-  #feature_penalisation &lt;- exp(-lambda * number_features)
-  
-  #model_score &lt;- prediction_score * feature_penalisation
-  
-  #return(model_score)
-#}</code></pre>
+}</code></pre>
 </div>
 <div id="model-output" class="section level1">
 <h1>Model Output</h1>
@@ -617,6 +606,7 @@ pm_adjusted &lt;- function(predicted, actual, number_features, lambda=0.01) {
 <p>Max’s model:</p>
 <pre class="r"><code>pm_adjusted(predicted = Max_test$Position[match(Mathilde_test$Team, Max_test$Team)], actual=Mathilde_test$ActualRank, 5, 0.01)</code></pre>
 <pre><code>## [1] 0.5287366</code></pre>
+<p>Anna’s model has the highest score, so it wins!!!</p>
 </div>
 
 

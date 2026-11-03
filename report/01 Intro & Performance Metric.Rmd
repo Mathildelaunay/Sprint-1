@@ -153,17 +153,6 @@ pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
   
   return(model_score)
 }
-
-#pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
-
-  #prediction_score<-(pm(predicted , actual)- lower_bound)/(upper_bound - lower_bound)
-  
-  #feature_penalisation <- exp(-lambda * number_features)
-  
-  #model_score <- prediction_score * feature_penalisation
-  
-  #return(model_score)
-#}
 ```
 
 
@@ -196,6 +185,7 @@ Max's model:
 pm_adjusted(predicted = Max_test$Position[match(Mathilde_test$Team, Max_test$Team)], actual=Mathilde_test$ActualRank, 5, 0.01)
 ```
 
+Anna's model has the highest score, so it wins!!!
 
 
 
