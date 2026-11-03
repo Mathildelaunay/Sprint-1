@@ -1,0 +1,227 @@
+---
+title: "Dixon - Coles model"
+author: "J. Heffaran"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+We are going to explore our Dixon-Coles model. This notebook should be sufficient
+for assessment.
+
+We are going to implement a dixon coles model for goalscored in a game. We will then explore modifications to the model given time. As always, let us star by loading our initial dataset.
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+
+epl_1718 <- read.csv("https://www.football-data.co.uk/mmz4281/1718/E0.csv")
+
+epl_1718 <- epl_1718 %>%
+  select(HomeTeam, AwayTeam, FTHG, FTAG) %>%
+  rename(HomeGoals = FTHG, AwayGoals = FTAG)
+
+head(epl_1718)
+```
+### On the dixon coles model:
+The famous model introduced in M.Dixon & S.Coles (1996) is a riff on the poisson model introduced in M.Maher (1982). A notable change is the addition of a corrective function which increases the probability, under the model, of seeing low scoring draws as full time results.
+
+The model is as defined as follows:
+
+$$P(X=x,Y=y)=\tau_{\lambda,\mu}(x,y;\rho)\frac{e^{-\lambda}\lambda^x}{x!}\frac{e^{-\mu}\mu^y}{y!},$$
+where $\tau_{\lambda,\mu}(x,y;\rho)$ is the correction term defined by:
+
+$$\tau_{\lambda,\mu}(x,y;\rho)= \begin{cases} 1-\lambda\mu\rho, & (x,y)=(0,0),\\ 1+\lambda\rho, & (x,y)=(0,1),\\ 1+\mu\rho, & (x,y)=(1,0),\\ 1-\rho, & (x,y)=(1,1),\\ 1, & \text{otherwise}.
+\end{cases}$$
+
+We implement this below:
+
+```{r}
+dixon_coles_game_model <- function(team_ratings, home_team, away_team, 
+                                   home_advantage, rho, max_goals = 10) {
+  
+  ###--- extract the team ratings ---###
+  alpha_i <- team_ratings[[home_team]]$attack_rating
+  beta_i  <- team_ratings[[home_team]]$def_rating
+  alpha_j <- team_ratings[[away_team]]$attack_rating
+  beta_j  <- team_ratings[[away_team]]$def_rating
+  
+  ###--- lambda and mu rates for goals scored by home and away teams ---###
+  lambda <- alpha_i * beta_j * (1+ home_advantage)
+  mu     <- alpha_j * beta_i
+  
+  ###--- grid of possible scorelines as upto max allowed by param ---###
+  scores <- expand.grid(home_goals= 0:max_goals, away_goals= 0:max_goals)
+  
+  x <- scores$home_goals
+  y <- scores$away_goals
+  
+  ###--- prob of scoreline under independent poisson ---### 
+  prob <- dpois(x, lambda) * dpois(y, mu)
+  
+  ###--- calc dixon-coles correction ---###
+  tau <- rep(1, nrow(scores))
+  
+  tau[x == 0 & y == 0] <- 1 - lambda * mu * rho
+  tau[x == 0 & y == 1] <- 1 + lambda * rho
+  tau[x == 1 & y == 0] <- 1 + mu * rho
+  tau[x == 1 & y == 1] <- 1 - rho
+  
+  ###--- apply correction ---###
+  prob <- prob * tau
+  
+  ###--- normalise probabilities over the scorelines ---###
+  prob <- prob / sum(prob)
+  
+  ###--- take sample from the adjusted probs ---###
+  i <- sample.int(nrow(scores), size = 1, prob = prob)
+  
+  return(c(home_goals = scores$home_goals[i], away_goals = scores$away_goals[i]))
+}
+```
+
+We will assume that home advantage, and rho follow those found in recent studies by [INSERT SOURCE HERE]. Now, we will try to estimate attack and defence ratings for each team after the 2018-2019 premier league.
+
+```{r}
+
+fit_dixon_coles <- function(data,
+                            home_advantage = 0.05,
+                            rho = -0.05) {
+
+  # Keep only matches with complete scores
+  required <- c("HomeTeam", "AwayTeam", "HomeGoals", "AwayGoals")
+  data <- data[complete.cases(data[, required]), required]
+
+  if (nrow(data) == 0) {
+    stop("No complete matches available for fitting.")
+  }
+
+  if (home_advantage <= -1) {
+    stop("home_advantage must be greater than -1.")
+  }
+
+  # Identify teams and their indices
+  teams <- sort(unique(c(data$HomeTeam, data$AwayTeam)))
+  n <- length(teams)
+
+  home_idx <- match(data$HomeTeam, teams)
+  away_idx <- match(data$AwayTeam, teams)
+
+  x <- data$HomeGoals
+  y <- data$AwayGoals
+
+  # Negative log-likelihood
+  neg_log_likelihood <- function(par) {
+
+    # First n-1 log-attack ratings are free.
+    # The final one enforces sum(log_attack) = 0.
+    log_attack <- c(
+      par[1:(n - 1)],
+      -sum(par[1:(n - 1)])
+    )
+
+    # Remaining n parameters are log-defence ratings
+    log_def <- par[n:(2 * n - 1)]
+
+    # Expected goals for each observed match
+    lambda <- exp(log_attack[home_idx] + log_def[away_idx]) *
+      (1 + home_advantage)
+
+    mu <- exp(log_attack[away_idx] + log_def[home_idx])
+
+    # Dixon-Coles correction
+    tau <- rep(1, length(x))
+
+    idx00 <- x == 0 & y == 0
+    idx01 <- x == 0 & y == 1
+    idx10 <- x == 1 & y == 0
+    idx11 <- x == 1 & y == 1
+
+    tau[idx00] <- 1 - lambda[idx00] * mu[idx00] * rho
+    tau[idx01] <- 1 + lambda[idx01] * rho
+    tau[idx10] <- 1 + mu[idx10] * rho
+    tau[idx11] <- 1 - rho
+
+    # The correction must produce valid probabilities
+    if (any(!is.finite(tau)) || any(tau <= 0)) {
+      return(1e100)
+    }
+
+    # Log-likelihood of each observed score
+    log_likelihood <- dpois(x, lambda, log = TRUE) +
+      dpois(y, mu, log = TRUE) +
+      log(tau)
+
+    if (any(!is.finite(log_likelihood))) {
+      return(1e100)
+    }
+
+    # optim() minimises, so return negative log-likelihood
+    -sum(log_likelihood)
+  }
+
+  # Initial values: all attack and defence ratings equal 1
+  initial_par <- rep(0, 2 * n - 1)
+
+  # Estimate the parameters
+  fit <- optim(
+    par = initial_par,
+    fn = neg_log_likelihood,
+    method = "BFGS",
+    hessian = TRUE,
+    control = list(maxit = 10000)
+  )
+
+  # Recover the fitted ratings
+  log_attack <- c(
+    fit$par[1:(n - 1)],
+    -sum(fit$par[1:(n - 1)])
+  )
+
+  log_def <- fit$par[n:(2 * n - 1)]
+
+  # Return the named list expected by your simulator
+  team_ratings <- setNames(
+    lapply(seq_len(n), function(i) {
+      list(
+        attack_rating = exp(log_attack[i]),
+        def_rating = exp(log_def[i])
+      )
+    }),
+    teams
+  )
+
+  list(
+    team_ratings = team_ratings,
+    convergence = fit$convergence,
+    negative_log_likelihood = fit$value,
+    optimiser = fit
+  )
+}
+
+```
+Now let us fit our data.
+```{r}
+fit <- fit_dixon_coles(
+  data = epl_1718,
+  home_advantage = 0.05,
+  rho = -0.05
+)
+
+team_ratings <- fit$team_ratings
+
+# Inspect the fitted ratings for Arsenal
+team_ratings$Arsenal
+
+# Check optimisation status
+fit$convergence
+
+# Compare model fits using this value
+fit$negative_log_likelihood
+```
+Let us source our season 
+```{r}
+predicted_league_table = SSIG(team_ratings= team_ratings, game_model= dc_game_model)
+print(predicted_league_table)
+```
+
+
+

@@ -95,7 +95,7 @@ team_ratings <- list(
   Aston_Villa = list(attack_rating = 1.00, def_rating = 1.00),
   Bournemouth = list(attack_rating = 1.00, def_rating = 1.05),
   Brentford = list(attack_rating = 1.00, def_rating = 1.00),
-  Brighton = list(attack_rating = 1.55, def_rating = 0.65),
+  Brighton = list(attack_rating = 1., def_rating = 0.95),
   Chelsea = list(attack_rating = 1.05, def_rating = 0.95),
   Coventry = list(attack_rating = 0.80, def_rating = 1.30),
   Palace = list(attack_rating = 0.90, def_rating = 1.10),
@@ -133,7 +133,57 @@ dc_game_model = function(team_ratings, home_team, away_team) {
 
 
 ```{r}
-league_table = SSIG(team_ratings= team_ratings, game_model= dc_game_model)
-print(league_table)
+predicted_league_table = SSIG(team_ratings= team_ratings, game_model= dc_game_model)
+print(predicted_league_table)
+```
+We will now implement a spearmans rank correlation coefficient, we hope to compare
+our model performance to the actual league table.
+
+First, let us load the actual league table for a given year:
+the below is sourcing a csv realised version of premier league table from 24_25season
+
+```{r}
+table_24_25 <- read.csv(
+  "C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/24_25_table.csv"
+)
+
+print(head(table_24_25))
+```
+We will now remove columns to get into same form as our league table:
+
+```{r}
+realised_table <- table_24_25 %>%
+  transmute(
+    Team = Squad,
+    P = MP,
+    W,
+    D,
+    L,
+    GF,
+    GA,
+    GD,
+    Pts
+  ) %>%
+  arrange(desc(Pts), desc(GD), desc(GF)) %>%
+  mutate(Rank = row_number()) %>%
+  select(Team, P, W, D, L, GF, GA, GD, Pts, Rank)
+
+realised_table
 ```
 
+We will now get the spearmans rank correlation coefficient for our predicitions:
+
+```{r}
+##---Match teams across the two tables---###
+comparison <- realised_table %>% select(Team, Realised_Rank = Rank) %>% inner_join(predicted_league_table %>%
+select(Team, Predicted_Rank = Rank), by = "Team")
+```
+lets check the p value:
+
+```{r}
+cor.test(
+  comparison$Realised_Rank,
+  comparison$Predicted_Rank,
+  method = "spearman")
+```
+Okie dokie, now we need to tune our team rating parameters. 

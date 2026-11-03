@@ -1,0 +1,756 @@
+---
+title: "Poisson Regression Model"
+author: "J. Heffaran"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+This note book shall detail my poisson regression model
+
+## Section 1: Gathering data
+We will gather both premier league and championship data for this model. The 
+championship data is to be used to estimate team attack and defence ratings for
+newly promoted teams.
+
+We will form two datasets, one for prem game results and one for championship.
+```{r Data collection, message=FALSE, warning=FALSE, include=FALSE}
+library(dplyr)
+
+#choose columns to include
+columns_to_include <- c("Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG")
+
+# links to data of interest (note we had to adjust date format in 1617)
+epl_1415 <- read.csv('https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Premier%20League%20match%20events%20data/14_15.csv')%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG)
+epl_1516 <- read.csv('https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Premier%20League%20match%20events%20data/15_16.csv')%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG)
+epl_1617 <- read.csv('https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Premier%20League%20match%20events%20data/16_17.csv')%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) %>%  
+  mutate(Date = format(as.Date(Date, format = "%d/%m/%y"), "%d/%m/%Y"))
+epl_1718 <- read.csv('https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Premier%20League%20match%20events%20data/17_18.csv')%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG)
+epl_1819 <- read.csv('https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Premier%20League%20match%20events%20data/18_19.csv')%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG)
+epl_1920 <- read.csv('https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Premier%20League%20match%20events%20data/19_20.csv')%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG)
+epl_2021 <- read.csv('https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Premier%20League%20match%20events%20data/20_21.csv')%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG)
+epl_2122 <- read.csv('https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Premier%20League%20match%20events%20data/21_22.csv')%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG)
+epl_2223 <- read.csv('https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Premier%20League%20match%20events%20data/22_23.csv')%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG)
+epl_2324 <- read.csv('https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Premier%20League%20match%20events%20data/23_24.csv')%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG)
+epl_2425 <- read.csv('https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Premier%20League%20match%20events%20data/24_25.csv')%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG)
+
+ech_1415 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c14_15.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG)%>%
+  mutate(Date = format(as.Date(Date, format = "%d/%m/%y"), "%d/%m/%Y"))
+#head(ech_1415)
+ech_1516 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c15_16.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) %>%
+  mutate(Date = format(as.Date(Date, format = "%d/%m/%y"), "%d/%m/%Y"))
+#head(ech_1516)
+ech_1617 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c16_17.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) %>%
+  mutate(Date = format(as.Date(Date, format = "%d/%m/%y"), "%d/%m/%Y"))
+#head(ech_1617)
+ech_1718 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c17_18.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) %>%
+  mutate(Date = format(as.Date(Date, format = "%d/%m/%y"), "%d/%m/%Y"))
+#head(ech_1718)
+ech_1819 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c18_19.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) #%>%
+  #mutate(Date = format(as.Date(Date, format = "%d/%m/%y"), "%d/%m/%Y"))
+#head(ech_1819)
+ech_1920 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c19_20.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) #%>%
+  #mutate(Date = format(as.Date(Date, format = "%d/%m/%y"), "%d/%m/%Y"))
+#head(ech_1920)
+ech_2021 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c20_21.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) #%>%
+  #mutate(Date = format(as.Date(Date, format = "%d/%m/%y"), "%d/%m/%Y"))
+#head(ech_2021)
+ech_2122 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c21_22.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) #%>%
+  #mutate(Date = format(as.Date(Date, format = "%d/%m/%y"), "%d/%m/%Y"))
+#head(ech_2122)
+ech_2223 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c22_23.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) #%>%
+  #mutate(Date = format(as.Date(Date, format = "%d/%m/%y"), "%d/%m/%Y"))
+#head(ech_2223)
+ech_2324 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c23_24.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) 
+#head(ech_2324)
+ech_2425 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c24_25.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) 
+#head(ech_2425)
+ech_2526 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c25_26.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) 
+#head(ech_2526)
+ech_2627 <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/championship_data/game_data/c26_27.csv")%>%
+  select(Date, HomeTeam, AwayTeam, FTHG, FTAG) 
+#head(ech_2627)
+
+
+epl_all <- bind_rows(
+  epl_1415 = epl_1415,
+  epl_1516 = epl_1516,
+  epl_1617 = epl_1617,
+  epl_1718 = epl_1718,
+  epl_1819 = epl_1819,
+  epl_1920 = epl_1920,
+  epl_2021 = epl_2021,
+  epl_2122 = epl_2122,
+  epl_2223 = epl_2223,
+  epl_2324 = epl_2324,
+  epl_2425 = epl_2425,
+  .id = "Season")
+
+ech_all <- bind_rows(
+  ech_1415 = ech_1415,
+  ech_1516 = ech_1516,
+  ech_1617 = ech_1617,
+  ech_1718 = ech_1718,
+  ech_1819 = ech_1819,
+  ech_1920 = ech_1920,
+  ech_2021 = ech_2021,
+  ech_2122 = ech_2122,
+  ech_2223 = ech_2223,
+  ech_2324 = ech_2324,
+  ech_2425 = ech_2425,
+  ech_2526 = ech_2526,
+  ech_2627 = ech_2627,
+  .id = "Season")
+
+remove(ech_1415, ech_1516, ech_1617, ech_1718, 
+       ech_1819,ech_1920, ech_2021, ech_2122, 
+       ech_2223, ech_2324, ech_2425, ech_2526, ech_2627)
+
+remove(epl_1415, epl_1516, epl_1617, epl_1718, 
+       epl_1819,epl_1920, epl_2021, epl_2122, 
+       epl_2223, epl_2324, epl_2425)
+
+epl_all <- epl_all %>%
+  mutate(Date = as.Date(Date, format = "%d/%m/%Y")) %>%
+  arrange(Date)
+
+ech_all <- ech_all %>%
+  filter(!is.na(FTHG), !is.na(FTAG))
+
+ech_all <- ech_all %>%
+  mutate(Date = as.Date(Date, format = "%d/%m/%Y"))
+```
+
+We now have two df which contain all the epl (premier league) and ech 
+(championship) game data. We can view the data below.
+
+```{r Data frame heads}
+head(ech_all)
+head(epl_all)
+```
+
+We want to construct a filtration so as to remove any information we do not yet 
+have access to so that we can prevent information leakage. We construct our new
+training data frames below. The following is illustrative since we define 
+functions to do same later on.
+
+```{r Train df creation}
+
+known_date <- as.Date("2025-01-19") # date upto which we have full information
+cut_off <- 730 # a param used in time weighting, obvs this many days from known
+               # date will have a weight of zero
+
+train_ech <- ech_all %>%
+  filter(Date < known_date) %>% 
+  mutate(days_ago = as.numeric(known_date - Date)) %>%
+  filter(days_ago < cut_off)
+
+train_epl <- epl_all %>% 
+  filter(Date < known_date) %>% 
+  mutate(days_ago = as.numeric(known_date - Date)) %>%
+  filter(days_ago < cut_off)
+```
+
+The training data sets can now be used to form team attack and defence ratings
+for prediction. First we start of with our weighting function:
+
+$$w(x) = \begin{cases}
+1 - \left(\dfrac{x}{c}\right)^p, & 0 \le d < c,\\[6pt]
+0, & d \ge c,
+\end{cases}$$
+where x is the days from obvs to known date, c is a cut-off, and p is a shape parameter.
+
+
+```{r Weight function, echo=FALSE}
+weight <- function(game_age, cut_off, power) {
+  ifelse(game_age >= cut_off, 0, 1 - (game_age / cut_off)^power)}
+
+library(ggplot2)
+x_vals <- seq(0, 1000, by = 1)
+power= 3.5
+df <- data.frame(x = x_vals, y = ifelse(x_vals >= cut_off, 0, 1 - (x_vals / cut_off)^power) )
+
+ggplot(df, aes(x=x, y=y))+
+  geom_line()+
+   labs(x = "Days ago", y = "Weighting", title = "Time decay of weighting") +
+  theme_classic()
+remove(df, power, x_vals)
+```
+In our weighting function we have a cut-off parameter which controls when we 
+stop taking account of data, and a power parameter which controls the shape of 
+the decay. A larger power parameter causes a greater period of high weighting, 
+followed by a steeper decay to zero.
+
+Now since we will create multiple training snapshots, we will define a function
+to automate the creation of the training snapshot. We will also create a 
+validation df which consists of games after the known date up to the end of some
+validation window.
+
+```{r Training snapshot func}
+def_training_data <- function(data, known_date_, cut_off_, power_, 
+                              validation_length_) {
+  
+  train_data <- data %>% 
+    filter(!is.na(Date), Date < known_date_) %>% 
+    mutate(days_ago = as.numeric(known_date_ - Date)) %>%
+    filter(days_ago < cut_off_) %>%
+    mutate(obvs_weight = weight(days_ago, power= power_, cut_off = cut_off_))
+  
+  validation_data <- data %>%
+    filter(!is.na(Date), Date >= known_date_) %>% 
+    mutate(days_to = as.numeric(Date - known_date_ )) %>%
+    filter(days_to <= validation_length_) 
+    
+  return(list(train = train_data, validation = validation_data))}
+```
+
+Let us use this function to create our first two training snapshots, we will
+also extract our validation data at same time.
+
+```{r Train snapshot creation example}
+known_date <- as.Date("2025-01-19")
+cut_off <- 730
+weight_power <- 3
+
+train_ech <- def_training_data(ech_all, known_date_ = known_date,
+                               cut_off_ = cut_off, power_ = weight_power,
+                               validation_length_ = 133)$train
+
+validation_ech <- def_training_data(ech_all, known_date_ = known_date,
+                               cut_off_ = cut_off, power_ = weight_power,
+                               validation_length_ = 133)$validation
+
+train_epl <- def_training_data(epl_all, known_date_ = known_date,
+                               cut_off_ = cut_off, power_ = weight_power,
+                               validation_length_ = 133)$train
+
+validation_epl <- def_training_data(epl_all, known_date_ = known_date,
+                               cut_off_ = cut_off, power_ = weight_power,
+                               validation_length_ = 133)$validation
+```
+
+Due to the way the dixon_coles adjuster works later on, we will label certain
+data as for use by that model.
+
+```{r Seperate DC data}
+train_dc_epl <- train_epl
+train_dc_ech <- train_ech
+validation_dc_epl <- validation_epl
+validation_dc_ech <- validation_ech
+```
+
+Now we have our basic training data, we will adjust it so as to give each team 
+an unique row per game. This will allow us to use poisson regression on the home
+and away teams realised scores. We create the function to create the goal data 
+below. We will create a seperate function for the splitting of train and 
+validataion data since validation data has no attached weights.
+
+```{r Defining home_away split for goal data}
+def_home_away_split_train <- function(data) {
+home_data <- data %>%
+  transmute(Date, Team = HomeTeam, Opponent = AwayTeam, Goals = FTHG, Home = 1,
+            obvs_weight = obvs_weight)
+
+away_data <- data %>%
+  transmute(Date, Team = AwayTeam, Opponent = HomeTeam, Goals = FTAG, Home = 0,
+            obvs_weight = obvs_weight)
+
+train_goal_data <- bind_rows(home_data, away_data)
+
+return(train_goal_data)}
+
+def_home_away_split_validation <- function(data) {
+home_data <- data %>%
+  transmute(Date, Team = HomeTeam, Opponent = AwayTeam, Goals = FTHG, Home = 1)
+
+away_data <- data %>%
+  transmute(Date, Team = AwayTeam, Opponent = HomeTeam, Goals = FTAG, Home = 0)
+
+validation_goal_data <- bind_rows(home_data, away_data)
+
+return(validation_goal_data)}
+```
+
+We're now going to use our function to create our home away split goal data.
+
+```{r training_goals_data gen}
+train_ech_goals <- def_home_away_split_train(train_ech)
+train_epl_goals <- def_home_away_split_train(train_epl)
+```
+
+## Section 2: Poisson regression model for team ratings
+
+We are now going to fit a poisson regression model to obtain attack and defence
+ratings for the teams observed in our train data. Note that it we will model the
+scoreline for individual games under the dixon coles model. This models the home
+and away goals as poisson random variables, with a correction term which adjusts
+the probability of observing low-scoring scorelines. 
+
+```{r fitting regression model to goals data}
+ech_goal_model <- glm(
+  Goals ~ Home + Team + Opponent,
+  family = poisson(link = "log"),
+  data = train_ech_goals,
+  weights = obvs_weight)
+
+epl_goal_model <- glm(
+  Goals ~ Home + Team + Opponent,
+  family = poisson(link = "log"),
+  data = train_epl_goals,
+  weights = obvs_weight)
+
+summary(epl_goal_model)
+summary(ech_goal_model)
+```
+
+We will now extract the attack and defence ratings as suggested by our 
+regression model. The model uses reference levels for the team and opponent factors to ensure identifiability. We then centre the estimated log attack and defence effects and adjust the baseline accordingly. This produces ratings with geometric mean one while preserving the fitted expected goals.
+
+```{r Extracting normalised ratings func}
+extract_ratings <- function(model) {
+
+  teams <- model$xlevels$Team
+  coefs <- coef(model)
+  
+  # initialise each teams log_attack rating
+  attack_log <- setNames(rep(0, length(teams)), teams)
+  defence_log <- setNames(rep(0, length(teams)), teams)
+  
+  # now we extract ratings
+  for (team in teams) {
+
+    attack_name <- paste0("Team", team)
+    defence_name <- paste0("Opponent", team)
+
+    if (attack_name %in% names(coefs)) {     # since baseline team has no coefs,
+      attack_log[team] <- coefs[attack_name]} # we only update teams with coefs
+
+    if (defence_name %in% names(coefs)) {
+      defence_log[team] <- coefs[defence_name]}}
+  
+  # center the log ratings so that prem and champ ratings can be scaled later
+  mean_attack <- mean(attack_log)
+  mean_defence <- mean(defence_log)
+
+  ratings <- data.frame(team_names = teams,
+    att_rating = exp(attack_log - mean_attack),
+    def_rating = exp(defence_log - mean_defence))
+  
+  baseline <- unname(coefs["(Intercept)"]) + mean_attack + mean_defence
+  home_advantage <- unname(coefs["Home"])
+  
+  return(list(ratings = ratings, baseline = baseline, 
+              home_advantage = home_advantage))}
+```
+
+We implement the function below:
+
+```{r Implementing our model}
+epl_model <- extract_ratings(epl_goal_model)
+ech_model <- extract_ratings(ech_goal_model)
+
+epl_ratings <- epl_model$ratings
+ech_ratings <- ech_model$ratings
+
+epl_baseline <- epl_model$baseline
+epl_home_advantage <- epl_model$home_advantage
+
+ech_baseline <- ech_model$baseline
+ech_home_advantage <- ech_model$home_advantage
+
+head(epl_ratings)
+```
+
+Above we show the head of epl_ratings obtained by our poisson regression. These
+ratings have geometric mean 1. That is an attack rating greater than 1 is given 
+to a team who has a stronger attack, a defence rating below 1 is given to a team 
+who has a stronger defence.
+
+We will now see how these perform compared to our validation data. We will first
+transform our raw validation data via the home away goal split.
+
+```{r Validation home away goal split}
+validation_ech <- def_home_away_split_validation(validation_ech)
+validation_epl <- def_home_away_split_validation(validation_epl)
+```
+
+We use the predict function to give the number of goals we expect to see in our
+validation data.
+
+```{r Predict on validation data}
+validation_epl$predicted_goals <- predict(
+  epl_goal_model, newdata = validation_epl, type = "response")
+
+validation_ech$predicted_goals <- predict(
+  ech_goal_model, newdata = validation_ech, type = "response")
+```
+
+Now lets evaluate our model on the validation data. This is all for sanity check
+to make sure our model is suggesting reasonable estimated goals.
+
+```{r Sanity check evaluation}
+evaluate_goals <- function(data) {
+  errors <- data$Goals - data$predicted_goals
+
+  data.frame(
+    n = nrow(data),
+    mean_actual = mean(data$Goals), mean_predicted = mean(data$predicted_goals),
+    MAE = mean(abs(errors)), RMSE = sqrt(mean(errors^2)))}
+
+```
+
+```{r Baseline creation}
+baseline_evaluate <- function(train_data, validation_data) {
+  mean_train_goals <- mean(train_data$Goals)
+  errors <- validation_data$Goals - mean_train_goals
+  
+  data.frame(
+    baseline_mean = mean_train_goals, MAE = mean(abs(errors)), 
+    RMSE = sqrt(mean(errors^2)))}
+```
+
+```{r Weighted mean baseline creation}
+weighted_baseline_evaluate <- function(train_data, validation_data) {
+
+  weighted_mean_train_goals <- weighted.mean(train_data$Goals, 
+                                             w= train_data$obvs_weight)
+  
+  errors <- validation_data$Goals - weighted_mean_train_goals
+  
+  data.frame(
+    baseline_mean = weighted_mean_train_goals, MAE = mean(abs(errors)), 
+    RMSE = sqrt(mean(errors^2)))}
+```
+
+```{r poisson evaluation data table}
+evaluation_results <- bind_rows(
+  # Championship
+  tibble(league = "Championship",
+    method = "Weighted baseline",
+    weighted_baseline_evaluate(train_ech_goals, validation_ech)),
+  tibble(league = "Championship",method = "Unweighted baseline",baseline_evaluate(train_ech_goals, validation_ech)),
+  tibble(league = "Championship",
+    method = "Poisson model", evaluate_goals(validation_ech)),
+
+  # Premier League
+  tibble(league = "Premier League", method = "Weighted baseline",
+    weighted_baseline_evaluate(train_epl_goals, validation_epl)), tibble(
+    league = "Premier League",
+    method = "Unweighted baseline",baseline_evaluate(train_epl_goals, 
+                                                     validation_epl)),
+  tibble(league = "Premier League", method = "Poisson model",
+    evaluate_goals(validation_epl))) %>%
+  select(league, method,MAE,RMSE)
+
+evaluation_results
+```
+Okay so our poisson goals model seems to perform slightly better than our 
+baseline estimate of just expecting to see the average number of goals from our
+training data. We will now look to use a Dixon-Coles correction in order to 
+improve the accuracy with which we predict the number of goals in a game.
+
+We have a more indepth breakdown of the evaluation for our Poisson model below:
+```{r echo=FALSE}
+bind_rows(
+  bind_cols(league="Championship",method="Poisson",evaluate_goals(validation_ech)),
+  bind_cols(league="Premier League",method="Poisson",evaluate_goals(validation_epl)),
+)
+```
+## Section 3: Dixon-Coles adjustment
+We are going to use the attack and defence ratings from the fitted poisson model
+in our dixon coles adjusted model for game out come (at least we will initially)
+. Note that we should really fit these by maximising the likelihood of our 
+observations under the dixon coles model. However, that would require us to 
+maximise the custom likelihood function. We will aim to do this if testing for 
+this model proves positive.
+
+```{r Dixon-Coles adjuster}
+dixon_coles_probs <- function(team_ratings, home_team, away_team, baseline, home_advantage, 
+                              rho = -0.05, max_goals = 10) {
+
+  # get team ratings
+  home_att <- team_ratings$att_rating[team_ratings$team_names == home_team]
+  
+  home_def <- team_ratings$def_rating[team_ratings$team_names == home_team]
+
+  away_att <- team_ratings$att_rating[team_ratings$team_names == away_team]
+  
+  away_def <- team_ratings$def_rating[team_ratings$team_names == away_team]
+
+  # Expected goals
+  lambda <- exp(baseline + home_advantage) * home_att * away_def
+  mu <- exp(baseline) * away_att * home_def
+  
+  goals <- 0:max_goals
+
+  # Independent Poisson scoreline probabilities
+  probs <- outer(dpois(goals, lambda), dpois(goals, mu))
+
+  # correction
+  probs[1, 1] <- probs[1, 1] * (1 - lambda * mu * rho)
+  probs[1, 2] <- probs[1, 2] * (1 + lambda * rho)
+  probs[2, 1] <- probs[2, 1] * (1 + mu * rho)
+  probs[2, 2] <- probs[2, 2] * (1 - rho)
+
+    # for some cases can end up with negative prob cause correction so we check 
+    # for that.
+  if (any(!is.finite(probs)) || any(probs < 0) ||
+      !is.finite(sum(probs)) || sum(probs) <= 0) {
+    stop("Invalid scoreline probabilities. Check rho and model parameters.")}
+
+  # normalise
+  probs <- probs / sum(probs)
+  
+  return(probs)
+}
+
+```
+
+Slightly frustratingly, the dixon coles adjuster now takes single fixtures as 
+input rather than the split home and away goal data. Thus we will relabel train
+data as for dixon coles at appropriate step of creation.
+
+Now we have our function to give the dixon-coles adjusted probabilities of each
+scoreline allowed by the max goals param, we will begin to use the dc adjustment
+for prediction. First let us define a predictive function. We want this to give
+multiple predictions: the expected number of home and away goals for initial 
+validation, the probability of a home win, an away win and a draw for when we 
+are predicting the a league table.
+
+```{r Dc predictor func}
+predict_dc_fixture <- function(home_team, away_team,
+                               team_ratings, baseline,
+                               home_advantage,
+                               rho = -0.05, max_goals = 10) {
+
+  probs <- dixon_coles_probs(
+    team_ratings = team_ratings, home_team = home_team,
+    away_team = away_team,baseline = baseline, home_advantage = home_advantage,
+    rho = rho, max_goals = max_goals)
+
+  # expected goals under model used in model validation
+  goals <- 0:(nrow(probs) - 1)
+
+  expected_home_goals <- sum(rowSums(probs) * goals)
+  expected_away_goals <- sum(colSums(probs) * goals)
+
+  # the prob of a match outcome (used later for league table)
+  prob_home_win <- sum(probs[row(probs) > col(probs)])
+  prob_draw <- sum(probs[row(probs) == col(probs)])
+  prob_away_win <- sum(probs[row(probs) < col(probs)])
+
+  data.frame(
+    expected_home_goals = expected_home_goals,
+    expected_away_goals = expected_away_goals, prob_home_win = prob_home_win,
+    prob_draw = prob_draw, prob_away_win = prob_away_win)}
+```
+
+Now we can see how the dc model fares on it's validation data.
+```{r DC prediction on validation data}
+epl_dc_predictions <- do.call(rbind,lapply(seq_len(nrow(validation_dc_epl)),
+                                           function(i) {predict_dc_fixture(
+      home_team = validation_dc_epl$HomeTeam[i],
+      away_team = validation_dc_epl$AwayTeam[i], team_ratings = epl_ratings,
+      baseline = epl_baseline, home_advantage = epl_home_advantage)}))
+
+validation_dc_epl <- cbind(validation_dc_epl, epl_dc_predictions)
+
+ech_dc_predictions <- do.call(rbind,lapply(seq_len(nrow(validation_dc_ech)),
+                                           function(i) {predict_dc_fixture(
+      home_team = validation_dc_ech$HomeTeam[i],
+      away_team = validation_dc_ech$AwayTeam[i], team_ratings = ech_ratings,
+      baseline = ech_baseline, home_advantage = ech_home_advantage)}))
+
+validation_dc_ech <- cbind(validation_dc_ech, ech_dc_predictions)
+```
+
+Now we have our predictions on the validation data, lets go through and see how 
+they are looking:
+
+```{r Summary table creation, echo=FALSE}
+
+dc_results <- bind_rows(
+  data.frame(
+    league = "Championship",
+    Goals = validation_dc_ech$FTHG,
+    predicted_goals = validation_dc_ech$expected_home_goals
+  ),
+  data.frame(
+    league = "Championship",
+    Goals = validation_dc_ech$FTAG,
+    predicted_goals = validation_dc_ech$expected_away_goals
+  ),
+  data.frame(
+    league = "Premier League",
+    Goals = validation_dc_epl$FTHG,
+    predicted_goals = validation_dc_epl$expected_home_goals
+  ),
+  data.frame(
+    league = "Premier League",
+    Goals = validation_dc_epl$FTAG,
+    predicted_goals = validation_dc_epl$expected_away_goals
+  )
+) %>%
+  group_by(league) %>%
+  summarise(
+    n = n(),
+    MAE = mean(abs(Goals - predicted_goals)),
+    RMSE = sqrt(mean((Goals - predicted_goals)^2)),
+    .groups = "drop"
+  ) %>%
+  mutate(method = "Dixon-Coles") %>%
+  select(league, method, MAE, RMSE)
+
+final_results <- bind_rows(
+  evaluation_results %>%
+    select(league, method, MAE, RMSE),
+  dc_results
+) %>%
+  mutate(across(c(MAE, RMSE), ~ round(.x, 4)))
+
+final_results
+```
+We compare directly Poisson and DC models:
+```{r echo=FALSE}
+bind_rows(
+  bind_cols(league = "Championship", method = "Poisson",
+            evaluate_goals(validation_ech)),
+  bind_cols(league = "Premier League", method = "Poisson",
+            evaluate_goals(validation_epl)),
+  bind_cols(league = "Championship", method = "DC",
+            evaluate_goals(data.frame(
+              Goals = c(validation_dc_ech$FTHG, validation_dc_ech$FTAG),
+              predicted_goals = c(validation_dc_ech$expected_home_goals,
+                                  validation_dc_ech$expected_away_goals)
+            ))),
+  bind_cols(league = "Premier League", method = "DC",
+            evaluate_goals(data.frame(
+              Goals = c(validation_dc_epl$FTHG, validation_dc_epl$FTAG),
+              predicted_goals = c(validation_dc_epl$expected_home_goals,
+                                  validation_dc_epl$expected_away_goals)
+            )))
+)
+```
+This table shows that the Dixon-Coles adjustment with rho = -0.05 has shown no 
+improvement on our prediction of the goals scored in our validation data. This 
+is not overly suprising since the adjustment is not neccersarily designed to 
+improve the prediction of exact goal counts. More so, the adjustment affects the
+joint scoreline distribution for scorelines (0,0), (1,0), (1,1), and (0,1).
+
+## Rolling window validation
+In our validation tests, we want to consider both our prediction of a complete season, and prediction of a season which has already began. 
+
+We choose a season end date of July 31st and a season start date of the 1st of august. That is, each season runs from 01/08/20(yy) to 31/07/20(yy+1). For each test window, we will create two validation sets: one in which we predict the entire validation period, ie complete season prediction, and another where we predict all games after a cut-off period.
+
+Note that we are assuming that if we can accurately model the number of goals that will be scored in a game, then we will be able to predict the table at the end of the season [COULD ADD XG PREDICTED TABLE TO SHOW THIS IS A GOOD IDEA].
+
+First, we build our validation sets from the epl_all and ech_all data.
+
+```{r rolling window validation window creation}
+# first we define two helper functioms which return
+# our start and end dates.
+
+generate_validation <- function(ech_all, epl_all, year, cutoff) {
+  start_date <- as.Date(paste0(year, "-08-01"))
+  end_date   <- as.Date(paste0(year + 1, "-07-31"))
+
+  # all data before the season begins
+  historical_ech <- ech_all %>%
+    filter(Date < start_date)
+
+  historical_epl <- epl_all %>%
+    filter(Date < start_date)
+
+  # fixtures/results belonging to the target season
+  target_ech <- ech_all %>%
+    filter(Date >= start_date, Date <= end_date)
+
+  target_epl <- epl_all %>%
+    filter(Date >= start_date, Date <= end_date)
+
+  # complete-season prediction
+  complete_season <- list(
+    ech_train = historical_ech,
+    epl_train = historical_epl,
+    ech_test  = target_ech,
+    epl_test  = target_epl)
+
+  # In-season prediction
+  cutoff <- as.Date(cutoff)
+
+  in_season <- list(
+    ech_train = ech_all %>%
+      filter(Date < cutoff),
+    epl_train = epl_all %>%
+      filter(Date < cutoff),
+    ech_test = target_ech %>%
+      filter(Date >= cutoff),
+    epl_test = target_epl %>%
+      filter(Date >= cutoff)
+  )
+   
+
+  return(list(
+    complete_season = complete_season,
+    in_season = in_season))
+}
+```
+
+Below is a chunk testing the code to ensure all is as should be, let us generate for the year 2024, with cutoff 01/11/2023.
+
+```{r rolling window Validation creation test}
+#note here that this is to test the season year_year+1
+rw_test_run <- generate_validation(ech_all, epl_all, year= 2024, cutoff= as.Date("2024-11-01"))
+
+# first we check no cross over etc
+#tail(rw_test_run$complete_season$ech_train)
+#head(rw_test_run$complete_season$ech_test)
+
+#tail(rw_test_run$complete_season$epl_train)
+#head(rw_test_run$complete_season$epl_test)
+
+#tail(rw_test_run$in_season$ech_train)
+#head(rw_test_run$in_season$ech_test)
+
+tail(rw_test_run$in_season$epl_train)
+head(rw_test_run$in_season$epl_test)
+```
+
+Okie dokie, this all seems to be behaving. We will now build our rolling validation sets. We're going to dress this up in a wrapper function for better Q.o.L.
+
+```{r building the validation sets}
+generate_rolling_validation <- function(epl_all, ech_all, years, cutoff_date= as.Date("yyyy-mm-dd")) {
+  
+  rolling_window_sets <- lapply(years, function(year){
+    generate_validation(ech_all, epl_all, year, cutoff)
+    }) 
+  names(rolling_window_sets) <- years
+  return(rolling_window_sets)
+}
+
+
+```
+
+
