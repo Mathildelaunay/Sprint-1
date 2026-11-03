@@ -1,0 +1,171 @@
+---
+title: "On performance metric"
+author: "J. Heffaran"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# On our performance metric
+
+#### Problem introduction and our objective - Max
+THIS IS MAXES SECTION I THINK
+
+Our goal was to develop a performance metric which allows us to compare the different models within our group. 
+
+In the Premier League, the bottom 3 teams get relegated which is a significant event for a team a they get demoted to a lower league which has huge effects on the club.
+
+The top teams also get to play in the following season's Champions League, the exact number depends on how well English teams perform in the Champions League.
+
+Playing in this competition is also of great significance financially and as a sporting achievement for any team who qualify for it and usually its the top 5 whom qualify.
+
+Hence, we decided that our performance metric should favour models which predict the top 5 and bottom 3 place accurately.
+
+Teams that finish in between these two groups don't really have anything significant happen to them, they just keep their spot in the Premier League for next season. Thus, although it is desirable for our models to predict the positions of these mid-table teams accurately, we place less importance on these predictions.
+
+
+#### High level view of performance metric
+The high level idea of our performance metric is to score each model $M_j$'s predicted ranking of teams after a season of prediction with the actual realised ranking of each team. We then multiply the prediction score by a term which penalises the model complexity. This gives us our model score. We choose the model which has the highest model score. 
+
+We wish our prediction score to be equal to 1 if a model correctly ranks the entire league table. We also want the score to not subceed zero given a very bad ranking. Further we want our prediction score to be larger for predictions which are "good" under our objective. That is, it should be reward and penalise more greatly correct and incorrect rankings respectivley within the top five and bottom three league positions.
+
+We desire our penalisation term to also be bounded between zero and one, and to be such that the simplist model has zero penalisation, and an infinitley complex mode has complete penalisation. Note that since the penalisation term is multiplied by the prediction score, the zero penalistaion case gives a penalisation term $= 1$, and the complete penalisation case gives a penalisation temr $= 0$.
+
+Hence, our model scores will all be between zero and one, and should capture our ideal of a "good" prediction.
+
+#### Prediction score
+We create our prediction score under the function *pm*. The below table summarises the function, the code for which is below the table. Note that $x = |\text{predicted rank} - \text{realised rank}|$
+
+| Actual, $a_i$ | Prediction, $p_i$ | Weight, $w_i$ |
+|------------------------|------------------------|------------------------|
+| Top 5 | Correct position | 1 |
+| Top 5 | Incorrect position but within top 5 | $w_i = \frac{\vert P_5 \cap A_5\vert}{5}$ |
+| Top 5 | Predicted outside top 5 | $f(x_i) = -(1-\exp^{-x_i})$ |
+| Outside top 5 (excluding bottom 3) | Correct position | 0.5 |
+| Outside top 5 (excluding bottom 3) | Incorrectly predicted in top 5 | $f(x_i) = -(1-\exp^{-x_i})$ |
+| Outside top 5 (excluding bottom 3) | Incorrect position outside top 5 | $f(x_i) = -(1-\exp^{-0.1x_i})$ |
+| Bottom 3 | Correctly predicted within bottom 3 | 1 |
+| Bottom 3 | Predicted outside bottom 3 | $f(x_i) = -(1-\exp^{-0.1x_i})$ |
+```{r performance metric}
+
+pm <- function(predicted, actual) {
+  
+  n <- length(actual)
+  # Identify the top five teams
+  P5 <- which(predicted <= 5)
+  A5 <- which(actual <= 5)
+
+  # Calculate overlap between predicted and actual top five
+  overlap <- length(intersect(P5, A5)) / 5
+
+  # Identify bottom three positions
+  bottom3 <- (n - 2):n
+
+  wt <- numeric(n)
+
+  for (i in 1:n) {
+
+    p <- predicted[i]
+    a <- actual[i]
+
+    d <- abs(p - a)
+
+    if (a <= 5) { # Actual position is in the top five
+      
+      if (p == a) {
+        w <- 1
+
+      } else if (p <= 5) {
+        w <- overlap
+
+      } else {
+        w <- -(1 - exp(-d))
+      }
+
+    } else {# Actual position is outside the top five
+
+      if (a %in% bottom3) {# Actual team is in the bottom three
+
+        if (p %in% bottom3) {
+          w <- 1
+
+        } else {
+          w <- -(1 - exp(-d))
+        }
+
+      } else if (p <= 5) {# Incorrectly predicted in the top five
+        
+        w <- -(1 - exp(-d))
+
+      } else if (p == a) {# Correctly predicted outside the top five
+
+        w <- 0.5
+
+      } else {# Incorrectly predicted outside the top five
+        k <- 0.1
+        w <- -(1 - exp(-k * d))
+      }
+    }
+
+    wt[i] <- w
+  }
+
+  return(sum(wt))
+}
+```
+
+To implement our idea, we decided to design appropriate weights which would reflect the importance of different predictions. If a team was correctly predicted to be somewhere within the bottom 3, then its weight is 1. Similarly, if a team in the top 5 was correctly predicted in the exact position, then its weight is also 1. For any team correctly predicted in the exact position outside which are outside of the top 5 or bottom 3, then its weight is 0.5. This way, we are weighting the top 5 and bottom 3 more to reflect their high importance to our objective.
+
+For a correct prediction of a team being in the top 5 but in the incorrect exact position, we used a formula based on how many teams were correctly placed in the top 5. For every team which is correctly placed somewhere in the top 5, we add 0.2 to the weight of each of these teams (except the ones that were also in the correct position). For example if our top 5 only correctly predicted 3 teams to be there, each of these 3 teams contributes a weight of 0.6 to the model.
+
+If we also had another team in the top 5 which was put in the correct position too, then this weight is 1 from earlier and the other 3 teams would get a weighting of 0.8 this time. This is because now 4 teams were correctly placed in the top 5 somewhere at least. We  did this in order to give extra reward to models who predicted both a team in the correct position in the top 5 as well as getting other top 5 teams somewhere in the top 5.
+
+For all other cases we wanted to focus on the distance between the predicted position and the actual position. We believed that the further away the predicted position was from the actual position, the less additional penalisation we should have. Our logic behind this was that for example, getting a team's position wrong by 3 places compared to 2 place is a relativley large decrease in predictive accuracy. However, the difference between getting a ranking incorrect by 10 places and 11 places is less significant. They are both poor rankings.
+A function that does this well is the exponential function with a minus sign in front of the $x$ value. As we are penalising the model for incorrect predictions, we decided to make these weights negative too. Since our prediction for the top 5 are significant, we decided to decrease the coefficient of the $x$ for any team outside the top 5 to $0.1$ to make the drop off in weight values less steep.
+This meant that the weight function for the top 5 being predicted outside of the top 5 and teams outside of the top 5 (excluding the bottom 3) being incorrectly predicted in the top 5 is $f(x) = -(1-\exp(-x))$. And teams outside of the top 5 (excluding the bottom 3) being predicted an incorrect position outside of the top 5 and the bottom 3 being predicted outside of the bottom 3 to be $f(x) = -(1-\exp(-0.1x))$. We combine the above to form our prediction score.
+
+#### Penalisation term
+We define our penalisation term as for model $j$ with $k_j$ features as :  
+$$\text{penalisation term} = e^{-\lambda k_j},$$
+where $\lambda$ is a decay rate to be chosen. We choose $\lambda = 0.01$. This gives meaningful penalisation to models which use a large number of features, but is mild enough on smaller models so as to not dominate the model score. 
+
+Note that this lambda rate has a somewhat nice interpretation when viewed through the lens of the Bayesian model selection framework that is $P(M_j|D) \propto P(D|M_j)P(M_j)$.
+
+Suppose we set our prior belief of model $M_j = e^{-\lambda k_j}$. We can then look to choose $\lambda$ with respect to our prior belief about the probability of the model $M_j$. That is, suppose for each feature which we could have chosen to include in our model, we have a uniform prior belief as to if we will include it $\mathbb{P}($include feature $l$ in mode$) = q_l$. Then we can also have $P(M_j) = e^{-\lambda k_j}\propto (\frac{q}{1-q})^{k_j}$. Thus we can rearange to find lambda in terms of our prior beliefs about any feature being included in our model. We have: $$\lambda = \ln(\frac{1-q}{q}).$$
+
+Thus, if for each feature $q$, we have the uniform prior belief that it is to be included in our model just below half the time, ie $q = 0.497$, then we get $\lambda \approx 0.01$. Again, this is a relativley mild penalisation but it is pretty apt for our case since we want to bound our model scores to $[0,1]$.
+
+#### Model score
+The model score is given by the function *pm_adjusted* and is described by the equation:
+$$\text{model score} =  \text{Pm}(M_j) e^{-\lambda k_j}.$$
+```{r model score}
+pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
+  
+  upper_bound <- pm(predicted = actual_table$Position, actual = actual_table$Position)
+  lower_bound<- pm(predicted = 21-actual_table$Position, actual = actual_table$Position)
+
+  prediction_score<-(pm(predicted , actual)- lower_bound)/(upper_bound - lower_bound)
+  
+  feature_penalisation <- exp(-lambda * number_features)
+  
+  model_score <- prediction_score * feature_penalisation
+  
+  return(model_score)
+}
+
+```
+
+The model score is a relatively natural function which is somewhat similar in flavour to AIC information criterion. Note that if we take the log of our score, we get:
+
+$$\ln(\text{Pm}(M_j)) - \lambda k_j,$$
+whereas AIC is given by:
+
+$$\text{AIC} = 2k - 2\ln(\hat{\mathcal{L}})$$.
+
+Our model score does have some important differences from AIC, for one, a good model is one which obtains a large model score under our system, whereas in AIC, a good model gives a low score. Further, our model score penalises the number of features used by our models, however AIC penalises the number of estimated parameters.
+
+On the other hand, both our model score and AIC reward models which have a "good" fit to the data, for their respective ideals of "goodness". Both also look to penalise the complexity of the models with respect to the model size.
+
+
+
+
+
