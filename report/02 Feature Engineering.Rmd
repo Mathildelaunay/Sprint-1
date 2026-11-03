@@ -42,7 +42,8 @@ Another limitation is that the cumulative statistics reset at the beginning of e
 
 # Mathilde
 This links to the training dataset that I built in `Mathilde` \> `01 Feature Engineering.Rmd`. 
-Have a look at the function there, along with the tags explaining how the function works every step of the way. It helped me to keep track of what everything was doing since I used the help of Artificial Intelligence to build this function. I made sure that there were no NA values and it was important to ensure that there was also no data leaking to make a fair prediction.
+Have a look at the function there, along with the tags explaining how the function works every step of the way. It helped me to keep track of what everything was doing since I used the help of Artificial Intelligence to build this function. I made sure that there were no NA values and it was important to ensure that there was also no data leaking to make a fair prediction. 
+Another check I did was to look at the training data, in the difference rows, the values are swapped and have a negative sign. 
 ```{r}
 training_data <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Mathilde/training_data.csv")
 names(training_data)
