@@ -1,8 +1,11 @@
 Our goal was to develop a performance metric which allows us to compare the different models within our group.
+We all agreed that our models should output a final ranking for the 2026/27 Premier League season as our prediction.
 
 In the Premier League, the bottom 3 teams get relegated which is a significant event for a team a they get demoted to a lower league which has huge effects on the club.
 The top few teams also get to play in the following season's Champions League, the exact number depends on how well English teams perform in the Champions League.
 Playing in this competition is also of great significance for any team who qualify for it and usually its the top 4 or 5 most of the time who qualify for it.
 With these facts in mind, we decided that our performance metric should mainly evaluate how well a model correctly predicts the top 5 and the bottom 3.
 Teams that finish in between these two groups don't really have anything significant happen to them, they just keep their spot in the Premier League for next season.
-#talk about how we decide to weight these less, then talk about numbers in the weighting and the formulas etc
+Therefore we decided to place more importance on how good the predictions of the top 5 and bottom 3 teams were.
+
+To implement our idea we decided to design appropriate weights to combine both the importance and accuracy of...
