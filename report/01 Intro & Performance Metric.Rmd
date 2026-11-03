@@ -122,10 +122,12 @@ pm_adjusted(predicted = Anna_test$Position_Predicted, actual = Anna_test$Positio
 ```
 Jonty's model
 ```{r jontys pm score}
-pm_adjusted(predicted = Jonty_test$Predicted_Rank, 
-            actual = Jonty_test$Actual_Rank, 
-            number_features=8, lambda=0.01)
+pm_adjusted(predicted = Jonty_test$Predicted_Rank,
+            actual = Jonty_test$Actual_Rank,
+            number_features = 8, lambda = 0.01)
 ```
+
+
 
 
 
