@@ -1,0 +1,123 @@
+---
+title: "Report"
+author: "Anna Del Pino"
+date: "2026-11-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Data%20Cleaning.R")
+source("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Model.R")
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+# Data Processing `Data cleaning.Rmd`
+
+The data preparation described in `Anna Del Pino` \> `Data cleaning.Rmd` combines Premier League match records from the 2014/15 to 2025/26 seasons and prepares 2026/27 fixtures for prediction.
+
+Here we keep match and performance statistics. I also created new counting columns as these will get used as features of my model. These cumulatively sum up the respective team's statistic up to the previous match. This way the model uses only the match statistics that have been seen. These are the following:
+
+```{r}
+names(train_data)
+```
+
+These statistics represent points, goals, shots, corners, fouls and cards for home and away teams. Their specific description can be found in `\Anna Del Pino > Premier League match events data > Notes.txt`. I removed betting odds because these reflect people’s expectations rather than what happens on the pitch which isn't well reflective of my model.
+
+The data is divided into training set to contain 2014/15-2024/25 seasons, a held out test set to be 2025/26 and 2026/27 prediction set. For each team, it calculates cumulative statistics and league points from earlier matches in the same season. Each match row therefore contains the team statistics available before that match. The model uses these features to predict match outcomes, which are then used to produce the season ranking.
+
+## Limitations
+
+Older seasons have fewer match statistics recorded, so there may be less information for the model to use for some matches. We use match statistics and test the model on the later 2025/26 season to see how well it works with data from a later season.
+
+Some statistics missing from older records may also be treated as zero when I calculate the cumulative features. This could affect the predictions, so differences in the data available for each season are still a limitation to consider when discussing the results and final ranking.
+
+# Model `Model.RMD`
+
+The aim of my model is to predict the goals scored by the home and away teams in each match, then use these predictions to create a final league ranking. Goals are non negative counts, so we use two Poisson generalised linear models (GLMs): one for home goals and one for away goals. For match i, we represent the goal counts as $$Y_{H,i} \sim \text{Poisson}(\lambda_{H,i}), \\ Y_{A,i} \sim \text{Poisson}(\lambda_{A,i}),$$ where $\lambda_{H,i}$ and $\lambda_{A,i}$ are the expected goal count of the home and away teams. The models use a log link: $$\log(\lambda_{H,i})=\beta_{H,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_H, \\ \log(\lambda_{A,i})=\beta_{A,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_A$$ The log link function gives a positive expected goal rate.The paper also uses Poisson modelling by treating goals as count data.
+
+To choose which features to use I used a backward-forward selection method with AIC. This can be found in `\Anna Del Pino > Model.Rmd`. Using this made me choose the following two models.
+
+```{r}
+formula(home_final_model)
+formula(away_final_model)
+```
+
+As we can see, the two models use different features which makes sense since we're assumig that a team playing at home or away makes a difference in their perfomrance in a match. The `AwayYellowCardsBefore`, `HomeYellowCardsBefore` and `AwayRedCardsBefore` features are intersting to explore as their importance to the model show that as the away team is assigned a yellow card, the home team might work to perform better and avoid the possible future faults that they might commint. Similarly with the home team yeallow cards to the away team and furthermore they consider their own yellow and red cards more as they proplay think that the need to take further caution as theyre playing against a team that has larger odds of winning.
+
+The idea of fitting two different models for home and away teams is also used in `Anna Del Pino` \> `Premier League goal prediction.pdf`, which fits separate Poisson regression models for home and away goal rates and then combines these results to simulate match scores and season rankings. I also chose to model home and away goals separately because I think playing at home or away can affect a team’s performance. A home team may feel more comfortable playing in front of its own supporters, while an away team is playing in front of a crowd that may not support it.
+
+The main difference between my model and the one explained in the article is that I predict each matches's goals scored for each team while the article assigns "scoring rates" for each team. I do this by using the `round()` function within my prediction which allows us to determine a winner for each match whcih allows me then to assign points to each team to then rank the teams when all the season data is predicted.
+
+We check the selected models using residual plots and Pearson dispersion ratios. On `Model.Rmd` we see that the Pearson ratios are close to 1, which suggests there is no strong sign of overdispersion. We then evaluate the predictions on the separate 2025/26 test season. The home-goal MAE is 0.939, compared with 0.996 for a baseline that predicts the training-set mean; the away-goal MAE is 0.818, compared with 0.875 for its baseline. The predicted ranking has a mean absolute position error of 2.1 places and a Spearman correlation of 0.862 with the actual ranking, indicating a similar ordering of teams in the test season.(`Anna Del Pino` \> `Test and Notes`)
+
+Finally, to produce the final league ranking I built a `ranking()` function which uses the predicted goals for each match, assigns points to the respective teams depending on the predicted score and finally builds a table to add up all of the points and calculates the goal difference of each team to rank them wrt the size of points and gd.
+
+To produce the league table, we combine the predicted home and away goals for each match. We built a `ranking()` function which does this by: \* uses each matches `FTHG` and `FTAG` (i.e. response variables) to calculate league points, \* adds up each team’s points and goal difference, \* ranks teams by points, using goal difference to break ties.
+
+After testing the model by using the 2025/26 season I wanted to see how the model performed wrt the training set.
+
+```{r}
+MAE_HG <- mean(abs(test_data$FTHG - test_data$PredHomeGoals))
+MAE_AG <- mean(abs(test_data$FTAG - test_data$PredAwayGoals))
+train_MAE_HG <- mean(abs(test_data$FTHG - mean(train_data$FTHG)))
+train_MAE_AG <- mean(abs(test_data$FTAG - mean(train_data$FTAG)))
+MAE_pos <- mean(abs(table_comparison$PositionDifference))
+rank_corr <- cor(table_comparison$Position_Predicted, table_comparison$Position_Actual,method = "spearman", use = "complete.obs")
+
+print(c(MAE_HG, MAE_AG, train_MAE_HG, train_MAE_AG, MAE_pos, rank_corr))
+```
+
+These results show taht the model performs better than the training baseline. \* Home goal MAE: 0.939 goals, compared with 0.996 from the train model error so a 5.7% reduction. \* Away goal MAE: 0.818 goals, compared with 0.875 from the train model error so a 6.5% reduction. \* Mean position error: 2.1 places. On average, a team’s predicted position was about two places away from its actual position. \* Spearman rank correlation: 0.862, showing that the predicted and actual ranking orders were fairly similar. The **Spearman correlation** between two variables will be high when observations have a similar (or equal with correlation = 1) rank between the two variables. The model improved goal predictions over the baseline and reproduced the overall team ranking reasonably well on the test season.
+
+## Limitations
+
+Some teams have less data available than others. For example, Coventry has only a few months of 2026/27 data because it has not appeared in the earlier seasons included in our dataset. This means the model has less information about Coventry’s performance. The model also does not give more weight to recent seasons, so it may not fully reflect changes in how teams perform over time.
+
+In our model, we round the predicted goals to get a score for each match. This is different from the paper’s simulation approach, so it may affect the predicted number of wins, draws and losses, and therefore the final ranking. Rounding can also affect the errors used to evaluate the model.
+
+# 2026/27 Prediction
+
+Since my models had the highest score after applying the performance metric, we will produce a prediciton of the 2026/27 end of season ranking table.
+
+```{r}
+played_26_27 <- prediction_data[prediction_data$Date <= as.Date("2026-10-19"),] 
+unplayed <- prediction_data$Date > as.Date("2026-10-19")
+
+final_train_data <- bind_rows(train_data, test_data, played_26_27) #known data that will get used to train the model
+
+home_final_model <- glm(formula(home_step), data = final_train_data, family = poisson) 
+away_final_model <- glm(formula(away_step), data = final_train_data, family = poisson)
+
+#initialise prediction column filled with NAs
+prediction_data$PredHomeGoals <- NA_real_ 
+prediction_data$PredAwayGoals <- NA_real_
+
+prediction_data$PredHomeGoals[unplayed] <- round(predict(home_final_model, newdata = prediction_data[unplayed, ], type = "response"))
+prediction_data$PredAwayGoals[unplayed] <- round(predict(away_final_model, newdata = prediction_data[unplayed, ], type = "response"))
+
+final_home_goals <- ifelse(unplayed,prediction_data$PredHomeGoals,prediction_data$FTHG) 
+final_away_goals <- ifelse(unplayed,prediction_data$PredAwayGoals,prediction_data$FTAG)
+
+#builds the prediction table
+predicted_2026_27_table <- ranking(prediction_data,final_home_goals,final_away_goals)
+
+predicted_2026_27_table
+```
+
+For the 2026/27 season, results are available for matches played up to 19 October, while the remaining fixtures have missing match results because they have not yet been played. I use actual goals for completed matches and predict goals for the remaining fixtures using our Poisson GLMs before calculating the final ranking using our `ranking()` function.
+
+##Limitations
+
+For the 2026/27 prediction dataset I only have data up to and including 19-10-26 so for the model to know which match it will be predicting in the future, I wrote the remaining fixtures (i.e. from 30-10-27 to 30-05-2027) as rows filled only with `Date`, `HomeTeam` and `AwayTeam` information and the newly created cumulative columns just repeat the value over and over again as we don't have any new information of the statistics. Note that the cumulative goals columns also keeps repeating as this doesn't include the predicted new goals. This does bring a limitation to the model as it's assuming that no changes in perfomance of each respective team has happened. For example here are the first 10 matches of Arsenal.
+
+```{r}
+head(prediction_data[prediction_data$HomeTeam == "Arsenal" |prediction_data$AwayTeam == "Arsenal",],10)
+```
+
+We can see that the current matches statistics (i.e FTHG up to AR ) are filled with `NA` for unseen matches and the cumulative statistcis columns show the last seen result. As these statistcis are the cumulative sum of the previous ones, it includes all seen information for each respective statistic. Furthermore, the dataset adds two columns of `PredHomeGoals` and `PredAwayGoals` which are the predictions $\hat\lambda_H$ and $\hat\lambda_A$ of expected home and away goals for each match $i$.
+
