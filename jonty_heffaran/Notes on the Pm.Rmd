@@ -42,7 +42,7 @@ This gives us the adjusted pm:
 
 ```{r}
 pm <- function(predicted, actual) {
-  
+
   n <- length(actual)
   # Identify the top five teams
   P5 <- which(predicted <= 5)

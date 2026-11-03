@@ -14,6 +14,7 @@ library(readr)
 Mathilde_test <- readRDS("~/Documents/GitHub/Sprint-1/Mathilde/MathildeTestTable.rds")
 Bobby_test <- read_csv("~/Documents/GitHub/Sprint-1/Bobby Harwood/test_25_26_predicted_vs_actual_rankings.csv")
 Anna_test <- readRDS("~/Documents/GitHub/Sprint-1/Anna Del Pino/AnnaTestTable.rds")
+Jonty_test <- read.csv("~/Documents/GitHub/Sprint-1/jonty_heffaran/epl_prediction.csv")
 
 pm <- function(predicted, actual) {
   
@@ -119,4 +120,12 @@ Anna's model
 ```{r}
 pm_adjusted(predicted = Anna_test$Position_Predicted, actual = Anna_test$Position_Actual, 12, lambda=0.01)
 ```
+Jonty's model
+```{r jontys pm score}
+pm_adjusted(predicted = Jonty_test$Predicted_Rank, 
+            actual = Jonty_test$Actual_Rank, 
+            number_features=8, lambda=0.01)
+```
+
+
 
