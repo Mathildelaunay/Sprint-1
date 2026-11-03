@@ -111,8 +111,8 @@ unplayed <- prediction_data$Date > as.Date("2026-10-19")
 
 final_train_data <- bind_rows(train_data, test_data, played_26_27) #known data that will get used to train the model
 
-home_final_model <- glm(formula(home_step), data = final_train_data, family = poisson(link = "log")) 
-away_final_model <- glm(formula(away_step), data = final_train_data, family = poisson(link = "log"))
+home_final_model <- glm(formula(home_step), data = final_train_data, family = stats::poisson(link = "log")) 
+away_final_model <- glm(formula(away_step), data = final_train_data, family = stats::poisson(link = "log"))
 
 #initialise prediction column filled with NAs
 prediction_data$PredHomeGoals <- NA_real_ 
