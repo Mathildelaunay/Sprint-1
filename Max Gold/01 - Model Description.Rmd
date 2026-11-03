@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 
-```{r echo=FALSE}
+```{r message=FALSE}
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -20,3 +20,8 @@ library(lubridate)
 library(corrplot)
 library(readr)
 ```
+
+
+We use random forests as a way of reducing the variability that normal decision trees are known for by implementing bagging. Bagging, known as bootstrap aggregating, is a method where data is randomly resampled to form a new data sample with the option of duplicate values and is then classified upon. After completing this with $m$ bootstraps in parallel, we average the results in the aggregating step to create a final outcome. In a random forest, we use decision trees as the classifier, however instead of using all features at the splitting step where we choose the feature that provides the best outcome of the tree under our chosen loss function, we use a random subset of features from which to choose the split with the lowest error. Choosing from a random subset makes the decision trees less similar, which allows us to observe which features are most important in creating the strongest tree, and using the squared loss function provides a stable final ranking of features for regression. 
+
+An advantage of bagging is that it reduces variability, through the equation $$\text{Var}\bigg(\frac{1}{B}\sum_{b=1}^Bh_b(x)\bigg) = \rho\sigma^2+\frac{(1-\rho)\sigma^2}{B}$$, where $B$ is the number of decision trees, $h_b(x)$ is the prediction made by decision tree $b$ of $x$, and $\sigma$ is the standard deviation and $\rho$ correlation of the tree's prediction. As the number of trees increases, the variance stabilises and even when correlation is present, the model regularises its fitting automatically by averaging many poor trees rather than using one very good tree since there is a higher chance of anomalies influencing a single tree. 
