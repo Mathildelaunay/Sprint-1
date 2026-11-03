@@ -17,12 +17,12 @@ home_full_formula <- reformulate(predictor_columns, response = "FTHG") #FTHG ~ s
 away_full_formula <- reformulate(predictor_columns, response = "FTAG")
 
 #null models
-home_null <- glm(FTHG ~ 1, data = home_train, family = poisson)
-away_null <- glm(FTAG ~ 1, data = away_train, family = poisson)
+home_null <- glm(FTHG ~ 1, data = home_train, family = poisson(link = "log"))
+away_null <- glm(FTAG ~ 1, data = away_train, family = poisson(link = "log"))
 
 #full models
-home_full <- glm(home_full_formula, data = home_train, family = poisson)
-away_full <- glm(away_full_formula, data = away_train, family = poisson)
+home_full <- glm(home_full_formula, data = home_train, family = poisson(link = "log"))
+away_full <- glm(away_full_formula, data = away_train, family = poisson(link = "log"))
 
 #forward backward selection using AIC
 home_step <- step(home_null, scope = list(lower = ~1, upper = home_full_formula), direction = "both")
@@ -111,8 +111,8 @@ unplayed <- prediction_data$Date > as.Date("2026-10-19")
 
 final_train_data <- bind_rows(train_data, test_data, played_26_27) #known data that will get used to train the model
 
-home_final_model <- glm(formula(home_step), data = final_train_data, family = poisson) 
-away_final_model <- glm(formula(away_step), data = final_train_data, family = poisson)
+home_final_model <- glm(formula(home_step), data = final_train_data, family = poisson(link = "log")) 
+away_final_model <- glm(formula(away_step), data = final_train_data, family = poisson(link = "log"))
 
 #initialise prediction column filled with NAs
 prediction_data$PredHomeGoals <- NA_real_ 
