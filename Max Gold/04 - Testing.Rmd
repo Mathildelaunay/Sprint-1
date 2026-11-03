@@ -9,3 +9,12 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r echo=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(randomForest)
+library(lubridate)
+library(corrplot)
+library(readr)
+```
