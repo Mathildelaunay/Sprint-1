@@ -17,7 +17,7 @@ library(lubridate)
 build_season_dataset <- function(current_data,
                                  previous_data,
                                  season_label,
-                                 alpha) {
+                                 alpha = 0.1) {
 
   matches <- current_data %>%
     mutate(
@@ -453,11 +453,11 @@ training_datasets <- lapply(
       current_data = season_data[[i]],
       previous_data = previous_data[[i]],
       season_label = names(season_data)[i],
-      0.1)
+      alpha = 0.1)
   }
 ) # this builds our training dataset 
 
 training_data <- bind_rows(training_datasets)
-saveRDS(training_data, "training_data.rds") 
+write.csv(training_data, "training_data.csv") 
 # saves it so that we don't need to recreate it, can call it later on.
 ```

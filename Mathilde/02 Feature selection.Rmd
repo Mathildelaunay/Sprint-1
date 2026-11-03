@@ -22,7 +22,7 @@ predictors <- c(
   "DRF", "DYF", "DFF", "DCS", "DSTF", "DSF"
 )
 
-training_data <- readRDS("training_data.rds")
+training_data <- read.csv("training_data.csv")
 
 # Same rows for every candidate model
 model_data <- training_data %>%

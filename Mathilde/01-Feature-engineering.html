@@ -377,7 +377,7 @@ library(lubridate)</code></pre>
 build_season_dataset &lt;- function(current_data,
                                  previous_data,
                                  season_label,
-                                 alpha) {
+                                 alpha = 0.1) {
 
   matches &lt;- current_data %&gt;%
     mutate(
@@ -810,12 +810,12 @@ training_datasets &lt;- lapply(
       current_data = season_data[[i]],
       previous_data = previous_data[[i]],
       season_label = names(season_data)[i],
-      0.1)
+      alpha = 0.1)
   }
 ) # this builds our training dataset 
 
 training_data &lt;- bind_rows(training_datasets)
-saveRDS(training_data, &quot;training_data.rds&quot;) 
+write.csv(training_data, &quot;training_data.csv&quot;) 
 # saves it so that we don&#39;t need to recreate it, can call it later on.</code></pre>
 
 

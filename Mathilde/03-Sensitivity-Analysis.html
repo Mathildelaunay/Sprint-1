@@ -377,7 +377,7 @@ library(lubridate)</code></pre>
 <pre class="r"><code>library(ggplot2)
 
 source(&quot;feature_engineering_functions.R&quot;)
-training_data &lt;- readRDS(&quot;training_data.rds&quot;)
+training_data &lt;- read.csv(&quot;training_data.csv&quot;)
 
 poisson_formula &lt;- Goals ~ DSTF + TeamRankCategory + HomeAway + opp_defence_score + 
     attack_score + DCS + DSF + DYF + OpponentRankCategory + DLF

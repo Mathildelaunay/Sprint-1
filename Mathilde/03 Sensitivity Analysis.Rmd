@@ -17,7 +17,7 @@ library(lubridate)
 library(ggplot2)
 
 source("feature_engineering_functions.R")
-training_data <- readRDS("training_data.rds")
+training_data <- read.csv("training_data.csv")
 
 poisson_formula <- Goals ~ DSTF + TeamRankCategory + HomeAway + opp_defence_score + 
     attack_score + DCS + DSF + DYF + OpponentRankCategory + DLF
