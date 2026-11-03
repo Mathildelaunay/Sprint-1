@@ -15,6 +15,7 @@ Mathilde_test <- readRDS("~/Documents/GitHub/Sprint-1/Mathilde/MathildeTestTable
 Bobby_test <- read_csv("~/Documents/GitHub/Sprint-1/Bobby Harwood/test_25_26_predicted_vs_actual_rankings.csv")
 Anna_test <- readRDS("~/Documents/GitHub/Sprint-1/Anna Del Pino/AnnaTestTable.rds")
 Jonty_test <- read.csv("~/Documents/GitHub/Sprint-1/jonty_heffaran/epl_prediction.csv")
+Max_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/MG%20TABLE%20WALK-FORWARD.csv")
 
 pm <- function(predicted, actual) {
   
@@ -126,7 +127,12 @@ pm_adjusted(predicted = Jonty_test$Predicted_Rank,
             actual = Jonty_test$Actual_Rank,
             number_features = 8, lambda = 0.01)
 ```
+Max's model
+```{r}
 
+pm_adjusted(predicted)
+
+```
 
 
 
