@@ -8,4 +8,10 @@ With these facts in mind, we decided that our performance metric should mainly e
 Teams that finish in between these two groups don't really have anything significant happen to them, they just keep their spot in the Premier League for next season.
 Therefore we decided to place more importance on how good the predictions of the top 5 and bottom 3 teams were.
 
-To implement our idea we decided to design appropriate weights to combine both the importance and accuracy of...
+To implement our idea, we decided to design appropriate weights which would reflect the importance of different predictions.
+If a team was correctly predicted to be somewhere within the bottom 3, then its weight is 1.
+Similarly, if a team in the top 5 was correctly predicted in the exact position, then its weight is also 1.
+For any team correctly predicted in the exact position outside which are outside of the top 5 or bottom 3, then its weight is 0.5.
+This way, we are weighting the top 5 and bottom 3 more to reflect its high importance. 
+For a correct prediction of a team being in the top 5 but in the incorrect exact position, we used...
+
