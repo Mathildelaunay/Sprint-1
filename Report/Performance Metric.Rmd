@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(readr)
 Mathilde_test <- readRDS("~/Documents/GitHub/Sprint-1/Mathilde/MathildeTestTable.rds")
 Bobby_test <- read_csv("~/Documents/GitHub/Sprint-1/Bobby Harwood/test_25_26_predicted_vs_actual_rankings.csv")
+Anna_test <- readRDS("~/Documents/GitHub/Sprint-1/Anna Del Pino/AnnaTestTable.rds")
 
 pm <- function(predicted, actual) {
   
@@ -112,5 +113,8 @@ Bobby's model
 ```{r}
 pm_adjusted(predicted = Bobby_test$Predicted_Ranking, actual = Mathilde_test$ActualRank, 8, 0.01)
 ```
-
+Anna's model
+```{r}
+pm_adjusted(predicted = Anna_test$Position_Predicted, actual = Anna_test$Position_Actual, 12, lambda=0.01)
+```
 
