@@ -67,7 +67,7 @@ If we log our new adjusted performance metric we actually get a similar form of 
 ```{r} 
 library(readr)
 Mathilde_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Mathilde/MathildeTestTable.csv")
-Bobby_test <- read_csv("~/Documents/GitHub/Sprint-1/Bobby Harwood/test_25_26_predicted_vs_actual_rankings.csv")
+Bobby_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Bobby%20Harwood/predicted_26_27_rankings.csv")
 Anna_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/AnnaTestTable.csv")
 Jonty_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/jonty_heffaran/epl_prediction.csv")
 Max_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/MG%20TABLE%20WALK-FORWARD.csv")

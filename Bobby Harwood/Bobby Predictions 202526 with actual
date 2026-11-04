@@ -1,0 +1,21 @@
+"","Team","Predicted_Ranking","Predicted_Goals_Ratio","Absolute_Rank_Error","Actual_Rank"
+"1","Arsenal",1,2.626,0,1
+"2","Liverpool",2,1.844,2,5
+"3","Man City",3,1.641,1,2
+"4","Tottenham",4,1.428,12,17
+"5","Chelsea",5,1.332,2,10
+"6","Newcastle",6,1.229,4,12
+"7","Bournemouth",7,1.176,1,6
+"8","Brighton",8,1.101,2,8
+"9","Aston Villa",9,1.094,4,4
+"10","Crystal Palace",10,1.087,7,15
+"11","Fulham",11,1.018,2,11
+"12","Brentford",12,0.969,3,9
+"13","Sunderland",13,0.965,2,7
+"14","Everton",14,0.929,2,13
+"15","Nott'm Forest",15,0.904,4,16
+"16","Wolves",16,0.74,4,20
+"17","Man United",17,0.714,14,3
+"18","Leeds",18,0.688,4,14
+"19","West Ham",19,0.655,1,18
+"20","Burnley",20,0.507,1,19
