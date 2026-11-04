@@ -12,7 +12,7 @@ library(ggplot2)
 set.seed(67576)
 ```
 
-
+#NOTE TO READER: DO NOT LET THE NAME FOOL YOU, THIS IS NOT A CLEAN FILE ANYMORE. APOLOGIES. THIS FILE FOLLOWS THROUGH MY MODEL CREATION
 
 # Section 1: Overview
 [INCLUDE: OVERVIEW OF MODELLING METHOD, DIFFICULTIES, LIMITATIONS, PERFORMANCE VS PM, ETC]
@@ -108,20 +108,23 @@ We will use data sourced by Anna from https://football-data.co.uk/. First we loo
 We will source the datasets below and print their heads for your viewing pleasure:
 
 ```{r}
-epl_all <- readRDS("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/EPL_ALL")
 
-ech_all <- readRDS("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/ECH_ALL")
+epl_all <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/jonty_heffaran/data/EPL_ALL.csv") %>%mutate(
+  Date = as.Date(Date))
+
+ech_all <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/jonty_heffaran/DATA_ECH_ALL.csv")%>%mutate(
+  Date = as.Date(Date))
+
+
 
 head(epl_all)
 head(ech_all)
 ```
 
 ```{r loading test data, include=FALSE}
-epl_test <- read.csv(
-  "C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/2526_test_pl.csv",stringsAsFactors = FALSE) %>% select(Date, HomeTeam, AwayTeam, FTHG, FTAG) 
+epl_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/jonty_heffaran/data/2526_test_pl.csv") %>% select(Date, HomeTeam, AwayTeam, FTHG, FTAG) 
 
-ech_test <- read.csv(
-  "C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/2526_test_ch.csv",stringsAsFactors = FALSE) %>% select(Date, HomeTeam, AwayTeam, FTHG, FTAG) 
+ech_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/jonty_heffaran/data/2526_test_ch.csv") %>% select(Date, HomeTeam, AwayTeam, FTHG, FTAG) 
 
 epl_test$Date <- as.Date(epl_test$Date, format = "%d/%m/%Y")
 ech_test$Date <- as.Date(ech_test$Date, format = "%d/%m/%Y")
@@ -745,7 +748,7 @@ print(tuning_results)
 ```
 
 ```{r Sourcing the scaling parameter test results}
-results <- read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/top_10_transition_results.csv")
+results <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/jonty_heffaran/data/top_10_transition_results.csv")
 
 print(head(results))
 ```
@@ -877,7 +880,7 @@ weighting_summary <- bind_rows(
            cut_off = weighting_grid$cut_off[i],
            weighting_results[[i]]$summary)})) %>%
   arrange(Pooled_Combined_MAE) %>%
-  mutate(Rank = dplyr::row_number()) %>%
+  mutate(Rank = row_number()) %>%
   select(Rank, power, cut_off,
     Mean_EPL_MAE, Mean_ECH_MAE, Pooled_Combined_MAE,
     Pooled_Combined_RMSE, SD_Combined_MAE)
@@ -888,7 +891,7 @@ head(weighting_summary)
 We get the following summary
 
 ```{r}
-print(head(read.csv("C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/Weight optim summary.csv")))
+print(head(read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/jonty_heffaran/Weight%20optim%20summary.csv")))
 ```
 Our lowest combined MAE is given when we use power = 0.5 and cut_off = 2555. If we plot this weighting curve it gives:
 
@@ -924,7 +927,7 @@ We fix our model parameters and then fit our model given these.
 
 ```{r final model fit, message=FALSE}
 known_date <- as.Date("2025-07-28")
-
+# fit the models under params
 final_models <- fit_division_models(
   epl_train = epl_all, ech_train = ech_all,
   known_date = known_date, cut_off = 2555, power = 0.5)
@@ -955,7 +958,6 @@ final_ratings <- adjust_division_ratings(
 We now look to predict the 2025-26 season table with our trained model. We load our test data.
 
 
-
 ```{r Predicting the league, include=FALSE}
 predict_fixtures <- function(
     fixtures,
@@ -969,7 +971,7 @@ predict_fixtures <- function(
 
     home <- fixtures$HomeTeam[i]
     away <- fixtures$AwayTeam[i]
-
+# call dc func to give scoreline probs
     probs <- dixon_coles_probs(
       team_ratings = team_ratings,
       home_team = home,
@@ -980,25 +982,25 @@ predict_fixtures <- function(
       max_goals = max_goals)
 
     goals <- 0:max_goals
-
+# calc expected home goals
     expected_home <- sum(probs * matrix(
       goals,
       nrow = length(goals),
       ncol = length(goals)))
-
+# calc expected away goals
     expected_away <- sum(probs * matrix(
       goals,
       nrow = length(goals),
       ncol = length(goals),
       byrow = TRUE))
-
+# give probs of the three match outcomes
     home_win <- sum(probs[row(probs) > col(probs)])
     draw <- sum(diag(probs))
     away_win <- sum(probs[row(probs) < col(probs)])
-
+# gives most likely outcome
     most_likely <- which(
       probs == max(probs), arr.ind = TRUE)[1, ]
-
+# colate all of the predictions
     data.frame(Date = fixtures$Date[i],
       HomeTeam = home, AwayTeam = away,
       Expected_Home_Goals = expected_home,
@@ -1012,7 +1014,7 @@ predict_fixtures <- function(
       Expected_Away_Points = 3 * away_win + draw)})
 
   bind_rows(results)}
-
+# get predictions for epl
 epl_predictions <- predict_fixtures(
   epl_test,
   final_ratings$epl_ratings,
@@ -1027,20 +1029,20 @@ ech_predictions <- predict_fixtures(
 
 compare_league_tables <- function(fixtures, predictions) {
 
-  # Predicted home-team contributions
+  # predicted home team conts
   predicted_home <- data.frame(
     Team = predictions$HomeTeam, P = 1,
     Expected_Pts = predictions$Expected_Home_Points,
     Expected_GF = predictions$Expected_Home_Goals,
     Expected_GA = predictions$Expected_Away_Goals)
 
-  # Predicted away-team contributions
+  # predicted away team conts
   predicted_away <- data.frame(
     Team = predictions$AwayTeam, P = 1,
     Expected_Pts = predictions$Expected_Away_Points,
     Expected_GF = predictions$Expected_Away_Goals,
     Expected_GA = predictions$Expected_Home_Goals)
-
+# form predicted table
   predicted_table <- bind_rows(
     predicted_home, predicted_away) %>%
     group_by(Team) %>%
@@ -1053,7 +1055,7 @@ compare_league_tables <- function(fixtures, predictions) {
             desc(Expected_GD), desc(Expected_GF)) %>%
     mutate(Predicted_Rank = row_number())
 
-  # Actual results: exclude any fixtures without a final score
+  # get actual
   completed <- fixtures 
 
   actual_home <- data.frame( Team = completed$HomeTeam,
@@ -1061,13 +1063,13 @@ compare_league_tables <- function(fixtures, predictions) {
 
   actual_away <- data.frame(Team = completed$AwayTeam,
     GF = completed$FTAG, GA = completed$FTHG)
-
+# get act rsults
   actual_results <- bind_rows(actual_home, actual_away) %>%
     mutate(W = as.integer(GF > GA),
       D = as.integer(GF == GA),
       L = as.integer(GF < GA),
       Pts = 3 * W + D)
-
+# form actual table
   actual_table <- actual_results %>%
     group_by(Team) %>%
     summarise(P = n(), W = sum(W), D = sum(D),
@@ -1076,21 +1078,20 @@ compare_league_tables <- function(fixtures, predictions) {
     arrange(desc(Pts), desc(GD), desc(GF)) %>%
     mutate(Actual_Rank = dplyr::row_number())
 
-  # Join predicted and actual positions
+  # merge the two table 
   comparison <- full_join(predicted_table, actual_table,
     by = "Team", suffix = c("_Predicted", "_Actual")) %>%
     mutate(Rank_Difference = Predicted_Rank - Actual_Rank) %>%
     arrange(Actual_Rank)
 
-  return(list(comparison = comparison))
-}
+  return(list(comparison = comparison))}
 ```
 
 ```{r creating league table}
 epl_tables <- compare_league_tables(
   fixtures = epl_test,
   predictions = epl_predictions)
-
+# we'll have a look of course we'll have a look.
 print(epl_tables$comparison)
 ```
 We can also run our predicted table and the actual table through our performance metric to get our model score:
