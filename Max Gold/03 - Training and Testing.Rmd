@@ -17,6 +17,7 @@ library(randomForest)
 library(lubridate)
 library(corrplot)
 library(readr)
+library(devtools)
 ```
 
 # Training Method
@@ -50,9 +51,8 @@ features_2 = read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1
 features_5 = read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/features_5.csv")
 features_10 = read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/features_10.csv")
 
-r_code <- knitr::purl("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/02---Feature-Engineering-and-Selection.Rmd", output = tempfile(), quiet = TRUE)
 
-source(r_code)
+source_url("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/Functions.R")
 
 ```
 
