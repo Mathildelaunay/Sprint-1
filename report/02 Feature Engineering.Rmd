@@ -38,6 +38,50 @@ Another limitation is that the cumulative statistics reset at the beginning of e
 
 # Max
 
+I have 3 different types of features:
+
+- historical result data purely from individual matches such as home goals, away goals, the day of the week of a match, and the side of the team (home or away),
+
+- lagged rolling window features such as a team's average goals scored and conceded in the last $k$ matches, the average points per match in the last $k$ games, and a team's average goals scored when they are on a certain side in the last $5$ matches where they were on that side, 
+
+- intra-season data, such as the current home ranking position before the match, their current points and goal difference, etc.
+
+The exact features I include are: 
+
+- Date
+- DayOfWeek
+- HomeTeam
+- AwayTeam
+- HomeGoals
+- AwayGoals
+- Result
+- SeasonStart
+- Season
+
+
+Here is a list of lagged rolling window or one-step-behind features we will be creating to analyse in the Feature Selection section: 
+
+- Home_GS, the home team's average goals scored
+- Home_GC, the home team's average goals conceded
+- Home_Points, the home tean's average points per match
+- Home_Wins, the home team's number of wins
+- Home_Home_GS, the home team's average goals scored in home matches
+- Home_Home_GS, the home team's average goals conceded in home matches
+
+
+Likewise, the same covariates but with Away yield the away team's information. 
+
+We also look at intra-season data, such as:
+
+- Home_Position before the match
+- Home_Current_Points during the season
+- Home_GD current season goal difference
+- Home_History, number of previous matches available to lag
+
+Likewise, the same covariates under Away are for the away teams.
+
+I used two different types of feature selection algorithms to prune parsimoniously to minimise the number of features used in my random forests. Firstly, I tried implementing a feature selection wrapper called Boruta *(Kursa et al, 2010)* which determines which features are relevant enough to include, however of the 21 features it was fed, it determined 18 were relevant to include which seemed excessive, and so I decided instead to use a random forest across the entire training data to extract ranked feature importance *(Gregorutti et al, 2017)*. I then examined the correlation matrix of my features, analysing whether there was any shared correlation between features. After observing the correlation matrix of the training data in `Max Gold/02 - Feature Engineering and Selection`, the features `Home_Wins` and `Away_Wins` share a high correlation with `Home_Points` and `Away_Points`, as the points for a team are determined by $\#\text{Points} = 3\times \#\text{Wins} + \#\text{draws}$, and so wins are contained within points and thus we remove them from feature selection. As shown below, for both the home and away random forests, there appears to be a cutoff after the first 10 features where the majority of mean squared error is explained, and so we preserve these for training.
+
 # Jonty
 
 # Mathilde
