@@ -160,29 +160,50 @@ pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
 
 Mathilde's model:
 ```{r}
-pm_adjusted(predicted = Mathilde_test$PredictedRank, actual = Mathilde_test$ActualRank, 10, 0.01)
+Mathilde_test
+a <- (pm(predicted = Mathilde_test$PredictedRank, actual = Mathilde_test$ActualRank)- lower_bound)/(upper_bound - lower_bound)
+b <- pm_adjusted(predicted = Mathilde_test$PredictedRank, actual = Mathilde_test$ActualRank, 10, 0.01)
+print(paste0("Mathilde's unadjusted score (not taking into account model size) is ", a))
+print(paste0("Mathilde's adjusted score (taking into account model size) is ", b))
 ```
 
 Bobby's model:
 ```{r}
-pm_adjusted(predicted = Bobby_test$Predicted_Ranking[match(Mathilde_test$Team, Bobby_test$Team)], actual = Mathilde_test$ActualRank, 5, 0.01)
+Bobby_test
+a <- (pm(predicted = Bobby_test$Predicted_Ranking[match(Mathilde_test$Team, Bobby_test$Team)], actual = Mathilde_test$ActualRank)- lower_bound)/(upper_bound - lower_bound)
+b <- pm_adjusted(predicted = Bobby_test$Predicted_Ranking[match(Mathilde_test$Team, Bobby_test$Team)], actual = Mathilde_test$ActualRank, 5, 0.01)
+print(paste0("Bobby's unadjusted score (not taking into account model size) is ", a))
+print(paste0("Bobby's adjusted score (taking into account model size) is ", b))
 ```
 
 Anna's model:
 ```{r}
-pm_adjusted(predicted = Anna_test$Position_Predicted, actual = Anna_test$Position_Actual, 12, lambda=0.01)
+Anna_test
+a <- (pm(predicted = Anna_test$Position_Predicted, actual = Anna_test$Position_Actual)- lower_bound)/(upper_bound - lower_bound)
+b <- pm_adjusted(predicted = Anna_test$Position_Predicted, actual = Anna_test$Position_Actual, 12, lambda=0.01)
+print(paste0("Anna's unadjusted score (not taking into account model size) is ", a))
+print(paste0("Anna's adjusted score (taking into account model size) is ", b))
 ```
 
 Jonty's model:
 ```{r jontys pm score}
-pm_adjusted(predicted = Jonty_test$Predicted_Rank,
+Jonty_test
+a <- (pm(predicted = Jonty_test$Predicted_Rank,
+            actual = Jonty_test$Actual_Rank)- lower_bound)/(upper_bound - lower_bound)
+b <- pm_adjusted(predicted = Jonty_test$Predicted_Rank,
             actual = Jonty_test$Actual_Rank,
             number_features = 8, lambda = 0.01)
+print(paste0("Jonty's unadjusted score (not taking into account model size) is ", a))
+print(paste0("Jonty's adjusted score (taking into account model size) is ", b))
 ```
 
 Max's model:
 ```{r}
-pm_adjusted(predicted = Max_test$Position[match(Mathilde_test$Team, Max_test$Team)], actual=Mathilde_test$ActualRank, 5, 0.01)
+Max_test
+a <- (pm(predicted = Max_test$Position[match(Mathilde_test$Team, Max_test$Team)], actual=Mathilde_test$ActualRank)- lower_bound)/(upper_bound - lower_bound)
+b <- pm_adjusted(predicted = Max_test$Position[match(Mathilde_test$Team, Max_test$Team)], actual=Mathilde_test$ActualRank, 5, 0.01)
+print(paste0("Max's unadjusted score (not taking into account model size) is ", a))
+print(paste0("Max's adjusted score (taking into account model size) is ", b))
 ```
 
 Anna's model has the highest score, so it wins!!!

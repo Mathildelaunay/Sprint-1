@@ -11,7 +11,7 @@
 
 <meta name="author" content="Mathilde Launay" />
 
-<meta name="date" content="2026-11-03" />
+<meta name="date" content="2026-11-04" />
 
 <title>01 Introduction and Performance Metric</title>
 
@@ -352,7 +352,7 @@ display: none;
 
 <h1 class="title toc-ignore">01 Introduction and Performance Metric</h1>
 <h4 class="author">Mathilde Launay</h4>
-<h4 class="date">2026-11-03</h4>
+<h4 class="date">2026-11-04</h4>
 
 </div>
 
@@ -590,22 +590,176 @@ pm_adjusted &lt;- function(predicted, actual, number_features, lambda=0.01) {
 <div id="model-output" class="section level1">
 <h1>Model Output</h1>
 <p>Mathilde’s model:</p>
-<pre class="r"><code>pm_adjusted(predicted = Mathilde_test$PredictedRank, actual = Mathilde_test$ActualRank, 10, 0.01)</code></pre>
-<pre><code>## [1] 0.4151383</code></pre>
+<pre class="r"><code>Mathilde_test</code></pre>
+<pre><code>##     X           Team PredictedPoints ActualPoints PredictedRank ActualRank
+## 1   1        Arsenal              98           85             3          1
+## 2   2       Man City             104           78             1          2
+## 3   3     Man United              69           71             6          3
+## 4   4    Aston Villa              69           65             5          4
+## 5   5      Liverpool             100           60             2          5
+## 6   6    Bournemouth              57           57             9          6
+## 7   7     Sunderland              15           54            18          7
+## 8   8       Brighton              50           53            10          8
+## 9   9      Brentford              40           53            11          9
+## 10 10        Chelsea              82           52             4         10
+## 11 11         Fulham              40           52            13         11
+## 12 12      Newcastle              69           49             7         12
+## 13 13        Everton              29           49            15         13
+## 14 14          Leeds              21           47            17         14
+## 15 15 Crystal Palace              40           45            12         15
+## 16 16  Nott&#39;m Forest              65           44             8         16
+## 17 17      Tottenham              31           41            14         17
+## 18 18       West Ham              23           39            16         18
+## 19 19        Burnley               7           22            20         19
+## 20 20         Wolves              14           20            19         20</code></pre>
+<pre class="r"><code>a &lt;- (pm(predicted = Mathilde_test$PredictedRank, actual = Mathilde_test$ActualRank)- lower_bound)/(upper_bound - lower_bound)
+b &lt;- pm_adjusted(predicted = Mathilde_test$PredictedRank, actual = Mathilde_test$ActualRank, 10, 0.01)
+print(paste0(&quot;Mathilde&#39;s unadjusted score (not taking into account model size) is &quot;, a))</code></pre>
+<pre><code>## [1] &quot;Mathilde&#39;s unadjusted score (not taking into account model size) is 0.458798751065868&quot;</code></pre>
+<pre class="r"><code>print(paste0(&quot;Mathilde&#39;s adjusted score (taking into account model size) is &quot;, b))</code></pre>
+<pre><code>## [1] &quot;Mathilde&#39;s adjusted score (taking into account model size) is 0.415138277312563&quot;</code></pre>
 <p>Bobby’s model:</p>
-<pre class="r"><code>pm_adjusted(predicted = Bobby_test$Predicted_Ranking[match(Mathilde_test$Team, Bobby_test$Team)], actual = Mathilde_test$ActualRank, 5, 0.01)</code></pre>
-<pre><code>## [1] 0.4036862</code></pre>
+<pre class="r"><code>Bobby_test</code></pre>
+<pre><code>## # A tibble: 20 × 4
+##    Team           Predicted_Ranking Predicted_Goals_Ratio Absolute_Rank_Error
+##    &lt;chr&gt;                      &lt;dbl&gt;                 &lt;dbl&gt;               &lt;dbl&gt;
+##  1 Arsenal                        1                 2.63                    0
+##  2 Liverpool                      2                 1.84                    2
+##  3 Man City                       3                 1.64                    1
+##  4 Tottenham                      4                 1.43                   12
+##  5 Chelsea                        5                 1.33                    2
+##  6 Newcastle                      6                 1.23                    4
+##  7 Bournemouth                    7                 1.18                    1
+##  8 Brighton                       8                 1.10                    2
+##  9 Aston Villa                    9                 1.09                    4
+## 10 Crystal Palace                10                 1.09                    7
+## 11 Fulham                        11                 1.02                    2
+## 12 Brentford                     12                 0.969                   3
+## 13 Sunderland                    13                 0.965                   2
+## 14 Everton                       14                 0.929                   2
+## 15 Nott&#39;m Forest                 15                 0.904                   4
+## 16 Wolves                        16                 0.74                    4
+## 17 Man United                    17                 0.714                  14
+## 18 Leeds                         18                 0.688                   4
+## 19 West Ham                      19                 0.655                   1
+## 20 Burnley                       20                 0.507                   1</code></pre>
+<pre class="r"><code>a &lt;- (pm(predicted = Bobby_test$Predicted_Ranking[match(Mathilde_test$Team, Bobby_test$Team)], actual = Mathilde_test$ActualRank)- lower_bound)/(upper_bound - lower_bound)
+b &lt;- pm_adjusted(predicted = Bobby_test$Predicted_Ranking[match(Mathilde_test$Team, Bobby_test$Team)], actual = Mathilde_test$ActualRank, 5, 0.01)
+print(paste0(&quot;Bobby&#39;s unadjusted score (not taking into account model size) is &quot;, a))</code></pre>
+<pre><code>## [1] &quot;Bobby&#39;s unadjusted score (not taking into account model size) is 0.424383675318689&quot;</code></pre>
+<pre class="r"><code>print(paste0(&quot;Bobby&#39;s adjusted score (taking into account model size) is &quot;, b))</code></pre>
+<pre><code>## [1] &quot;Bobby&#39;s adjusted score (taking into account model size) is 0.403686239240895&quot;</code></pre>
 <p>Anna’s model:</p>
-<pre class="r"><code>pm_adjusted(predicted = Anna_test$Position_Predicted, actual = Anna_test$Position_Actual, 12, lambda=0.01)</code></pre>
-<pre><code>## [1] 0.5652059</code></pre>
+<pre class="r"><code>Anna_test</code></pre>
+<pre><code>##     X           Team Position_Predicted Points_Predicted GD_Predicted
+## 1   1        Arsenal                  1               86           25
+## 2  13       Man City                  3               83           23
+## 3  14     Man United                  2               84           20
+## 4   2    Aston Villa                  6               62            8
+## 5  12      Liverpool                  4               80           19
+## 6   3    Bournemouth                  8               59            6
+## 7  17     Sunderland                 15               37           -8
+## 8   5       Brighton                 11               43           -5
+## 9   4      Brentford                  9               48            0
+## 10  7        Chelsea                  5               68           12
+## 11 10         Fulham                 10               44           -1
+## 12 15      Newcastle                  7               61            7
+## 13  9        Everton                 13               38           -7
+## 14 11          Leeds                 14               38           -7
+## 15  8 Crystal Palace                 17               34          -10
+## 16 16  Nott&#39;m Forest                 12               41           -3
+## 17 18      Tottenham                 16               36           -9
+## 18 19       West Ham                 18               30          -14
+## 19  6        Burnley                 19               13          -27
+## 20 20         Wolves                 20               11          -29
+##    Position_Actual Points_Actual GD_Actual PositionDifference
+## 1                1            85        44                  0
+## 2                2            78        42                  1
+## 3                3            71        19                 -1
+## 4                4            65         7                  2
+## 5                5            60        10                 -1
+## 6                6            57         4                  2
+## 7                7            54        -6                  8
+## 8                8            53         6                  3
+## 9                9            53         3                  0
+## 10              10            52         6                 -5
+## 11              11            52        -4                 -1
+## 12              12            49        -2                 -5
+## 13              13            49        -3                  0
+## 14              14            47        -7                  0
+## 15              15            45       -10                  2
+## 16              16            44        -3                 -4
+## 17              17            41        -9                 -1
+## 18              18            39       -19                  0
+## 19              19            22       -37                  0
+## 20              20            20       -41                  0</code></pre>
+<pre class="r"><code>a &lt;- (pm(predicted = Anna_test$Position_Predicted, actual = Anna_test$Position_Actual)- lower_bound)/(upper_bound - lower_bound)
+b &lt;- pm_adjusted(predicted = Anna_test$Position_Predicted, actual = Anna_test$Position_Actual, 12, lambda=0.01)
+print(paste0(&quot;Anna&#39;s unadjusted score (not taking into account model size) is &quot;, a))</code></pre>
+<pre><code>## [1] &quot;Anna&#39;s unadjusted score (not taking into account model size) is 0.637267817888098&quot;</code></pre>
+<pre class="r"><code>print(paste0(&quot;Anna&#39;s adjusted score (taking into account model size) is &quot;, b))</code></pre>
+<pre><code>## [1] &quot;Anna&#39;s adjusted score (taking into account model size) is 0.565205851347102&quot;</code></pre>
 <p>Jonty’s model:</p>
-<pre class="r"><code>pm_adjusted(predicted = Jonty_test$Predicted_Rank,
+<pre class="r"><code>Jonty_test</code></pre>
+<pre><code>##              Team Actual_Rank Predicted_Rank Rank_Difference Expected_Pts Pts
+## 1         Arsenal           1              3               2     71.23095  85
+## 2        Man City           2              1              -1     79.11947  78
+## 3      Man United           3             10               7     50.18565  71
+## 4     Aston Villa           4              9               5     51.89847  65
+## 5       Liverpool           5              2              -3     73.82490  60
+## 6     Bournemouth           6             16              10     43.56346  57
+## 7      Sunderland           7             20              13     28.98848  54
+## 8        Brighton           8             12               4     49.17339  53
+## 9       Brentford           9             11               2     50.04974  53
+## 10        Chelsea          10              5              -5     58.21176  52
+## 11         Fulham          11             14               3     45.51905  52
+## 12      Newcastle          12              6              -6     56.58272  49
+## 13        Everton          13             18               5     40.99480  49
+## 14          Leeds          14              8              -6     52.07761  47
+## 15 Crystal Palace          15             13              -2     45.58173  45
+## 16  Nott&#39;m Forest          16             15              -1     44.19804  44
+## 17      Tottenham          17              7             -10     53.70217  41
+## 18       West Ham          18             17              -1     42.75760  39
+## 19        Burnley          19              4             -15     59.43288  22
+## 20         Wolves          20             19              -1     39.16380  20</code></pre>
+<pre class="r"><code>a &lt;- (pm(predicted = Jonty_test$Predicted_Rank,
+            actual = Jonty_test$Actual_Rank)- lower_bound)/(upper_bound - lower_bound)
+b &lt;- pm_adjusted(predicted = Jonty_test$Predicted_Rank,
             actual = Jonty_test$Actual_Rank,
-            number_features = 8, lambda = 0.01)</code></pre>
-<pre><code>## [1] 0.2512858</code></pre>
+            number_features = 8, lambda = 0.01)
+print(paste0(&quot;Jonty&#39;s unadjusted score (not taking into account model size) is &quot;, a))</code></pre>
+<pre><code>## [1] &quot;Jonty&#39;s unadjusted score (not taking into account model size) is 0.272214679526156&quot;</code></pre>
+<pre class="r"><code>print(paste0(&quot;Jonty&#39;s adjusted score (taking into account model size) is &quot;, b))</code></pre>
+<pre><code>## [1] &quot;Jonty&#39;s adjusted score (taking into account model size) is 0.251285820396994&quot;</code></pre>
 <p>Max’s model:</p>
-<pre class="r"><code>pm_adjusted(predicted = Max_test$Position[match(Mathilde_test$Team, Max_test$Team)], actual=Mathilde_test$ActualRank, 5, 0.01)</code></pre>
-<pre><code>## [1] 0.5287366</code></pre>
+<pre class="r"><code>Max_test</code></pre>
+<pre><code>##     X Position           Team Points  GD
+## 1   1        1        Arsenal     97  37
+## 2   2        2       Man City     97  33
+## 3   3        3      Liverpool     70  14
+## 4   4        4        Chelsea     70  12
+## 5   5        5    Aston Villa     69  13
+## 6   6        6     Man United     68  10
+## 7   7        7       Brighton     58   5
+## 8   8        8      Tottenham     56   4
+## 9   9        9 Crystal Palace     52  -1
+## 10 10       10      Brentford     51   1
+## 11 11       11     Sunderland     51   1
+## 12 12       12        Everton     51   0
+## 13 13       13    Bournemouth     48   0
+## 14 14       14      Newcastle     45  -4
+## 15 15       15         Fulham     40  -9
+## 16 16       16          Leeds     30 -14
+## 17 17       17  Nott&#39;m Forest     30 -15
+## 18 18       18       West Ham     28 -17
+## 19 19       19         Wolves     12 -37
+## 20 20       20        Burnley      9 -33</code></pre>
+<pre class="r"><code>a &lt;- (pm(predicted = Max_test$Position[match(Mathilde_test$Team, Max_test$Team)], actual=Mathilde_test$ActualRank)- lower_bound)/(upper_bound - lower_bound)
+b &lt;- pm_adjusted(predicted = Max_test$Position[match(Mathilde_test$Team, Max_test$Team)], actual=Mathilde_test$ActualRank, 5, 0.01)
+print(paste0(&quot;Max&#39;s unadjusted score (not taking into account model size) is &quot;, a))</code></pre>
+<pre><code>## [1] &quot;Max&#39;s unadjusted score (not taking into account model size) is 0.555845553877851&quot;</code></pre>
+<pre class="r"><code>print(paste0(&quot;Max&#39;s adjusted score (taking into account model size) is &quot;, b))</code></pre>
+<pre><code>## [1] &quot;Max&#39;s adjusted score (taking into account model size) is 0.528736646326509&quot;</code></pre>
 <p>Anna’s model has the highest score, so it wins!!!</p>
 </div>
 
