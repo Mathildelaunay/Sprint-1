@@ -357,7 +357,42 @@ display: none;
 </div>
 
 
-
+<div id="conclusion" class="section level2">
+<h2>Conclusion</h2>
+<p>Our project aimed to use past Premier League results to predict the
+final league table of the 2026/27 season. We trained our models on the
+2014/15 to 2024/25 seasons and tested them on the 2025/26 season. Each
+one of our models predicted match results, which we used to calculate
+points and create a predicted table. We wanted to find a model that
+could give a useful prediction, placing greater weight to the top five
+and the teams at risk of relegation.</p>
+<p>To compare the models, we created a performance metric that gives
+more importance to getting the top five and bottom three right and also
+rewarding correct positions elsewhere in the table giving us a
+<code>pm()</code> score. We also included a penalty for model complexity
+which by multiplying this by the score, we get our final performance
+metric, <code>pm_adjusted()</code>. Anna’s Poisson GLM received the
+highest adjusted score on the 2025/26 test season with a score of 0.565,
+so we used it to make our 2026/27 prediction. This score helped us
+compare our models, but it does not mean the prediction is guaranteed to
+be accurate.</p>
+<p>We tried several types of models, including Poisson regression and
+Poisson GLMs, random forest regression, and a goal-ratio model. The
+different models used different information to estimate team
+performance, such as past goals, recent match results, and team attack
+and defence rankings.</p>
+<p>For the 2026/27 prediction, we used actual results up to 19 October
+2026 and predicted the results of the remaining matches. The model
+predicts that Manchester City will finish first, followed by Arsenal and
+Brighton. It places Chelsea and Liverpool in the rest of the top five.
+At the bottom of the table, it predicts Crystal Palace, Coventry and
+Sunderland in the relegation places, with Sunderland finishing last.</p>
+<p>These results are only predictions and the final table could be
+different. Football is difficult to predict and the model cannot account
+for every change in team performance or unexpected event. Overall, our
+work let us compare different modelling approaches and use the one that
+performed best on our test season to make a prediction for 2026/27.</p>
+</div>
 
 
 
