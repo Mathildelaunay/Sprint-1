@@ -365,8 +365,7 @@ library(randomForest)</code></pre>
 <pre class="r"><code>library(lubridate)
 library(corrplot)</code></pre>
 <pre><code>## Warning: package &#39;corrplot&#39; was built under R version 4.5.3</code></pre>
-<pre class="r"><code>library(readr)
-library(devtools)</code></pre>
+<pre class="r"><code>library(readr)</code></pre>
 <div id="training-method" class="section level1">
 <h1>Training Method</h1>
 <div id="initialisation-from-feature-selection" class="section level2">
@@ -1199,7 +1198,8 @@ for (j in completed) {
 prevent any leakage, and run our walk-forward algorithm which updates
 after each successive match. We input our features, both the home and
 away models, and we are provided with our predicted end of season table
-ranking.</p>
+ranking. Due to the random nature of the random forest, some rankings
+may differ each time but overall the structure should be similar.</p>
 <pre class="r"><code>historical_data &lt;- combined_data |&gt;
   filter(SeasonStart &gt;= 2014,
          SeasonStart &lt;= 2024)
@@ -1223,6 +1223,7 @@ predictions_2025_fast &lt;- recursive_forecast_fast(
     day_levels = levels(training_features$DayOfWeek)
   )
 
+
 final_table_fast &lt;- ranking(
   matches = predictions_2025_fast,
   home_goals = predictions_2025_fast$PredictedHomeGoals,
@@ -1231,26 +1232,26 @@ final_table_fast &lt;- ranking(
 
 final_table_fast</code></pre>
 <pre><code>##    Position           Team Points  GD
-## 1         1        Arsenal    101  39
-## 2         2       Man City     97  32
-## 3         3      Liverpool     72  15
-## 4         4        Chelsea     72  13
-## 5         5     Man United     67  10
-## 6         6    Aston Villa     66  11
-## 7         7       Brighton     65   9
-## 8         8      Tottenham     56   4
-## 9         9 Crystal Palace     51  -2
-## 10       10     Sunderland     50   0
-## 11       11      Brentford     49   0
-## 12       12        Everton     49  -1
-## 13       13    Bournemouth     47  -1
-## 14       14      Newcastle     47  -2
-## 15       15         Fulham     37 -11
-## 16       16          Leeds     30 -13
-## 17       17  Nott&#39;m Forest     27 -16
-## 18       18       West Ham     27 -17
-## 19       19         Wolves     11 -38
-## 20       20        Burnley      9 -32</code></pre>
+## 1         1        Arsenal    101  40
+## 2         2       Man City     98  35
+## 3         3        Chelsea     78  15
+## 4         4      Liverpool     73  15
+## 5         5    Aston Villa     66  10
+## 6         6     Man United     63   8
+## 7         7       Brighton     58   5
+## 8         8        Everton     55   2
+## 9         9      Tottenham     50   1
+## 10       10    Bournemouth     50   0
+## 11       11     Sunderland     48  -1
+## 12       12 Crystal Palace     48  -4
+## 13       13      Brentford     46  -3
+## 14       14      Newcastle     42  -5
+## 15       15         Fulham     38 -10
+## 16       16          Leeds     36  -9
+## 17       17  Nott&#39;m Forest     29 -16
+## 18       18       West Ham     26 -18
+## 19       19        Burnley     13 -29
+## 20       20         Wolves     13 -36</code></pre>
 </div>
 </div>
 

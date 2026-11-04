@@ -161,3 +161,7 @@ This gave me the idea to have TeamRankCategory and OpponentRankCategory. I chang
 I then built the dataset using the seasons of 2014/15 until 2024/25, which was the agreed training season. I also had to download data from 2013/14 to fill in values for the variables in the first year of the training season, but I did not train my model on that season.
 
 # Bobby
+
+The data usage as described in 'Bobby Harwood' \> 'Model Explained.md' takes 5 different columns of the data set which are the home and away teams, home and away goals and then the match date and uses this to create 8 features. 
+As seen in 'Bobby Harwood' \> 'Goal Ratio Model.md' you can see that these features are titled the following: "Matches_Played","GF_So_Far","GA_So_Far","Early_GF_Per_Match","Early_GA_Per_Match","Previous_GF_Per_Match","Previous_GA_Per_Match", and "Previous_Goal_Ratio".
+These features are then used in the functions later on in my model to calculate the final predicted rankings, again which is described in the markdown file.
