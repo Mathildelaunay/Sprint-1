@@ -91,7 +91,7 @@ create_features_by_date <- function(data, k, day_levels = NULL) {
   bind_rows(output)
 }
 
-```
+
 
 
 
