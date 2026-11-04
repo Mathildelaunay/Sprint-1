@@ -13,7 +13,7 @@
 
 <meta name="date" content="2026-11-03" />
 
-<title>02 EDA</title>
+<title>02 Feature Engineering</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -350,7 +350,7 @@ display: none;
 
 
 
-<h1 class="title toc-ignore">02 EDA</h1>
+<h1 class="title toc-ignore">02 Feature Engineering</h1>
 <h4 class="author">Anna Del Pino</h4>
 <h4 class="date">2026-11-03</h4>
 
@@ -359,6 +359,24 @@ display: none;
 
 <div id="introduction" class="section level1">
 <h1>Introduction</h1>
+<p>To ensure that each group member has access to the same data and same
+features and that one person’s model is not exposed to substantially
+more informative data, we have all agreed to use the data and features
+provided on <code>football-data.co.uk</code>, specifically “<a href="https://football-data.co.uk/englandm.php" class="uri">https://football-data.co.uk/englandm.php</a>”. This provides
+a <code>.csv</code> for each season with information about each match,
+such as the teams playing and the goals they scored, the number of cards
+accumulated per game, and corner events. There is also a large amount of
+betting information saved on this dataset, however we mutually agreed
+that feeding our models data that is the opinion of external entities
+can introduce bias into our models and as such we omit them from our
+feature engineering. This still leaves many features for each of the
+models to be built upon, and some models use the features provided to
+create new features that can provide new information than just the
+existing match data. We agreed that building from existing data within
+the dataset is permissible since it does not draw on other datasets to
+create it. Each model uses the data differently, and below we examine
+how each model builds and adapts the data to their own idiosyncratic
+methods.</p>
 </div>
 <div id="anna" class="section level1">
 <h1>Anna</h1>
@@ -368,11 +386,10 @@ display: none;
 <code>Data cleaning.Rmd</code> combines Premier League match records
 from the 2014/15 to 2025/26 seasons and prepares 2026/27 fixtures for
 prediction.</p>
-<p>Here we keep match and performance statistics. I also created new
-counting columns as these will get used as features of my model. These
-cumulatively sum up the respective team’s statistic up to the previous
-match. This way the model uses only the match statistics that have been
-seen. These are the following:</p>
+<p>I kept match and performance statistics and created new cumulative
+columns to use as features in my model.These add up each team’s
+statistics up to the previous match, so the model only uses information
+that was available before each match. These are the following:</p>
 <pre class="r"><code>names(train_data)</code></pre>
 <pre><code>##  [1] &quot;Date&quot;                    &quot;HomeTeam&quot;               
 ##  [3] &quot;AwayTeam&quot;                &quot;FTHG&quot;                   
@@ -397,41 +414,219 @@ seen. These are the following:</p>
 ## [41] &quot;HTPA&quot;                    &quot;ATPB&quot;                   
 ## [43] &quot;ATPA&quot;</code></pre>
 <p>These statistics represent points, goals, shots, corners, fouls and
-cards for home and away teams. Their specific description can be found
+cards for home and away teams. Their specific descriptions can be found
 in
 <code>\Anna Del Pino &gt; Premier League match events data &gt; Notes.txt</code>.
 I removed betting odds because these reflect people’s expectations
-rather than what happens on the pitch which isn’t well reflective of my
-model.</p>
+rather than what happens on the pitch and I did not want them to
+influence the model.</p>
 <p>The data is divided into training set to contain 2014/15-2024/25
 seasons, a held out test set to be 2025/26 and 2026/27 prediction set.
-For each team, it calculates cumulative statistics and league points
-from earlier matches in the same season. Each match row therefore
-contains the team statistics available before that match. The model uses
-these features to predict match outcomes, which are then used to produce
-the season ranking.</p>
+The 2026/27 dataset includes matches played up to 19 October 2026 and
+rows for the remaining fixtures filled with only information for
+<code>Date</code>, <code>HomeTeam</code> and <code>AwayTeam</code>,
+which are used to predict their goal outcomes. For each team, the
+cumulative statistics and league points are calculated from earlier
+matches in the same season. Each match row therefore contains the team
+statistics available before that match. The model uses these features to
+predict match outcomes, which are then used to produce the season
+ranking.</p>
 </div>
 <div id="limitations" class="section level3">
 <h3>Limitations</h3>
-<p>Older seasons have fewer match statistics recorded, so there may be
-less information for the model to use for some matches. We use match
-statistics and test the model on the later 2025/26 season to see how
-well it works with data from a later season.</p>
-<p>Some statistics missing from older records may also be treated as
-zero when I calculate the cumulative features. This could affect the
-predictions, so differences in the data available for each season are
-still a limitation to consider when discussing the results and final
-ranking.</p>
+<p>Looking at the full dataset, older seasons do not contain the odds
+columns found in newer seasons. Since I am not using odds data, I
+removed the odds columns from every dataset. This leaves all the match
+statistics needed for my analysis in each dataset. Keeping only the
+columns I need also makes the datasets the same size and avoids issues
+with different dimensions or missing data.</p>
+<p>Another limitation is that the cumulative statistics reset at the
+beginning of every season. This means that the model has less
+information about the team’s performance at the start as it doesn’t use
+statistics from the previous season.</p>
+<p>Finally, in the 2026/27 prediction dataset, the cumulative columns
+repeat the most recent available values because no further match
+statistics are available for those fixtures. As a result, the model has
+limited data when predicting goals for the remaining matches: the
+prediction set contains only 80 season observations and is used to
+predict goals for the remaining 280 matches (270 − 90).</p>
 </div>
 </div>
 <div id="max" class="section level1">
 <h1>Max</h1>
+<p>I have 3 different types of features:</p>
+<ul>
+<li><p>historical result data purely from individual matches such as
+home goals, away goals, the day of the week of a match, and the side of
+the team (home or away),</p></li>
+<li><p>lagged rolling window features such as a team’s average goals
+scored and conceded in the last <span class="math inline">\(k\)</span>
+matches, the average points per match in the last <span class="math inline">\(k\)</span> games, and a team’s average goals
+scored when they are on a certain side in the last <span class="math inline">\(5\)</span> matches where they were on that
+side,</p></li>
+<li><p>intra-season data, such as the current home ranking position
+before the match, their current points and goal difference,
+etc.</p></li>
+</ul>
+<p>The exact features I include are:</p>
+<ul>
+<li>Date</li>
+<li>DayOfWeek</li>
+<li>HomeTeam</li>
+<li>AwayTeam</li>
+<li>HomeGoals</li>
+<li>AwayGoals</li>
+<li>Result</li>
+<li>SeasonStart</li>
+<li>Season</li>
+</ul>
+<p>Here is a list of lagged rolling window or one-step-behind features
+we will be creating to analyse in the Feature Selection section:</p>
+<ul>
+<li>Home_GS, the home team’s average goals scored</li>
+<li>Home_GC, the home team’s average goals conceded</li>
+<li>Home_Points, the home tean’s average points per match</li>
+<li>Home_Wins, the home team’s number of wins</li>
+<li>Home_Home_GS, the home team’s average goals scored in home
+matches</li>
+<li>Home_Home_GS, the home team’s average goals conceded in home
+matches</li>
+</ul>
+<p>Likewise, the same covariates but with Away yield the away team’s
+information.</p>
+<p>We also look at intra-season data, such as:</p>
+<ul>
+<li>Home_Position before the match</li>
+<li>Home_Current_Points during the season</li>
+<li>Home_GD current season goal difference</li>
+<li>Home_History, number of previous matches available to lag</li>
+</ul>
+<p>Likewise, the same covariates under Away are for the away teams.</p>
+<p>I used two different types of feature selection algorithms to prune
+parsimoniously to minimise the number of features used in my random
+forests. Firstly, I tried implementing a feature selection wrapper
+called Boruta <em>(Kursa et al, 2010)</em> which determines which
+features are relevant enough to include, however of the 21 features it
+was fed, it determined 18 were relevant to include which seemed
+excessive, and so I decided instead to use a random forest across the
+entire training data to extract ranked feature importance
+<em>(Gregorutti et al, 2017)</em>. I then examined the correlation
+matrix of my features, analysing whether there was any shared
+correlation between features. After observing the correlation matrix of
+the training data in
+<code>Max Gold/02 - Feature Engineering and Selection</code>, the
+features <code>Home_Wins</code> and <code>Away_Wins</code> share a high
+correlation with <code>Home_Points</code> and <code>Away_Points</code>,
+as the points for a team are determined by <span class="math inline">\(\#\text{Points} = 3\times \#\text{Wins} +
+\#\text{draws}\)</span>, and so wins are contained within points and
+thus we remove them from feature selection. As shown below, for both the
+home and away random forests, there appears to be a cutoff after the
+first 10 features where the majority of mean squared error is explained,
+and so we preserve these for training.</p>
 </div>
 <div id="jonty" class="section level1">
 <h1>Jonty</h1>
+<p>I constructed two datasets, consisting of Premier League match data,
+and Championship match data. I retrieved the data sourced by Anna, as
+well as sourcing the corresponding data for the Championship. I then ran
+this data through some filtering steps to obtain only Home team, Away
+team, Full time home goals, Full time away goals. I then compiled all of
+these filtered data sets into the following data frame:</p>
+<pre class="r"><code>ech_all &lt;-read.csv(&quot;https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/jonty_heffaran/data/ECH_ALL.csv&quot;)
+epl_all &lt;-read.csv(&quot;https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/jonty_heffaran/data/EPL_ALL.csv&quot;)</code></pre>
+<p>To prepare the data for the regression models, I transformed each
+dataset into a team-level format, with the columns Team, Opponent, Home
+and Goals. This allowed each match to contribute two observations: one
+for each team’s goals scored, with the corresponding opponent and
+home/away status recorded.</p>
 </div>
 <div id="mathilde" class="section level1">
 <h1>Mathilde</h1>
+<p>This links to the training dataset that I built in
+<code>Mathilde</code> &gt; <code>01 Feature Engineering.Rmd</code>. Have
+a look at the function there, along with the tags explaining how the
+function works every step of the way. It helped me to keep track of what
+everything was doing since I used the help of Artificial Intelligence to
+build this function. I made sure that there were no NA values and it was
+important to ensure that there was also no data leaking to make a fair
+prediction. Another check I did was to look at the training data, in the
+difference rows, the values are swapped and have a negative sign.</p>
+<pre class="r"><code>training_data &lt;- read.csv(&quot;https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Mathilde/training_data.csv&quot;)
+names(training_data)</code></pre>
+<pre><code>##  [1] &quot;X&quot;                    &quot;match_id&quot;             &quot;Year&quot;                
+##  [4] &quot;Date&quot;                 &quot;Team&quot;                 &quot;Opponent&quot;            
+##  [7] &quot;HomeAway&quot;             &quot;TeamRankCategory&quot;     &quot;OpponentRankCategory&quot;
+## [10] &quot;Round&quot;                &quot;OpponentRound&quot;        &quot;RestAdvantage&quot;       
+## [13] &quot;DWF&quot;                  &quot;DLF&quot;                  &quot;DDF&quot;                 
+## [16] &quot;attack_score&quot;         &quot;defence_score&quot;        &quot;opp_attack_score&quot;    
+## [19] &quot;opp_defence_score&quot;    &quot;DRF&quot;                  &quot;DYF&quot;                 
+## [22] &quot;DFF&quot;                  &quot;DCS&quot;                  &quot;DSTF&quot;                
+## [25] &quot;DSF&quot;                  &quot;Goals&quot;</code></pre>
+<p>My covariates were: - Team is the team of interest - Opponent is the
+team of interest’s opponent - HomeAway: Home or away (for the “Team of
+interest”) - TeamRankCategory and OpponentRankCategory<br />
+- Top3: 1-3 - 4to7: 4-7 - 8to12: 8-12 - 13to17: 13-17 - Promoted - Round
+= Amount of matches the team of interest has played before current match
+- OpponentRound = Amount of matches the opponent has played before
+current match - RestAdvantage - Equal if they both have the same number
+of days since their last match - More if the team of interest has had
+more rest than their opponent - Less if the team of interest has had
+less rest than their opponent - DWF = Difference in win frequency so far
+in the season - DLF = Difference in loss frequency so far in the season
+- DDF = Difference in draw frequency so far in the season - attack_score
+= team of interest’s attack score - defence_score = team of interest’s
+defence score - opp_attack_score = opponent’s attack score -
+opp_defence_score = opponent’s defence score - DRF = Difference in red
+cards per match - DYF = Difference in yellow cards per match - DFF =
+Difference in fouls per match - DCS = Difference in corners per match -
+DSTF = Difference in Shots on Target per match - DSF = Difference in
+Shots per match</p>
+<p>Attack scores should be calculated recursively. At the start of the
+season, it should be based on the previous season’s average goal scored
+per match. As the season progresses, the attack score should be updated
+following this formula:</p>
+<p>attack score for the team’s current match = attack score for the
+team’s previous match * (1 - alpha) + goals scored during the team’s
+previous match * alpha</p>
+<p>This ensures that the previous few matches carry more importance when
+trying to get a measure of the team’s attacking strength for the match
+that needs to be predicted. The same is then calculated to obtain the
+teams’ defence scores. This is the formula:</p>
+<p>defence score for the team’s current match = defence score for the
+team’s previous match * (1 - alpha) + goals conceded during the team’s
+previous match * alpha</p>
+<p>I assumed that the promoted teams are typically weaker than the
+median, so I used the mean of the three lowest-ranked teams as a proxy.
+This is done for 2 reasons: - The new teams do not have an accurate
+attack and defense score due to the unavailability of data. - The
+players change within the teams, so the model quickly needs to be able
+to update these scores.</p>
+<p>The value of alpha should lie between 0 and 1. A value close to 1
+will only give advantage to the current season statistics, whereas a
+value of 0 will not use goals scored during the season at all. I fixed
+alpha = 0.1 as a deliberate calibration. This value could be changed,
+which could in turn change the importance of these scores as predictors.
+I tried to perform sensitivity analysis on this alpha, but due to the
+fact that alpha tunes feature engineering, it was difficult and too
+time-consuming for me to find an appropriate way to evaluate different
+values. Choosing alpha therefore creates a limitation.</p>
+<p>Having the scores calculated from the previous season avoids the
+restriction that the article “Predicting Football Match Outcomes with
+Machine Learning Approaches” had with having to get rid of the first 5
+games - Choi, Bing &amp; Foo, Lee-Kien &amp; Chua, Sook-Ling. (2023).
+Predicting Football Match Outcomes with Machine Learning Approaches.
+MENDEL. 29. 229-236. 10.13164/mendel.2023.2.229</p>
+<p>The article mentioned above is also the one which gave me the idea to
+include “Round” as a variable. They also used the categorical variable
+“PromotedMatchup” which is 0 = Both teams are not recently promoted team
+or are promoted teams 1 = Home Team is a promoted team -1 = Away Team is
+a promoted team This gave me the idea to have TeamRankCategory and
+OpponentRankCategory. I changed it because I wanted a measure of how
+well the team performed in the previous season.</p>
+<p>I then built the dataset using the seasons of 2014/15 until 2024/25,
+which was the agreed training season. I also had to download data from
+2013/14 to fill in values for the variables in the first year of the
+training season, but I did not train my model on that season.</p>
 </div>
 <div id="bobby" class="section level1">
 <h1>Bobby</h1>

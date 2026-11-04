@@ -1,0 +1,326 @@
+---
+title: "Testing"
+author: "Max Gold"
+date: "2026-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(randomForest)
+library(lubridate)
+library(corrplot)
+library(readr)
+```
+
+
+
+```{r}
+recursive_forecast_fast <- function(
+    historical_data,
+    future_fixtures,
+    model_home,
+    model_away,
+    k,
+    home_predictors,
+    away_predictors,
+    day_levels
+) {
+
+  # Clean and sort historical data
+  historical_data <- historical_data |>
+    filter(
+      !is.na(HomeGoals),
+      !is.na(AwayGoals)
+    ) |>
+    arrange(Date)
+
+  future_fixtures <- future_fixtures |>
+    arrange(Date)
+
+  if (nrow(future_fixtures) == 0) {
+    return(future_fixtures)
+  }
+
+  # Identify every team participating in each season
+  season_rows <- bind_rows(
+    historical_data |>
+      select(SeasonStart, HomeTeam, AwayTeam),
+
+    future_fixtures |>
+      select(SeasonStart, HomeTeam, AwayTeam)
+  )
+
+  season_teams <- lapply(
+    split(
+      season_rows,
+      as.character(season_rows$SeasonStart)
+    ),
+    function(x) {
+      unique(c(
+        as.character(x$HomeTeam),
+        as.character(x$AwayTeam)
+      ))
+    }
+  )
+
+  # Initialise team histories and standings
+  teams <- unique(c(
+    as.character(historical_data$HomeTeam),
+    as.character(historical_data$AwayTeam),
+    as.character(future_fixtures$HomeTeam),
+    as.character(future_fixtures$AwayTeam)
+  ))
+
+  state <- initialise_state(teams)
+
+  # ------------------------------------------
+  # 1. Process historical matches ONCE
+  # ------------------------------------------
+
+  for (i in seq_len(nrow(historical_data))) {
+
+    match <- historical_data[i, ]
+
+    season <- as.character(match$SeasonStart)
+
+    # Check for season changes
+    if (
+      is.null(state$current_season) ||
+      state$current_season != season
+    ) {
+
+      state <- start_season_fast(
+        state,
+        season,
+        season_teams[[season]]
+      )
+    }
+
+    # Update team histories and standings
+    state <- update_state_fast(
+      state,
+      as.character(match$HomeTeam),
+      as.character(match$AwayTeam),
+      match$HomeGoals,
+      match$AwayGoals
+    )
+  }
+
+  # ------------------------------------------
+  # 2. Forecast future matches chronologically
+  # ------------------------------------------
+
+  future_dates <- sort(unique(future_fixtures$Date))
+
+  predictions <- vector(
+    "list",
+    length(future_dates)
+  )
+
+  for (d in seq_along(future_dates)) {
+
+    current_date <- future_dates[d]
+
+    # Extract today's fixtures
+    today <- future_fixtures |>
+      filter(Date == current_date)
+
+    season <- as.character(today$SeasonStart[1])
+
+    # Check whether a new season has started
+    if (
+      is.null(state$current_season) ||
+      state$current_season != season
+    ) {
+
+      state <- start_season_fast(
+        state,
+        season,
+        season_teams[[season]]
+      )
+    }
+
+    # Generate features using the current state
+    today_features <- create_today_features_fast(
+      today = today,
+      state = state,
+      k = k,
+      day_levels = day_levels
+    )
+
+    # Select predictors
+    X_today_home <- today_features[
+      ,
+      home_predictors,
+      drop = FALSE
+    ]
+
+    X_today_away <- today_features[
+      ,
+      away_predictors,
+      drop = FALSE
+    ]
+
+    # Predict home and away goals
+    home_predictions <- predict(
+      model_home,
+      newdata = X_today_home
+    )
+
+    away_predictions <- predict(
+      model_away,
+      newdata = X_today_away
+    )
+
+    # Convert predicted scores into non-negative integers
+    today_predictions <- today
+
+    today_predictions$PredictedHomeRaw <-
+      as.numeric(home_predictions)
+
+    today_predictions$PredictedAwayRaw <-
+      as.numeric(away_predictions)
+
+    today_predictions$PredictedHomeGoals <- pmax(
+      0,
+      round(home_predictions)
+    )
+
+    today_predictions$PredictedAwayGoals <- pmax(
+      0,
+      round(away_predictions)
+    )
+
+    # ------------------------------------------
+    # 3. Update state AFTER all today's predictions
+    # ------------------------------------------
+
+    completed <- which(
+  !is.na(today$HomeGoals) &
+  !is.na(today$AwayGoals)
+)
+
+for (j in completed) {
+
+  state <- update_state_fast(
+    state,
+    as.character(today$HomeTeam[j]),
+    as.character(today$AwayTeam[j]),
+    today$HomeGoals[j],
+    today$AwayGoals[j]
+  )
+}
+
+    # Save today's predictions
+    predictions[[d]] <- today_predictions
+  }
+
+  # Combine all predicted matches once
+  bind_rows(predictions)
+}
+
+
+```
+
+
+
+```{r}
+ranking <- function(matches, home_goals, away_goals) {
+  #home rank
+  home_points <-ifelse(home_goals > away_goals, 3, ifelse(home_goals == away_goals, 1, 0))
+  home_ranking <- data.frame(Team = matches$HomeTeam, Points = home_points, GF = home_goals, GA = away_goals)
+  #away rank
+  away_points <- ifelse(away_goals > home_goals,3, ifelse(away_goals == home_goals, 1, 0))
+  away_ranking <- data.frame(Team = matches$AwayTeam, Points = away_points, GF = away_goals, GA = home_goals)
+
+  all_team_matches <- rbind(home_ranking, away_ranking)
+
+  final_ranking <- aggregate(cbind(Points, GF, GA) ~ Team, data = all_team_matches, sum) #cbind(Points, GF, GA) combines those three columns as the response and ~ Team says to group the rows by Team. sum is the function applied to each column within each team’s group
+
+  final_ranking$GD <- final_ranking$GF - final_ranking$GA #create new goal difference column for each team 
+  
+  #ordering
+  final_ranking <- final_ranking[order(-final_ranking$Points, -final_ranking$GD), ] #order() uses GD to break ties in Points, so teams with the same points are ordered by highest goal difference first
+  final_ranking$Position <- seq_len(nrow(final_ranking)) #adding a column that tells us the position
+
+  final_ranking <- final_ranking[c("Position", "Team", "Points", "GD")]
+  rownames(final_ranking) <- NULL
+
+  final_ranking
+}
+
+```
+
+## TRAINING FEATURES
+
+```{r}
+
+# Remove variables that should not be predictors
+X_home <- training_features |>
+  select(all_of(home_features))
+
+X_away <- training_features |>
+  select(all_of(away_features))
+
+set.seed(123)
+
+rf_home <- randomForest(
+  x = X_home,
+  y = training_features$HomeGoals,
+  ntree = 1000,
+  mtry = floor(sqrt(ncol(X_home))),
+  importance = TRUE
+)
+
+rf_away <- randomForest(
+  x = X_away,
+  y = training_features$AwayGoals,
+  ntree = 1000,
+  mtry = floor(sqrt(ncol(X_away))),
+  importance = TRUE
+)
+
+```
+
+## TESTING USING TRAINING FEATURES
+
+```{r}
+historical_data <- combined_data |>
+  filter(SeasonStart >= 2014,
+         SeasonStart <= 2024)
+
+future_fixtures <- combined_data |>
+  filter(SeasonStart == 2025)
+
+predictions_2025_fast <- recursive_forecast_fast(
+
+    historical_data = historical_data,
+    future_fixtures = future_fixtures,
+
+    model_home = rf_home,
+    model_away = rf_away,
+
+    k = 5,
+
+    home_predictors = home_features,
+    away_predictors = away_features,
+
+    day_levels = levels(training_features$DayOfWeek)
+  )
+
+final_table_fast <- ranking(
+  matches = predictions_2025_fast,
+  home_goals = predictions_2025_fast$PredictedHomeGoals,
+  away_goals = predictions_2025_fast$PredictedAwayGoals
+)
+
+final_table_fast
+
+```

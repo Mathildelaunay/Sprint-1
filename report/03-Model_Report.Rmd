@@ -3,6 +3,9 @@ title: "Report"
 author: "Anna Del Pino"
 date: "2026-11-03"
 output: html_document
+editor_options: 
+  markdown: 
+    wrap: sentence
 ---
 
 ```{r setup, include=FALSE}
@@ -22,9 +25,12 @@ library(ggplot2)
 
 The aim of my model is to predict the goals scored by the home and away teams in each match, then use these predictions to create a final league ranking.
 
-Goals are non negative counts, so I use two Poisson generalised linear models (GLMs): one for home goals and one for away goals. For match $i$, we represent the goal counts as $$Y_{H,i} \sim \text{Poisson}(\lambda_{H,i}), \\ Y_{A,i} \sim \text{Poisson}(\lambda_{A,i}),$$ where $\lambda_{H,i}$ and $\lambda_{A,i}$ are the expected goal count of the home and away teams. The models use a log link: $$\log(\lambda_{H,i})=\beta_{H,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_H, \\ \log(\lambda_{A,i})=\beta_{A,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_A$$ The log link function gives a positive expected goal rate.The paper also uses Poisson modelling by treating goals as count data.
+Goals are non negative counts, so I use two Poisson generalised linear models (GLMs): one for home goals and one for away goals.
+For match $i$, we represent the goal counts as $$Y_{H,i} \sim \text{Poisson}(\lambda_{H,i}), \\ Y_{A,i} \sim \text{Poisson}(\lambda_{A,i}),$$ where $\lambda_{H,i}$ and $\lambda_{A,i}$ are the expected goal count of the home and away teams.
+The models use a log link: $$\log(\lambda_{H,i})=\beta_{H,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_H, \\ \log(\lambda_{A,i})=\beta_{A,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_A$$ The log link function gives a positive expected goal rate.The paper also uses Poisson modelling by treating goals as count data.
 
-To choose which features to use I used forward-backward selection method with AIC. I used this model selection method because it compares models with different combinations of features and helps select a model that balances goodness of fit with complexity.(`\Anna Del Pino > lglm(1).pdf`)This process can be found in `\Anna Del Pino > Model.Rmd`.
+To choose which features to use I used forward-backward selection method with AIC.
+I used this model selection method because it compares models with different combinations of features and helps select a model that balances goodness of fit with complexity.(`\Anna Del Pino > lglm(1).pdf`)This process can be found in `\Anna Del Pino > Model.Rmd`.
 
 Using this made me choose the following two models:
 
@@ -35,17 +41,35 @@ formula(away_final_model)
 
 As we can see, the two models use different features which makes sense since we're assuming that a team playing at home or away may affect their performance in a match.
 
-The `AwayYellowCardsBefore`, `HomeYellowCardsBefore` and `AwayRedCardsBefore` features are interesting to explore. Their inclusion shows that card statistics are associated with predicted goals. For example, teams that have received more cards may play more cautiously. However, these relationships do not necessarily show that receiving a card causes a change in the other team’s performance.
+The `AwayYellowCardsBefore`, `HomeYellowCardsBefore` and `AwayRedCardsBefore` features are interesting to explore.
+Their inclusion shows that card statistics are associated with predicted goals.
+For example, teams that have received more cards may play more cautiously.
+However, these relationships do not necessarily show that receiving a card causes a change in the other team’s performance.
 
-The idea of fitting two different models for home and away teams is also used in `Anna Del Pino` \> `Premier League goal prediction.pdf`, which fits separate Poisson regression models for home and away goal rates and then combines these results to simulate match scores and season rankings. I also chose to model home and away goals separately because I think playing at home or away can affect a team’s performance. A home team may feel more comfortable playing in front of its own supporters, while an away team is playing in front of a crowd that may not support it.
+The idea of fitting two different models for home and away teams is also used in `Anna Del Pino` \> `Premier League goal prediction.pdf`, which fits separate Poisson regression models for home and away goal rates and then combines these results to simulate match scores and season rankings.
+I also chose to model home and away goals separately because I think playing at home or away can affect a team’s performance.
+A home team may feel more comfortable playing in front of its own supporters, while an away team is playing in front of a crowd that may not support it.
 
-The main difference between my model and the one explained in the paper is that I round my predicted goals to get a score for each match, while the paper uses scoring rates to simulate match scores. I do this by using the `round()` function on the predicted goals which allows us to determine a winner for each match. This allows me to assign points to each team and then rank them after predicting the remaining matches of the season.
+The main difference between my model and the one explained in the paper is that I round my predicted goals to get a score for each match, while the paper uses scoring rates to simulate match scores.
+I do this by using the `round()` function on the predicted goals which allows us to determine a winner for each match.
+This allows me to assign points to each team and then rank them after predicting the remaining matches of the season.
 
-However, this is not the only function which turns predictions into goals. We also considered using a threshold value (beta) on the difference between the predicted goals to get a match outcome. The way it works is that a match is classified as a draw if the absolute difference between the two predictions is at most beta and otherwise, the team with the higher predicted goals is classified as the winner. However, looking at `Mathilde` \> `03 Sensitivity Analysis.Rmd`, this technique was found to be unreliable as it was difficult to pinpoint a value for this threshold which did not have a high standard deviation. A reason behind this could be that as the model learns from training data, its predictions become more certain, which means that the gap between two predictions does not hold the same meaning for predictions in a later season than it does for predictions in an earlier season.
+However, this is not the only function which turns predictions into goals.
+We also considered using a threshold value (beta) on the difference between the predicted goals to get a match outcome.
+The way it works is that a match is classified as a draw if the absolute difference between the two predictions is at most beta and otherwise, the team with the higher predicted goals is classified as the winner.
+However, looking at `Mathilde` \> `03 Sensitivity Analysis.Rmd`, this technique was found to be unreliable as it was difficult to pinpoint a value for this threshold which did not have a high standard deviation.
+A reason behind this could be that as the model learns from training data, its predictions become more certain, which means that the gap between two predictions does not hold the same meaning for predictions in a later season than it does for predictions in an earlier season.
 
-We check the selected models using residual plots and Pearson dispersion ratios. In `\Anna Del Pino > Model.Rmd` we see that the Pearson ratios are close to 1, which suggests there is no strong sign of overdispersion. We then evaluate the predictions on the separate 2025/26 test season. The home goal MAE is 0.939, compared with 0.996 for a baseline that predicts the training-set mean; the away goal MAE is 0.818, compared with 0.875 for its baseline. The predicted ranking has a mean absolute position error of 2.1 places and a Spearman correlation of 0.862 with the actual ranking, indicating a similar ordering of teams in the test season. (`Anna Del Pino` \> `Test and Notes`)
+We check the selected models using residual plots and Pearson dispersion ratios.
+In `\Anna Del Pino > Model.Rmd` we see that the Pearson ratios are close to 1, which suggests there is no strong sign of overdispersion.
+We then evaluate the predictions on the separate 2025/26 test season.
+The home goal MAE is 0.939, compared with 0.996 for a baseline that predicts the training-set mean; the away goal MAE is 0.818, compared with 0.875 for its baseline.
+The predicted ranking has a mean absolute position error of 2.1 places and a Spearman correlation of 0.862 with the actual ranking, indicating a similar ordering of teams in the test season.
+(`Anna Del Pino` \> `Test and Notes`)
 
-Finally, to produce the final league ranking I built a `ranking()` function. It uses the predicted goals for each match to assign points to the teams, adds up each team's points and goal difference and ranks them by points, using goal difference to break ties. (`\Anna Del Pino > Model.Rmd`)
+Finally, to produce the final league ranking I built a `ranking()` function.
+It uses the predicted goals for each match to assign points to the teams, adds up each team's points and goal difference and ranks them by points, using goal difference to break ties.
+(`\Anna Del Pino > Model.Rmd`)
 
 After testing the model on the 2025/26 season, I also compared its goal predictions with a baseline based on the training-set mean:
 
@@ -66,7 +90,8 @@ These results show that the model performs better than the training baseline.
 
 - Away goal MAE: 0.818 goals, compared with 0.875 from the train model error so a 6.5% reduction.
 
-- Mean position error: 2.1 places. On average, a team’s predicted position was about two places away from its actual position.
+- Mean position error: 2.1 places.
+  On average, a team’s predicted position was about two places away from its actual position.
 
 - Spearman rank correlation: 0.862, showing that the predicted and actual ranking orders were fairly similar.
 
@@ -108,162 +133,277 @@ predicted_2026_27_table <- ranking(prediction_data,final_home_goals,final_away_g
 predicted_2026_27_table
 ```
 
-For the 2026/27 season, results are available for matches played up to 19 October. The remaining fixtures have no match results because they have not yet been played. I use actual goals for completed matches and predict goals for the remaining fixtures using our Poisson GLMs before calculating the final ranking using our `ranking()` function.
+For the 2026/27 season, results are available for matches played up to 19 October.
+The remaining fixtures have no match results because they have not yet been played.
+I use actual goals for completed matches and predict goals for the remaining fixtures using our Poisson GLMs before calculating the final ranking using our `ranking()` function.
 
 ### Limitations
 
-For the 2026/27 prediction dataset I only have data up to and including 19-10-26. To show the model which match it needs to predict, I added the rows for the remaining fixtures (i.e. from 30-10-27 to 30-05-2027) with information only on `Date`, `HomeTeam` and `AwayTeam` . The cumulative statistics columns repeat the most recently available values because we don't have any new information of the statistics.
+For the 2026/27 prediction dataset I only have data up to and including 19-10-26.
+To show the model which match it needs to predict, I added the rows for the remaining fixtures (i.e. from 30-10-27 to 30-05-2027) with information only on `Date`, `HomeTeam` and `AwayTeam` .
+The cumulative statistics columns repeat the most recently available values because we don't have any new information of the statistics.
 
 Note that the cumulative goals columns also remain unchanged as these don't include the predicted new goals.
 
-This is a limitation because the model assumes that each team's known statistics remain unchanged for the remaining fixtures. For example, here are the first 10 matches involving Arsenal:
+This is a limitation because the model assumes that each team's known statistics remain unchanged for the remaining fixtures.
+For example, here are the first 10 matches involving Arsenal:
 
 ```{r}
 head(prediction_data[prediction_data$HomeTeam == "Arsenal" |prediction_data$AwayTeam == "Arsenal",],10)
 ```
 
-We can see that the current match statistics (i.e. `FTHG` up to `AR` ) are filled with `NA` for unseen matches and the cumulative statistics columns show the most recent available value. These cumulative statistics include all seen information for each statistic. Furthermore, the dataset adds two columns of `PredHomeGoals` and `PredAwayGoals` which contain the predictions $\hat\lambda_H$ and $\hat\lambda_A$ of expected home and away goals for each remaining match.
-
+We can see that the current match statistics (i.e. `FTHG` up to `AR` ) are filled with `NA` for unseen matches and the cumulative statistics columns show the most recent available value.
+These cumulative statistics include all seen information for each statistic.
+Furthermore, the dataset adds two columns of `PredHomeGoals` and `PredAwayGoals` which contain the predictions $\hat\lambda_H$ and $\hat\lambda_A$ of expected home and away goals for each remaining match.
 
 # Bobby's model
 
 ### Model Idea
 
-I believe that there is a correlation between the rankings of the ratios of goals scored to goals conceded for each Premier League team in a season and that same season's actual final ranking table. The reasoning behind this approach is that a team that consistently scores more goals than it concedes is likely to be more successful. The idea of my model is to be able to predict the total number of goals scored by each team over a single season, then do the same for goals conceded, calculate the ratio of these two (total goals scored divided by total goals conceded), and then finally rank these teams from highest ratio to lowest ratio which will be our prediction for the final league table for the 2026/27 Premier League season. By comparing the predicted goal ratios of all teams, I hope to identify a relationship between goal ratio and final league position. However, because the official Premier League table is determined directly by points, the rankings produced by my model may differ from the actual table.
+I believe that there is a correlation between the rankings of the ratios of goals scored to goals conceded for each Premier League team in a season and that same season's actual final ranking table.
+The reasoning behind this approach is that a team that consistently scores more goals than it concedes is likely to be more successful.
+The idea of my model is to be able to predict the total number of goals scored by each team over a single season, then do the same for goals conceded, calculate the ratio of these two (total goals scored divided by total goals conceded), and then finally rank these teams from highest ratio to lowest ratio which will be our prediction for the final league table for the 2026/27 Premier League season.
+By comparing the predicted goal ratios of all teams, I hope to identify a relationship between goal ratio and final league position.
+However, because the official Premier League table is determined directly by points, the rankings produced by my model may differ from the actual table.
 
 ### Relevant Mathematical Paper
 
-A paper I read called "Football Match Result Prediction Using the Random Forest Classifier" published in August 2019 and written by Pakawan Pugsee and Pattarachai Pattawong investigates the use of machine learning to predict Premier League football match results using a Random Forest Classifier. They trained their model using historical data from 3 previous seasons, considering factors such as previous match results and home and away performance. Their model achieved an overall prediction accuracy of 80% when it was tested on 220 matches from the 2017/18 season, demonstrating the potential of Random Forest models for predicting football outcomes. However, they did notice that the model was less successful at predicting draws compared to home and away wins. The findings of this paper demonstrate the potential of Random Forest algorithms in football prediction, providing inspiration for my decision to use Random Forest regression models in my own project.
+A paper I read called "Football Match Result Prediction Using the Random Forest Classifier" published in August 2019 and written by Pakawan Pugsee and Pattarachai Pattawong investigates the use of machine learning to predict Premier League football match results using a Random Forest Classifier.
+They trained their model using historical data from 3 previous seasons, considering factors such as previous match results and home and away performance.
+Their model achieved an overall prediction accuracy of 80% when it was tested on 220 matches from the 2017/18 season, demonstrating the potential of Random Forest models for predicting football outcomes.
+However, they did notice that the model was less successful at predicting draws compared to home and away wins.
+The findings of this paper demonstrate the potential of Random Forest algorithms in football prediction, providing inspiration for my decision to use Random Forest regression models in my own project.
 
 ### Data Usage
 
-I used a large dataset containing many columns showing lots of different statistics in each game from the 2014/15 Premier League season up to the 2026/27 Premier League season. However, I decided to only use a small group of columns to make my model work. These chosen columns included information on who was the home and away team in a match, the full time home and away goals in a match, and finally the date of each match. I used the first 11 seasons (the 2014/15 season up to and including the 2024/25 season) as training data to train my model and then used the 2025/26 season as my test data. I want to predict the 2026/27 season but as there is already some data available for this season, I did implement the first 6 games of this season to aid the prediction for the entire 38 game season.
+I used a large dataset containing many columns showing lots of different statistics in each game from the 2014/15 Premier League season up to the 2026/27 Premier League season.
+However, I decided to only use a small group of columns to make my model work.
+These chosen columns included information on who was the home and away team in a match, the full time home and away goals in a match, and finally the date of each match.
+I used the first 11 seasons (the 2014/15 season up to and including the 2024/25 season) as training data to train my model and then used the 2025/26 season as my test data.
+I want to predict the 2026/27 season but as there is already some data available for this season, I did implement the first 6 games of this season to aid the prediction for the entire 38 game season.
 
 ### Model Training
 
-After selecting the relevant columns from the dataset, I used my code to process the match results into statistics for each team. I then used these statistics to create eight features that the model uses to make predictions. The model is trained using historical data at different points in each season: after 6, 10, 15, 20 and 25 matches. This allows it to learn how a team's performance earlier in a season relates to its final goals scored and conceded. These checkpoints also allow the model to learn from each team's statistics at different stages of the season. I used two Random Forest regression models, with the first predicting each team's final total goals scored and the second predicting its final total goals conceded.
+After selecting the relevant columns from the dataset, I used my code to process the match results into statistics for each team.
+I then used these statistics to create eight features that the model uses to make predictions.
+The model is trained using historical data at different points in each season: after 6, 10, 15, 20 and 25 matches.
+This allows it to learn how a team's performance earlier in a season relates to its final goals scored and conceded.
+These checkpoints also allow the model to learn from each team's statistics at different stages of the season.
+I used two Random Forest regression models, with the first predicting each team's final total goals scored and the second predicting its final total goals conceded.
 
 ### Making Predictions
 
-After training the models, I used them to predict each team's final goals scored and goals conceded for the 2026/27 season. I used the results from the first 6 matches, along with statistics from the previous season, to help make these predictions. I then calculated each team's predicted goal ratio by dividing their predicted goals scored by their predicted goals conceded. Finally, I sorted the teams from the highest predicted goal ratio to the lowest to produce my predicted rankings for the 2026/27 Premier League season.
+After training the models, I used them to predict each team's final goals scored and goals conceded for the 2026/27 season.
+I used the results from the first 6 matches, along with statistics from the previous season, to help make these predictions.
+I then calculated each team's predicted goal ratio by dividing their predicted goals scored by their predicted goals conceded.
+Finally, I sorted the teams from the highest predicted goal ratio to the lowest to produce my predicted rankings for the 2026/27 Premier League season.
 
 ### Testing
 
-To test my model, I used the 2025/26 season as test data and compared the predicted goal ratio rankings with the actual goal ratio ranking. My code calculated the absolute rank error for each team, which shows how many places the predicted goal ratio ranking was away from the actual goal ratio ranking. It also calculated the mean absolute rank error across all teams, as well as how many teams were predicted in exactly the correct goal ratio ranking or within one or two places of their correct goal ratio ranking. It also displayed how many teams were predicted over 5 places away from the correct goal ratio ranking. This helped me evaluate how accurately my model predicted the goal ratio rankings, which may provide an indication of the final league standings
+To test my model, I used the 2025/26 season as test data and compared the predicted goal ratio rankings with the actual goal ratio ranking.
+My code calculated the absolute rank error for each team, which shows how many places the predicted goal ratio ranking was away from the actual goal ratio ranking.
+It also calculated the mean absolute rank error across all teams, as well as how many teams were predicted in exactly the correct goal ratio ranking or within one or two places of their correct goal ratio ranking.
+It also displayed how many teams were predicted over 5 places away from the correct goal ratio ranking.
+This helped me evaluate how accurately my model predicted the goal ratio rankings, which may provide an indication of the final league standings
 
 ### Limitations
 
-The main limitation of my model is that its accuracy depends heavily on the strength of the relationship between goal ratio and the actual Premier League table ranking. This means that in theory, my model could correctly predict the final goal ratios for all 20 teams but could still get the final table wrong because there may be instances where one team has a worse goal ratio than another team, yet still finishes above them in the Premier League table. Another limitation is that my model uses the first 6 games of the season it is trying to predict. This means that my model would not be able to predict the season before it had started and therefore relies on knowing at least some information about the season before predicting the final results over all 38 games.
+The main limitation of my model is that its accuracy depends heavily on the strength of the relationship between goal ratio and the actual Premier League table ranking.
+This means that in theory, my model could correctly predict the final goal ratios for all 20 teams but could still get the final table wrong because there may be instances where one team has a worse goal ratio than another team, yet still finishes above them in the Premier League table.
+Another limitation is that my model uses the first 6 games of the season it is trying to predict.
+This means that my model would not be able to predict the season before it had started and therefore relies on knowing at least some information about the season before predicting the final results over all 38 games.
 
 ### Conclusion
 
-In conclusion, my model uses historical Premier League data and the first 6 matches of the 2026/27 season to predict each team's final goals scored and goals conceded. It then calculates the predicted goal ratio for each team and ranks them from highest to lowest. By testing the model on the 2025/26 season, I was able to evaluate how accurately it predicted the final goal ratio rankings by analysing the absolute rank errors. Given how unpredictable football can be, with some teams unexpectedly overperforming or underperforming, I believe my model has the potential to make useful predictions. However, its overall accuracy should be judged by the results of my testing. The model also has limitations because goal ratio does not always match the official league table, which is determined primarily by points. Its predictions may also be affected by unexpected changes in team performance throughout the season. Overall, the model provides a way to use historical data and results early in the season to predict team performance, although its rankings should be treated as predictions rather than a guaranteed final league table.
-
+In conclusion, my model uses historical Premier League data and the first 6 matches of the 2026/27 season to predict each team's final goals scored and goals conceded.
+It then calculates the predicted goal ratio for each team and ranks them from highest to lowest.
+By testing the model on the 2025/26 season, I was able to evaluate how accurately it predicted the final goal ratio rankings by analysing the absolute rank errors.
+Given how unpredictable football can be, with some teams unexpectedly overperforming or underperforming, I believe my model has the potential to make useful predictions.
+However, its overall accuracy should be judged by the results of my testing.
+The model also has limitations because goal ratio does not always match the official league table, which is determined primarily by points.
+Its predictions may also be affected by unexpected changes in team performance throughout the season.
+Overall, the model provides a way to use historical data and results early in the season to predict team performance, although its rankings should be treated as predictions rather than a guaranteed final league table.
 
 # Max's Model
 
 ## Model Description and Assumptions
 
-I aim to predict the final ranking of the 2026/27 English Premier League season by estimating the home and away goals per match within the season in chronological order, outputting each team's goals scored and tabulating these results into a season ranking. We require that the match goal results be integers rather than probabilities or floating point numbers, and so I have decided as an initialisation to round any estimations to the nearest integer. I have decided to use a random forest method of predicting the goal outcomes of each match, using two different random forests to distinguish between whether a team is playing home or away, training them to infer a possible advantage or disadvantage playing home or away. As a group, we agreed to train our models on data from the 2014/15 to 2024/25 seasons, testing on the 2025/26 season, and predicting the 2026/27 season final rankings.
+I aim to predict the final ranking of the 2026/27 English Premier League season by estimating the home and away goals per match within the season in chronological order, outputting each team's goals scored and tabulating these results into a season ranking.
+We require that the match goal results be integers rather than probabilities or floating point numbers, and so I have decided as an initialisation to round any estimations to the nearest integer.
+I have decided to use a random forest method of predicting the goal outcomes of each match, using two different random forests to distinguish between whether a team is playing home or away, training them to infer a possible advantage or disadvantage playing home or away.
+As a group, we agreed to train our models on data from the 2014/15 to 2024/25 seasons, testing on the 2025/26 season, and predicting the 2026/27 season final rankings.
 
-I decided that in order to create my random forests I required two assumptions to drive the forecasts of my models: recent match data is more important than historical data, as a team's performance adjusts drastically compared to how it performs in previous matches let alone previous seasons, and so features must be weighted more towards recent data; secondly, intra-match data such as red cards, player injury, all independent and random events are difficult to forecast, whereas goal-related features are able to be calculated from historical goal data with more conviction. This is motivated by understanding what information is available to us before a match starts, and if we are predicting a season before it has happened it is difficult to know when these random events will take place, and since every match must have a result compared to red cards, this makes result data much more useful. Therefore, my features are entirely based on historical goal information with no dependency on non-goal match events. I also decided that instead of weighting features based on recency, I created rolling features which uses lagged match values such as the average goals in the last $k$ matches, where $k$ is our lag value. We will see below how varying $k$ affects how well our model predicts. 
+I decided that in order to create my random forests I required two assumptions to drive the forecasts of my models: recent match data is more important than historical data, as a team's performance adjusts drastically compared to how it performs in previous matches let alone previous seasons, and so features must be weighted more towards recent data; secondly, intra-match data such as red cards, player injury, all independent and random events are difficult to forecast, whereas goal-related features are able to be calculated from historical goal data with more conviction.
+This is motivated by understanding what information is available to us before a match starts, and if we are predicting a season before it has happened it is difficult to know when these random events will take place, and since every match must have a result compared to red cards, this makes result data much more useful.
+Therefore, my features are entirely based on historical goal information with no dependency on non-goal match events.
+I also decided that instead of weighting features based on recency, I created rolling features which uses lagged match values such as the average goals in the last $k$ matches, where $k$ is our lag value.
+We will see below how varying $k$ affects how well our model predicts.
 
-In order to use these rolling features, I used a recursive forecasting method which uses forecasted match results to influence the prediction of subsequent future results, similar to the method I had researched in Time Series where we utilised Box-Jenkins $h$-step ahead forecasting. The Box-Jenkins $h$-step ahead forecasting method is usually used in time series data and so usually wouldn't be fitting for match outcomes, but we adapt it in this setting because the matches are in chronological order, and it is reasonable to assume the performance of a team from very recent matches is influential in their performance of subsequent matches. 
+In order to use these rolling features, I used a recursive forecasting method which uses forecasted match results to influence the prediction of subsequent future results, similar to the method I had researched in Time Series where we utilised Box-Jenkins $h$-step ahead forecasting.
+The Box-Jenkins $h$-step ahead forecasting method is usually used in time series data and so usually wouldn't be fitting for match outcomes, but we adapt it in this setting because the matches are in chronological order, and it is reasonable to assume the performance of a team from very recent matches is influential in their performance of subsequent matches.
 
 ## Feature Engineering
 
-The feature engineering for my model can be found in `report/02 - Feature Engineering.html`, where I discuss using another random forest and Boruta to analyse which features are statistically relevant and plotting the importance of the features in explaining the Mean Squared Error (MSE). 
+The feature engineering for my model can be found in `report/02 - Feature Engineering.html`, where I discuss using another random forest and Boruta to analyse which features are statistically relevant and plotting the importance of the features in explaining the Mean Squared Error (MSE).
 
 ## Training
 
-Using our selected features, we can train our random forests on our training data of the 2014/15 to the 2024/25 seasons. We have two parameters we can tune which impact how well our model performs: $k$, the number of lags that we build our rolling features with that look at the last $k$ matches; and `ntree` in the `random_forest`. We choose `ntree = 1000` as a sufficient number of trees to take advantage of the variance reducing effects of bagging whilst not taking too much computational time. We also use $k=5$ as a reasonable guess for what matches are likely to influence the subsequent matches, as $k$ is not too large that very recent data is diluted and $k$ is not too small that it is not capturing enough of the recent information.
+Using our selected features, we can train our random forests on our training data of the 2014/15 to the 2024/25 seasons.
+We have two parameters we can tune which impact how well our model performs: $k$, the number of lags that we build our rolling features with that look at the last $k$ matches; and `ntree` in the `random_forest`.
+We choose `ntree = 1000` as a sufficient number of trees to take advantage of the variance reducing effects of bagging whilst not taking too much computational time.
+We also use $k=5$ as a reasonable guess for what matches are likely to influence the subsequent matches, as $k$ is not too large that very recent data is diluted and $k$ is not too small that it is not capturing enough of the recent information.
 
 ## Testing
 
-In accordance with our group's performance metric, we are required to use a walk-forward forecast in testing. This means instead of using predicted match outcomes to forecast subsequent ones, we store our prediction for the ranking but update the model on the actual match outcome after we have done the prediction so as to not have any data leakage. We must however use recursive predictive forecasting in prediction when we have no such actual data with which to compare. The 
+In accordance with our group's performance metric, we are required to use a walk-forward forecast in testing.
+This means instead of using predicted match outcomes to forecast subsequent ones, we store our prediction for the ranking but update the model on the actual match outcome after we have done the prediction so as to not have any data leakage.
+We must however use recursive predictive forecasting in prediction when we have no such actual data with which to compare.
+The
 
-After training our features and random forests, we implement them on the test data of the 2025/26 season, creating a ranking and obtaining a score in our performance metric in our `01 - Introduction and Performance Metric` section. 
-
+After training our features and random forests, we implement them on the test data of the 2025/26 season, creating a ranking and obtaining a score in our performance metric in our `01 - Introduction and Performance Metric` section.
 
 ## Limitations
 
-The main limitation of my model is that we are assuming that the home and away goals are independent of each other, when in reality one team scoring a goal is usually a motivator for the other team to score a retaliatory goal or for the same team to continue pushing for subsequent goals. We also omit intra-match data such as red cards or injuries which even though they are complicated to forecast out-of-sample, they are very influential in the direction of a match, especially in the case when a good player is either injured or taken off which can heavily reduce a team's performance. 
+The main limitation of my model is that we are assuming that the home and away goals are independent of each other, when in reality one team scoring a goal is usually a motivator for the other team to score a retaliatory goal or for the same team to continue pushing for subsequent goals.
+We also omit intra-match data such as red cards or injuries which even though they are complicated to forecast out-of-sample, they are very influential in the direction of a match, especially in the case when a good player is either injured or taken off which can heavily reduce a team's performance.
 
-We also output floating-point goals from our random forests, and round them to the nearest integer. However, say the predicted match outcome is 1.6:1.4, this would be predicted as a 2:1 match where in reality the similarity in estimated goals is so close that it would be better to estimate it as a draw. This is similar to logistic regression, where if many points are clustered around $p=0.5$, they tend to be misclassified. 
+We also output floating-point goals from our random forests, and round them to the nearest integer.
+However, say the predicted match outcome is 1.6:1.4, this would be predicted as a 2:1 match where in reality the similarity in estimated goals is so close that it would be better to estimate it as a draw.
+This is similar to logistic regression, where if many points are clustered around $p=0.5$, they tend to be misclassified.
 
 The initialised history of recently promoted teams from the Championship - the second division of football in England - is very limited, and so the features do not accurately represent their strength coming into the league.
 
-Finally, the use of recursive forecasting adds increasing uncertainty the more matches we forecast, as any uncertainty in the first couple of matches propagates throughout the season influentally, and so in situations where there is not enough prior history the model may not accurately predict future observations. 
+Finally, the use of recursive forecasting adds increasing uncertainty the more matches we forecast, as any uncertainty in the first couple of matches propagates throughout the season influentally, and so in situations where there is not enough prior history the model may not accurately predict future observations.
 
-# Mathilde's Model 
+# Mathilde's Model
 
-I decided to use a Poisson regression model to make predictions as Football scores are counts. I used the training dataset built in `Mathilde` \> `01 Feature Engineering.Rmd` and discussed in `report` \> `02 Feature Engineering.Rmd`.
-Instead of making 2 separate models (one for home and one for away), I wanted to fit a single model. I therefore split every row representing a match into two rows, each row focusing on a different team: Team of interest against Opponent. 
+I decided to use a Poisson regression model to make predictions as Football scores are counts.
+I used the training dataset built in `Mathilde` \> `01 Feature Engineering.Rmd` and discussed in `report` \> `02 Feature Engineering.Rmd`.
+Instead of making 2 separate models (one for home and one for away), I wanted to fit a single model.
+I therefore split every row representing a match into two rows, each row focusing on a different team: Team of interest against Opponent.
 
 ## Feature Selection
-Look at `Mathilde` \> `02 Feature Selection.Rmd`
-        
-To find the variables that I wanted to keep, I used the forward, backward, and forward and backward selection using AIC. The motivation behind using this technique comes from the Linear and Generalised Linear Models (MATH30013) lecture notes by Haeran Cho.
-Given that they outputted different models, I chose one of the two which had less variables, and decided on the model which combined both forward and backward selection. 
-This kept TeamRankCategory, OpponentRankCategory, HomeAway, opp_defence_score, attack_score, DSTF, DCS, DSF, DYF, DLF. 
-Interestingly but not surprisingly, it did not keep the defence score for the Team for which the model is making the prediction, nor did it keep the attack score of the opponent. It kept the difference in the frequency of yellow cards but not red cards
 
+Look at `Mathilde` \> `02 Feature Selection.Rmd`
+
+To find the variables that I wanted to keep, I used the forward, backward, and forward and backward selection using AIC.
+The motivation behind using this technique comes from the Linear and Generalised Linear Models (MATH30013) lecture notes by Haeran Cho.
+Given that they outputted different models, I chose one of the two which had less variables, and decided on the model which combined both forward and backward selection.
+This kept TeamRankCategory, OpponentRankCategory, HomeAway, opp_defence_score, attack_score, DSTF, DCS, DSF, DYF, DLF. Interestingly but not surprisingly, it did not keep the defence score for the Team for which the model is making the prediction, nor did it keep the attack score of the opponent.
+It kept the difference in the frequency of yellow cards but not red cards
 
 ## Sensitivity Analysis
+
 Look at `Mathilde` \> `03 Sensitivity Analysis.Rmd`
 
-To construct a league table, the predictions made by the model must first be converted into points. I compared different approaches to doing so:
+To construct a league table, the predictions made by the model must first be converted into points.
+I compared different approaches to doing so:
 
-The most obvious thing to try first was to round the predicted goals and compares the resulting scores. However, I thought that since most predicted goal values lie between approximately 0.8 and 2, this may result in more predicted draws than observed in the historical data.
-I also tried to explore using a threshold, beta, on the difference between the predicted goals. i.e. a match is classified as a draw if the absolute difference between the two predictions is at most beta and otherwise, the team with the higher predicted goals is classified as the winner. I made beta range 0.05 and 1.00, in increments of 0.01 to compare different values.
-To compare the two approaches, I used an expanding-window validation over the ten seasons from 2015/16 to 2024/25. The main evaluation criteria were the mean squared error (MSE) between predicted and actual league-table ranks, and Spearman's rank correlation.
+The most obvious thing to try first was to round the predicted goals and compares the resulting scores.
+However, I thought that since most predicted goal values lie between approximately 0.8 and 2, this may result in more predicted draws than observed in the historical data.
+I also tried to explore using a threshold, beta, on the difference between the predicted goals.
+i.e. a match is classified as a draw if the absolute difference between the two predictions is at most beta and otherwise, the team with the higher predicted goals is classified as the winner.
+I made beta range 0.05 and 1.00, in increments of 0.01 to compare different values.
+To compare the two approaches, I used an expanding-window validation over the ten seasons from 2015/16 to 2024/25.
+The main evaluation criteria were the mean squared error (MSE) between predicted and actual league-table ranks, and Spearman's rank correlation.
 
-I also considered two ways of selecting beta. First, an "oracle" approach selected the best threshold separately for each validation season, using that season's actual league table. Since the optimal threshold could not be known before the season took place, I knew that the mean rank MSE would be relatively low, and the technique would probably not be applicable for testing an unseen season if there was too much variability for this value. The resulting optimal thresholds had a mean of 0.473 and  given that the standard deviation had a value of of 0.380, ranging from 0.09 to 0.95, this "oracle" was too unstable to be used on the test data. 
-The final plot also shows that this is not a good value because 0.473 lies above the line which shows the MSE of the rounding technique, so I might as well have just rounded the values. 
-I then considered a more realistic, leak-free approach to estimate beta. For each validation season, the threshold was selected by minimising the mean rank MSE across all earlier validated seasons, before being evaluated on the next season. Across the nine seasons for which this was possible, this approach achieved a mean rank MSE of 10.44, compared with 11.66 for rounding, and a mean Spearman correlation of 0.843, compared with 0.825 (a bit better). It also achieved a lower rank MSE than rounding in seven of the nine seasons if you look at the second table. However, again the selected threshold remained variable across validation seasons, ranging from 0.15 to 0.90. Although the threshold approach provided slight improvement in average ranking performance, it was too unstable to be used on an unseen season.
+I also considered two ways of selecting beta.
+First, an "oracle" approach selected the best threshold separately for each validation season, using that season's actual league table.
+Since the optimal threshold could not be known before the season took place, I knew that the mean rank MSE would be relatively low, and the technique would probably not be applicable for testing an unseen season if there was too much variability for this value.
+The resulting optimal thresholds had a mean of 0.473 and given that the standard deviation had a value of of 0.380, ranging from 0.09 to 0.95, this "oracle" was too unstable to be used on the test data.
+The final plot also shows that this is not a good value because 0.473 lies above the line which shows the MSE of the rounding technique, so I might as well have just rounded the values.
+I then considered a more realistic, leak-free approach to estimate beta.
+For each validation season, the threshold was selected by minimising the mean rank MSE across all earlier validated seasons, before being evaluated on the next season.
+Across the nine seasons for which this was possible, this approach achieved a mean rank MSE of 10.44, compared with 11.66 for rounding, and a mean Spearman correlation of 0.843, compared with 0.825 (a bit better).
+It also achieved a lower rank MSE than rounding in seven of the nine seasons if you look at the second table.
+However, again the selected threshold remained variable across validation seasons, ranging from 0.15 to 0.90.
+Although the threshold approach provided slight improvement in average ranking performance, it was too unstable to be used on an unseen season.
 
-I also used draw proportions as a secondary diagnostic tool. This came from the fact that machine learning models tend to perform poorly when predicting a correct proportion of matches outcoming in a draw, which I read about in  Choi, Bing & Foo, Lee-Kien & Chua, Sook-Ling. (2023). Predicting Football Match Outcomes with Machine Learning Approaches. MENDEL. 29. 229-236. 10.13164/mendel.2023.2.229.
-The leak-free threshold approach predicted draws in approximately 25.5% of matches, compared with 32.1% under rounding; the actual draw proportion across the corresponding validation seasons was approximately 22.8%. Although the threshold approach produced a draw proportion closer to the observed value, matching the draw proportion was not the objective used to select the outcome-mapping method. 
+I also used draw proportions as a secondary diagnostic tool.
+This came from the fact that machine learning models tend to perform poorly when predicting a correct proportion of matches outcoming in a draw, which I read about in Choi, Bing & Foo, Lee-Kien & Chua, Sook-Ling.
+(2023).
+Predicting Football Match Outcomes with Machine Learning Approaches.
+MENDEL.
+29.
+229-236.
+10.13164/mendel.2023.2.229.
+The leak-free threshold approach predicted draws in approximately 25.5% of matches, compared with 32.1% under rounding; the actual draw proportion across the corresponding validation seasons was approximately 22.8%.
+Although the threshold approach produced a draw proportion closer to the observed value, matching the draw proportion was not the objective used to select the outcome-mapping method.
 The threshold technique would therefore have been better suited to a scenario where goal counts mattered, but here the primary objective was to obtain an accurate league-table ranking.
 
 I therefore reverted to using rounding in the final model since it is parameter-free, straightforward to interpret, and avoids introducing an additional parameter that is difficult to estimate reliably.
 
-`Mathilde` \> `04 Model.Rmd` then contains the codes where i created the testing set, trained the Poisson model on the training set and made this trained model produce predictions. These predictions were then rounded, then changed into points, and then made into a ranking. This ranking was saved and is the one that can be found in `report` \> `01 - Introduction & Performance Metric.Rmd`
+`Mathilde` \> `04 Model.Rmd` then contains the codes where i created the testing set, trained the Poisson model on the training set and made this trained model produce predictions.
+These predictions were then rounded, then changed into points, and then made into a ranking.
+This ranking was saved and is the one that can be found in `report` \> `01 - Introduction & Performance Metric.Rmd`
 
 ## Limitations
-The key assumption when using a Poisson regression model is that goals arrive independently at a constant rate given the covariates, with mean equal to variance. This introduces a limitation: the model treats the two rows of a match as independent, when in real life if a team scores, the opponent will get more competitive and may be more likely to score (this is a simplification, but is just to illustrate that this assumption is an important limitating factor).
-As I mentioned in `02 Feature Engineering.Rmd`, I used a predetermined value of alpha which influences the model to a certain degree that is teste-able, but that I did not get around to doing fully. Making a decision based on personal beliefs is a limitation in itself.
-Another limitation is to assume that promoted teams have about the same attack and defence strength as the last three teams of the previous season. In the same sense, modelling the initial attack and defense scores to be the same as it finished on in the previous year for a non promoted team is a strong assumption to make. 
+
+The key assumption when using a Poisson regression model is that goals arrive independently at a constant rate given the covariates, with mean equal to variance.
+This introduces a limitation: the model treats the two rows of a match as independent, when in real life if a team scores, the opponent will get more competitive and may be more likely to score (this is a simplification, but is just to illustrate that this assumption is an important limitating factor).
+As I mentioned in `02 Feature Engineering.Rmd`, I used a predetermined value of alpha which influences the model to a certain degree that is teste-able, but that I did not get around to doing fully.
+Making a decision based on personal beliefs is a limitation in itself.
+Another limitation is to assume that promoted teams have about the same attack and defence strength as the last three teams of the previous season.
+In the same sense, modelling the initial attack and defense scores to be the same as it finished on in the previous year for a non promoted team is a strong assumption to make.
 
 # Jonty's Model
-Similarly to Anna and Mathilde, I implemented a Poisson regression model. I used time weighting and a log link function in this regression, which was performed on historical results data. I looked to obtain coefficients representing teams attack and defence strengths, as well as a baseline for each league, and a home advantage affect. I attempted to make my model more robust by running my regression on historical premier league results and on championship results. I hoped to be able to then find some scalars so that we would be able to have informed ratings for teams promoted to the premier league when it comes to predicting the league rankings. To do this, I centred both the premier league ratings and the championship ratings around their geometric means and then found by expanding rolling window validation said scaling parameters. 
 
-I then attempted to forecast the results of fixtures in the season we were looking to predict by extracting the exact expected goals and points from games under an independent poisson model which I combined with the adjustment for low scorelines introduced in the classic paper by Dixon & Coles (1997). Note, I also got the idea to look at championship data from this paper. 
+Similarly to Anna and Mathilde, I implemented a Poisson regression model.
+I used time weighting and a log link function in this regression, which was performed on historical results data.
+I looked to obtain coefficients representing teams attack and defence strengths, as well as a baseline for each league, and a home advantage affect.
+I attempted to make my model more robust by running my regression on historical premier league results and on championship results.
+I hoped to be able to then find some scalars so that we would be able to have informed ratings for teams promoted to the premier league when it comes to predicting the league rankings.
+To do this, I centred both the premier league ratings and the championship ratings around their geometric means and then found by expanding rolling window validation said scaling parameters.
+
+I then attempted to forecast the results of fixtures in the season we were looking to predict by extracting the exact expected goals and points from games under an independent poisson model which I combined with the adjustment for low scorelines introduced in the classic paper by Dixon & Coles (1997).
+Note, I also got the idea to look at championship data from this paper.
 
 I used the time weighting function $$w(x) = \begin{cases}
 1 - \left(\frac{x}{c}\right)^p, & 0 \le x < c,\\
 0, & x \ge c,
 \end{cases}$$
 
-where $x,c,\text{ and } p$ are parameters for representing the age of the observation, a specified cutoff, and a rate. We define $x$ relative to the most recent known date ie the date up to which we have perfect information. We use validation to obatin parameters $p$ and $c$ to be $\frac{1}{2}$ and $2555$.
+where $x,c,\text{ and } p$ are parameters for representing the age of the observation, a specified cutoff, and a rate.
+We define $x$ relative to the most recent known date ie the date up to which we have perfect information.
+We use validation to obatin parameters $p$ and $c$ to be $\frac{1}{2}$ and $2555$.
 
 ## Feature selection and hyper parameter tuning
-My feature selection procedure was very straightforward, I sought to adapt the framework used by Dixon and Coles for game prediction but to forecast the end of season league table. As such, my modelling process did not involve any indepth feature selection, I used considered the number of goals for the team of interest, the number of goals for their opponent, and if the team of interest were playing at home.
 
-I attempted to tune my models hyper-parameters via expanding rolling window validation. That is, for each validation window I fitted the model using the available historical data and evaluated its predictive performance on the following validation period. I then selected the hyper-parameter values which achieved the best aggregate performance across the validation procedure.
+My feature selection procedure was very straightforward, I sought to adapt the framework used by Dixon and Coles for game prediction but to forecast the end of season league table.
+As such, my modelling process did not involve any indepth feature selection, I used considered the number of goals for the team of interest, the number of goals for their opponent, and if the team of interest were playing at home.
 
-I initially attempted to allow my validation procedure to be flexible and allow partial knowledge of a season to be known, and then to validate my model on the remaining unknown fixtures. I decided not to pursue this however, since I only cared if my model could predict the entire season of fixtures. 
+I attempted to tune my models hyper-parameters via expanding rolling window validation.
+That is, for each validation window I fitted the model using the available historical data and evaluated its predictive performance on the following validation period.
+I then selected the hyper-parameter values which achieved the best aggregate performance across the validation procedure.
 
-For each season from 2015/16 through to 2023/24, we produce a training and a validation data frame. For example, the final window takes all of the historical data upto the start of the 2023/24 season, we use this data to fit our models, and then validate our models by taking the MAE between the predicted goals and the realised goals scored.
+I initially attempted to allow my validation procedure to be flexible and allow partial knowledge of a season to be known, and then to validate my model on the remaining unknown fixtures.
+I decided not to pursue this however, since I only cared if my model could predict the entire season of fixtures.
 
-We run this procedure from 2015/16 all the way through to the 2023/24 season, aggregating the MAE for goal predictions under different hyper-parameters. 
+For each season from 2015/16 through to 2023/24, we produce a training and a validation data frame.
+For example, the final window takes all of the historical data upto the start of the 2023/24 season, we use this data to fit our models, and then validate our models by taking the MAE between the predicted goals and the realised goals scored.
 
-I hoped that this procedure would make my model more robust since hyper-parameters are being selected based on their performance on different sets of unseen data. 
+We run this procedure from 2015/16 all the way through to the 2023/24 season, aggregating the MAE for goal predictions under different hyper-parameters.
+
+I hoped that this procedure would make my model more robust since hyper-parameters are being selected based on their performance on different sets of unseen data.
 
 ## Model limitations
 
-The first major limitation of my modelling procedure. I used regression to estimate the team ratings according to the poisson model for goals. I then modelled games under the dixon-coles model. Now although closely related, they are not the same. If time allowed, I would look to obtain my rating coefficients via the maximisation of a custom likelihood function for the dixon-coles model.
+The first major limitation of my modelling procedure.
+I used regression to estimate the team ratings according to the poisson model for goals.
+I then modelled games under the dixon-coles model.
+Now although closely related, they are not the same.
+If time allowed, I would look to obtain my rating coefficients via the maximisation of a custom likelihood function for the dixon-coles model.
 
-Further; the scaling approach I implemented for converting championship ratings into premier league ratings is completely set once prediction begins. It assumes that all promoted teams will adapt to premier league conditions in the same way, which is not always true. See the real world performances of Sunderland & Burnley in 2025/26 for an example of how promoted teams can adapt very differently. I fear this approach is too uniform, and that an adaptive approach may have been more effective.
+Further; the scaling approach I implemented for converting championship ratings into premier league ratings is completely set once prediction begins.
+It assumes that all promoted teams will adapt to premier league conditions in the same way, which is not always true.
+See the real world performances of Sunderland & Burnley in 2025/26 for an example of how promoted teams can adapt very differently.
+I fear this approach is too uniform, and that an adaptive approach may have been more effective.
 
-Also note that our validation procedure saw us repeatedly refine parameters on only nine different validation seasons. I fear this has lead to overfitting on the validation data, hence causing poor performance on the test data. I also used a different objective in validation, i.e I sought to minimise MAE between predicted and realised goals scored. However, my final model was evaluated using a separate metric designed to measure the accuracy of predicted league positions. These objectives do not necessarily align, minimising goal prediction error does not guarantee the most accurate prediction of the final league table. Ideally, I would select hyper-parameters by directly optimising the same metric used to evaluate the final model. This would ensure that the validation procedure is aligned with the actual objective of the model. However, since I had designed and coded my validation procedure before the finalisation of the test performance metric, this was not something I could do.
+Also note that our validation procedure saw us repeatedly refine parameters on only nine different validation seasons.
+I fear this has lead to overfitting on the validation data, hence causing poor performance on the test data.
+I also used a different objective in validation, i.e I sought to minimise MAE between predicted and realised goals scored.
+However, my final model was evaluated using a separate metric designed to measure the accuracy of predicted league positions.
+These objectives do not necessarily align, minimising goal prediction error does not guarantee the most accurate prediction of the final league table.
+Ideally, I would select hyper-parameters by directly optimising the same metric used to evaluate the final model.
+This would ensure that the validation procedure is aligned with the actual objective of the model.
+However, since I had designed and coded my validation procedure before the finalisation of the test performance metric, this was not something I could do.

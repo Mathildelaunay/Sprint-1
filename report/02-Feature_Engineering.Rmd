@@ -14,7 +14,7 @@ source("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/mai
 
 To ensure that each group member has access to the same data and same features and that one person's model is not exposed to substantially more informative data, we have all agreed to use the data and features provided on `football-data.co.uk`, specifically "https://football-data.co.uk/englandm.php". This provides a `.csv` for each season with information about each match, such as the teams playing and the goals they scored, the number of cards accumulated per game, and corner events. There is also a large amount of betting information saved on this dataset, however we mutually agreed that feeding our models data that is the opinion of external entities can introduce bias into our models and as such we omit them from our feature engineering. This still leaves many features for each of the models to be built upon, and some models use the features provided to create new features that can provide new information than just the existing match data. We agreed that building from existing data within the dataset is permissible since it does not draw on other datasets to create it. Each model uses the data differently, and below we examine how each model builds and adapts the data to their own idiosyncratic methods. 
 
-## Anna
+# Anna
 
 ### Data Processing `Data cleaning.Rmd`
 
@@ -28,13 +28,15 @@ names(train_data)
 
 These statistics represent points, goals, shots, corners, fouls and cards for home and away teams. Their specific descriptions can be found in `\Anna Del Pino > Premier League match events data > Notes.txt`. I removed betting odds because these reflect people’s expectations rather than what happens on the pitch and I did not want them to influence the model.
 
-The data is divided into training set to contain 2014/15-2024/25 seasons, a held out test set to be 2025/26 and 2026/27 prediction set. The 2026/27 dataset includes matches played up to 19 October 2026 and rows for the remaining fixtures, which are used to predict their goal outcomes. For each team, the cumulative statistics and league points are calculated from earlier matches in the same season. Each match row therefore contains the team statistics available before that match. The model uses these features to predict match outcomes, which are then used to produce the season ranking.
+The data is divided into training set to contain 2014/15-2024/25 seasons, a held out test set to be 2025/26 and 2026/27 prediction set. The 2026/27 dataset includes matches played up to 19 October 2026 and rows for the remaining fixtures filled with only information for `Date`, `HomeTeam` and `AwayTeam`, which are used to predict their goal outcomes. For each team, the cumulative statistics and league points are calculated from earlier matches in the same season. Each match row therefore contains the team statistics available before that match. The model uses these features to predict match outcomes, which are then used to produce the season ranking.
 
 ### Limitations
 
 Looking at the full dataset, older seasons do not contain the odds columns found in newer seasons. Since I am not using odds data, I removed the odds columns from every dataset. This leaves all the match statistics needed for my analysis in each dataset. Keeping only the columns I need also makes the datasets the same size and avoids issues with different dimensions or missing data.
 
 Another limitation is that the cumulative statistics reset at the beginning of every season. This means that the model has less information about the team's performance at the start as it doesn't use statistics from the previous season.
+
+Finally, in the 2026/27 prediction dataset, the cumulative columns repeat the most recent available values because no further match statistics are available for those fixtures. As a result, the model has limited data when predicting goals for the remaining matches: the prediction set contains only 80 season observations and is used to predict goals for the remaining 280 matches (270 − 90).
 
 # Max
 

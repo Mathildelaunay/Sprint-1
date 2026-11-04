@@ -1,0 +1,160 @@
+---
+title: "Report"
+author: "Anna Del Pino"
+date: "2026-11-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Data%20Cleaning.R")
+source("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Anna%20Del%20Pino/Model.R")
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+# Anna's Model
+
+## Model `Model.RMD`
+
+The aim of my model is to predict the goals scored by the home and away teams in each match, then use these predictions to create a final league ranking.
+
+Goals are non negative counts, so I use two Poisson generalised linear models (GLMs): one for home goals and one for away goals. For match $i$, we represent the goal counts as $$Y_{H,i} \sim \text{Poisson}(\lambda_{H,i}), \\ Y_{A,i} \sim \text{Poisson}(\lambda_{A,i}),$$ where $\lambda_{H,i}$ and $\lambda_{A,i}$ are the expected goal count of the home and away teams. The models use a log link: $$\log(\lambda_{H,i})=\beta_{H,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_H, \\ \log(\lambda_{A,i})=\beta_{A,0} + \mathbf{x}_i^\text{T}\mathbf{\beta}_A$$ The log link function gives a positive expected goal rate.The paper also uses Poisson modelling by treating goals as count data.
+
+To choose which features to use I used forward-backward selection method with AIC. I used this model selection method because it compares models with different combinations of features and helps select a model that balances goodness of fit with complexity.(`\Anna Del Pino > lglm(1).pdf`)This process can be found in `\Anna Del Pino > Model.Rmd`.
+
+Using this made me choose the following two models:
+
+```{r}
+formula(home_final_model)
+formula(away_final_model)
+```
+
+As we can see, the two models use different features which makes sense since we're assuming that a team playing at home or away may affect their performance in a match.
+
+The `AwayYellowCardsBefore`, `HomeYellowCardsBefore` and `AwayRedCardsBefore` features are interesting to explore. Their inclusion shows that card statistics are associated with predicted goals. For example, teams that have received more cards may play more cautiously. However, these relationships do not necessarily show that receiving a card causes a change in the other team’s performance.
+
+The idea of fitting two different models for home and away teams is also used in `Anna Del Pino` \> `Premier League goal prediction.pdf`, which fits separate Poisson regression models for home and away goal rates and then combines these results to simulate match scores and season rankings. I also chose to model home and away goals separately because I think playing at home or away can affect a team’s performance. A home team may feel more comfortable playing in front of its own supporters, while an away team is playing in front of a crowd that may not support it.
+
+The main difference between my model and the one explained in the paper is that I round my predicted goals to get a score for each match, while the paper uses scoring rates to simulate match scores. I do this by using the `round()` function on the predicted goals which allows us to determine a winner for each match. This allows me to assign points to each team and then rank them after predicting the remaining matches of the season.
+
+However, this is not the only function which turns predictions into goals. We also considered using a threshold value (beta) on the difference between the predicted goals to get a match outcome. The way it works is that a match is classified as a draw if the absolute difference between the two predictions is at most beta and otherwise, the team with the higher predicted goals is classified as the winner. However, looking at `Mathilde` \> `03 Sensitivity Analysis.Rmd`, this technique was found to be unreliable as it was difficult to pinpoint a value for this threshold which did not have a high standard deviation. A reason behind this could be that as the model learns from training data, its predictions become more certain, which means that the gap between two predictions does not hold the same meaning for predictions in a later season than it does for predictions in an earlier season.
+
+We check the selected models using residual plots and Pearson dispersion ratios. In `\Anna Del Pino > Model.Rmd` we see that the Pearson ratios are close to 1, which suggests there is no strong sign of overdispersion. We then evaluate the predictions on the separate 2025/26 test season. The home goal MAE is 0.939, compared with 0.996 for a baseline that predicts the training-set mean; the away goal MAE is 0.818, compared with 0.875 for its baseline. The predicted ranking has a mean absolute position error of 2.1 places and a Spearman correlation of 0.862 with the actual ranking, indicating a similar ordering of teams in the test season. (`Anna Del Pino` \> `Test and Notes`)
+
+Finally, to produce the final league ranking I built a `ranking()` function. It uses the predicted goals for each match to assign points to the teams, adds up each team's points and goal difference and ranks them by points, using goal difference to break ties. (`\Anna Del Pino > Model.Rmd`)
+
+After testing the model on the 2025/26 season, I also compared its goal predictions with a baseline based on the training-set mean:
+
+```{r}
+MAE_HG <- mean(abs(test_data$FTHG - test_data$PredHomeGoals))
+MAE_AG <- mean(abs(test_data$FTAG - test_data$PredAwayGoals))
+train_MAE_HG <- mean(abs(test_data$FTHG - mean(train_data$FTHG)))
+train_MAE_AG <- mean(abs(test_data$FTAG - mean(train_data$FTAG)))
+MAE_pos <- mean(abs(table_comparison$PositionDifference))
+rank_corr <- cor(table_comparison$Position_Predicted, table_comparison$Position_Actual,method = "spearman", use = "complete.obs")
+
+print(c(MAE_HG, MAE_AG, train_MAE_HG, train_MAE_AG, MAE_pos, rank_corr))
+```
+
+These results show that the model performs better than the training baseline.
+
+- Home goal MAE: 0.939 goals, compared with 0.996 from the train model error so a 5.7% reduction.
+
+- Away goal MAE: 0.818 goals, compared with 0.875 from the train model error so a 6.5% reduction.
+
+- Mean position error: 2.1 places. On average, a team’s predicted position was about two places away from its actual position.
+
+- Spearman rank correlation: 0.862, showing that the predicted and actual ranking orders were fairly similar.
+
+The model improved goal predictions over the baseline and reproduced the overall team ranking reasonably well on the test season.
+
+### Limitations
+
+1.  An important limitation to note when using a Poisson regression model is that it treats goals as independent events. We know this not to be true, especially during a match: a team scoring a goal will have an important impact on the rest of the game.
+2.  Another limitation is that our model does not take into account the changes happening within teams, and within games themselves. Players can be taken out of the pitch during a game, but they can also join another team halfway through the season. The way this model was built simplifies the internal structures of the season, which means that the predictions cannot take into account important factors that are important in explaining a match outcome.
+3.  For the remaining 2026/27 fixtures, the cumulative predictor columns only include statistics from matches played up to 19 October. As these values are not updated for future matches, the model can't account for changes in each team's performance during the rest of the season. This means the predictions are based on limited information about how teams may perform in their future matches.
+4.  In our model, I round the predicted goals to get a score for each match. This is different from the paper's simulation approach and it may affect the predicted number of wins, draws and losses and therefore the final ranking. Rounding can also affect the errors used to evaluate the model.
+
+## 2026/27 Prediction
+
+Since my model had the best performance according to the performance metric, we will produce a prediction of the final 2026/27 season ranking.
+
+```{r}
+played_26_27 <- prediction_data[prediction_data$Date <= as.Date("2026-10-19"),] 
+unplayed <- prediction_data$Date > as.Date("2026-10-19")
+
+final_train_data <- bind_rows(train_data, test_data, played_26_27) #known data that will get used to train the model
+
+home_final_model <- glm(formula(home_step), data = final_train_data, family = poisson) 
+away_final_model <- glm(formula(away_step), data = final_train_data, family = poisson)
+
+#initialise prediction column filled with NAs
+prediction_data$PredHomeGoals <- NA_real_ 
+prediction_data$PredAwayGoals <- NA_real_
+
+prediction_data$PredHomeGoals[unplayed] <- round(predict(home_final_model, newdata = prediction_data[unplayed, ], type = "response"))
+prediction_data$PredAwayGoals[unplayed] <- round(predict(away_final_model, newdata = prediction_data[unplayed, ], type = "response"))
+
+final_home_goals <- ifelse(unplayed,prediction_data$PredHomeGoals,prediction_data$FTHG) 
+final_away_goals <- ifelse(unplayed,prediction_data$PredAwayGoals,prediction_data$FTAG)
+
+#builds the prediction table
+predicted_2026_27_table <- ranking(prediction_data,final_home_goals,final_away_goals)
+
+predicted_2026_27_table
+```
+
+For the 2026/27 season, results are available for matches played up to 19 October. The remaining fixtures have no match results because they have not yet been played. I use actual goals for completed matches and predict goals for the remaining fixtures using our Poisson GLMs before calculating the final ranking using our `ranking()` function.
+
+### Limitations
+
+For the 2026/27 prediction dataset I only have data up to and including 19-10-26. To show the model which match it needs to predict, I added the rows for the remaining fixtures (i.e. from 30-10-27 to 30-05-2027) with information only on `Date`, `HomeTeam` and `AwayTeam` . The cumulative statistics columns repeat the most recently available values because we don't have any new information of the statistics.
+
+Note that the cumulative goals columns also remain unchanged as these don't include the predicted new goals.
+
+This is a limitation because the model assumes that each team's known statistics remain unchanged for the remaining fixtures. For example, here are the first 10 matches involving Arsenal:
+
+```{r}
+head(prediction_data[prediction_data$HomeTeam == "Arsenal" |prediction_data$AwayTeam == "Arsenal",],10)
+```
+
+We can see that the current match statistics (i.e. `FTHG` up to `AR` ) are filled with `NA` for unseen matches and the cumulative statistics columns show the most recent available value. These cumulative statistics include all seen information for each statistic. Furthermore, the dataset adds two columns of `PredHomeGoals` and `PredAwayGoals` which contain the predictions $\hat\lambda_H$ and $\hat\lambda_A$ of expected home and away goals for each remaining match.
+
+
+# Bobby's model
+
+### Model Idea
+
+I believe that there is a correlation between the rankings of the ratios of goals scored to goals conceded for each Premier League team in a season and that same season's actual final ranking table. The reasoning behind this approach is that a team that consistently scores more goals than it concedes is likely to be more successful. The idea of my model is to be able to predict the total number of goals scored by each team over a single season, then do the same for goals conceded, calculate the ratio of these two (total goals scored divided by total goals conceded), and then finally rank these teams from highest ratio to lowest ratio which will be our prediction for the final league table for the 2026/27 Premier League season. By comparing the predicted goal ratios of all teams, I hope to identify a relationship between goal ratio and final league position. However, because the official Premier League table is determined directly by points, the rankings produced by my model may differ from the actual table.
+
+### Relevant Mathemtical Paper
+
+A paper I read called "Football Match Result Prediction Using the Random Forest Classifier" published in August 2019 and written by Pakawan Pugsee and Pattarachai Pattawong investigates the use of machine learning to predict Premier League football match results using a Random Forest Classifier. They trained their model using historical data from 3 previous seasons, considering factors such as previous match results and home and away performance. Their model achieved an overall prediction accuracy of 80% when it was tested on 220 matches from the 2017/18 season, demonstrating the potential of Random Forest models for predicting football outcomes. However, they did notice that the model was less successful at predicting draws compared to home and away wins. The findings of this paper demonstrate the potential of Random Forest algorithms in football prediction, providing inspiration for my decision to use Random Forest regression models in my own project.
+
+### Data Usage
+
+I used a large dataset containing many columns showing lots of different statistics in each game from the 2014/15 Premier League season up to the 2026/27 Premier League season. However, I decided to only use a small group of columns to make my model work. These chosen columns included information on who was the home and away team in a match, the full time home and away goals in a match, and finally the date of each match. I used the first 11 seasons (the 2014/15 season up to and including the 2024/25 season) as training data to train my model and then used the 2025/26 season as my test data. I want to predict the 2026/27 season but as there is already some data available for this season, I did implement the first 6 games of this season to aid the prediction for the entire 38 game season.
+
+### Model Training
+
+After selecting the relevant columns from the dataset, I used my code to process the match results into statistics for each team. I then used these statistics to create eight features that the model uses to make predictions. The model is trained using historical data at different points in each season: after 6, 10, 15, 20 and 25 matches. This allows it to learn how a team's performance earlier in a season relates to its final goals scored and conceded. These checkpoints also allow the model to learn from each team's statistics at different stages of the season. I used two Random Forest regression models, with the first predicting each team's final total goals scored and the second predicting its final total goals conceded.
+
+### Making Predictions
+
+After training the models, I used them to predict each team's final goals scored and goals conceded for the 2026/27 season. I used the results from the first 6 matches, along with statistics from the previous season, to help make these predictions. I then calculated each team's predicted goal ratio by dividing their predicted goals scored by their predicted goals conceded. Finally, I sorted the teams from the highest predicted goal ratio to the lowest to produce my predicted rankings for the 2026/27 Premier League season.
+
+### Testing
+
+To test my model, I used the 2025/26 season as test data and compared the predicted goal ratio rankings with the actual goal ratio ranking. My code calculated the absolute rank error for each team, which shows how many places the predicted goal ratio ranking was away from the actual goal ratio ranking. It also calculated the mean absolute rank error across all teams, as well as how many teams were predicted in exactly the correct goal ratio ranking or within one or two places of their correct goal ratio ranking. It also displayed how many teams were predicted over 5 places away from the correct goal ratio ranking. This helped me evaluate how accurately my model predicted the goal ratio rankings, which may provide an indication of the final league standings
+
+### Limitations
+
+The main limitation of my model is that its accuracy depends heavily on the strength of the relationship between goal ratio and the actual Premier League table ranking. This means that in theory, my model could correctly predict the final goal ratios for all 20 teams but could still get the final table wrong because there may be instances where one team has a worse goal ratio than another team, yet still finishes above them in the Premier League table. Another limitation is that my model uses the first 6 games of the season it is trying to predict. This means that my model would not be able to predict the season before it had started and therefore relies on knowing at least some information about the season before predicting the final results over all 38 games.
+
+### Conclusion
+
+In conclusion, my model uses historical Premier League data and the first 6 matches of the 2026/27 season to predict each team's final goals scored and goals conceded. It then calculates the predicted goal ratio for each team and ranks them from highest to lowest. By testing the model on the 2025/26 season, I was able to evaluate how accurately it predicted the final goal ratio rankings by analysing the absolute rank errors. Given how unpredictable football can be, with some teams unexpectedly overperforming or underperforming, I believe my model has the potential to make useful predictions. However, its overall accuracy should be judged by the results of my testing. The model also has limitations because goal ratio does not always match the official league table, which is determined primarily by points. Its predictions may also be affected by unexpected changes in team performance throughout the season. Overall, the model provides a way to use historical data and results early in the season to predict team performance, although its rankings should be treated as predictions rather than a guaranteed final league table.

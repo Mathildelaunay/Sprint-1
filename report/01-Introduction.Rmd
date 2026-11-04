@@ -9,28 +9,33 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 # Introduction
 
-Our group sprint 1 task is to utilise different regression model types to predict the 2026/27 English Premier League season, training on the 2014/15 to 2024/25 seasons and testing on the 2025/26 season. We have each provided a candidate model using different regression formats ranging from generalised linear models to random forests, and creating and selecting different features from our season dataset. Each of these candidates predicts the number of home and away goals for each match within a season, with which we can make a league ranking table with the fact that each match has 3 outcomes based on the number of points: 3 points for the winning team with 0 going to the losing team, or 1 point for each team should there be a draw. Our models output these season rankings, and in order to select which model satisfies our subjective needs we must create a performance metric to order the models in terms of what we deem is a successful model. Our thought process behind creating an off-the-shelf performance metric is that our prior knowledge of how the Premier League structure operates means some rankings are more favourable than others, and a metric like Mean Absolute Error (MAE) could be formatted and weighted to emphasise certain characteristics of a ranking being more important; such as the fact that teams in the top 5 of the league proceed to Europe-wide competitions such as the UEFA Champions League or Europa league, and the bottom 3 teams in the standings are relegated to a lower team. With the possibility for teams to be relegated or permitted to enter different leagues, we approached the design of the metric from the perspective of a company that owns one of the teams playing in the league. We know that being in the top 5 and playing in European championships brings a significant increase in revenue and sponsorships, and likewise a team that is relegated will play in a league with less funding and smaller rewards, as well as a decrease in revenue and sponsorships. Therefore, we assume that travelling in either direction is important in magnitude and that a team cares about how much revenue it will gain equally as much as how much it will lose, so these two scenarios of promotion and relegation should be weighted higher than being in the middle of the standings where the financial pressure is less apparent. 
+Our group sprint 1 task is to utilise different regression model types to predict the 2026/27 English Premier League season, training on the 2014/15 to 2024/25 seasons and testing on the 2025/26 season.
 
-We will discuss how we assign the weightings to positions in the metric, and running each of our models through the metric will outline which model we subjectively prefer, and thus which model proceeds to forecasting the subsequent season. We cannot know what the results of the next season will be, but based on prior results and the score assigned to the model, the model we choose will be the one with the highest chance of success. 
+We have each provided a candidate model using different regression formats ranging from generalised linear models to random forests, and creating and selecting different features from our season dataset. Each of these candidates predicts the number of home and away goals for each match within a season, with which we can make a league ranking table with the fact that each match has 3 outcomes based on the number of points: 3 points for the winning team with 0 going to the losing team, or 1 point for each team should there be a draw.
 
+Our models output these season rankings, and in order to select which model satisfies our subjective needs we must create a performance metric to order the models in terms of what we deem is a successful model.
 
-# Performance metric discussion
+Our thought process behind creating an off-the-shelf performance metric is that our prior knowledge of how the Premier League structure operates means some rankings are more favourable than others, and a metric like Mean Absolute Error (MAE) could be formatted and weighted to emphasise certain characteristics of a ranking being more important; such as the fact that teams in the top 5 of the league proceed to Europe-wide competitions such as the UEFA Champions League or Europa league, and the bottom 3 teams in the standings are relegated to a lower team. With the possibility for teams to be relegated or permitted to enter different leagues, we approached the design of the metric from the perspective of a company that owns one of the teams playing in the league. We know that being in the top 5 and playing in European championships brings a significant increase in revenue and sponsorships, and likewise a team that is relegated will play in a league with less funding and smaller rewards, as well as a decrease in revenue and sponsorships. Therefore, we assume that travelling in either direction is important in magnitude and that a team cares about how much revenue it will gain equally as much as how much it will lose, so these two scenarios of promotion and relegation should be weighted higher than being in the middle of the standings where the financial pressure is less apparent.
+
+We will discuss how we assign the weightings to positions in the metric, and running each of our models through the metric will outline which model we subjectively prefer, and thus which model proceeds to forecasting the subsequent season. We cannot know what the results of the next season will be, but based on prior results and the score assigned to the model, the model we choose will be the one with the highest chance of success.
+
+# Performance metric 
 
 ### High level view of performance metric
-The high level idea of our performance metric is to score each model $M_j$'s predicted ranking of teams relative to the realised ranking of each team, given our weighted importance on accuracy at the head and tail of the table. We then multiply this prediction score by a term which penalises the model complexity. This gives us our model score. 
 
-We wish for our prediction score to be equal to 1 if a model correctly ranks the entire league table. We also want the score to not subceed zero given a very bad ranking. 
+The high level idea of our performance metric is to score each model $M_j$'s predicted ranking of teams relative to the realised ranking of each team, given our weighted importance on accuracy at the head and tail of the table. We then multiply this prediction score by a term which penalises the model complexity. This gives us our model score.
 
-We desire our penalisation term to also be bounded between zero and one, and to be such that the simplist model has zero penalisation, and an infinitley complex mode has complete penalisation. Note that since the penalisation term is multiplied by the prediction score, the zero penalistaion case gives a penalisation term $= 1$, and the complete penalisation case gives a penalisation temr $= 0$.
+We wish for our prediction score to be equal to 1 if a model correctly ranks the entire league table. We also want the score to not subceed zero given a very bad ranking.
+
+We desire our penalisation term to also be bounded between zero and one, and to be such that the simplist model has zero penalisation, and an infinitley complex model has complete penalisation. Note that since the penalisation term is multiplied by the prediction score, the zero penalistaion case gives a penalisation term $= 1$, and the complete penalisation case gives a penalisation term $= 0$.
 
 Hence, our model scores will all be between zero and one, and should capture our ideal of a "good" prediction.
 
-
 ### Prediction score
-We create our prediction score under the function *pm*. The below table summarises the function, the code for which is found later in this script. Note that $x = |\text{predicted rank} - \text{realised rank}|$
+
+We create our prediction score under the function `pm()`. The below table summarises the function, the code for which is found later in this script. Note that $x_i = |\text{predicted rank}_i - \text{realised rank}_i|$ for each team $i$.
 
 | Actual, $a_i$ | Prediction, $p_i$ | Weight, $w_i$ |
 |------------------------|------------------------|------------------------|
@@ -47,48 +52,44 @@ To implement our idea, we decided to design appropriate weights which would refl
 
 For a correct prediction of a team being in the top 5 but in the incorrect exact position, we used a formula based on how many teams were correctly placed in the top 5. For every team which is correctly placed somewhere in the top 5, we add 0.2 to the weight of each of these teams (except the ones that were also in the correct position). For example if our top 5 only correctly predicted 3 teams to be there, each of these 3 teams contributes a weight of 0.6 to the model.
 
-If we also had another team in the top 5 which was put in the correct position too, then this weight is 1 from earlier and the other 3 teams would get a weighting of 0.8 this time. This is because now 4 teams were correctly placed in the top 5 somewhere at least. We  did this in order to give extra reward to models who predicted both a team in the correct position in the top 5 as well as getting other top 5 teams somewhere in the top 5.
+If we also had another team in the top 5 which was put in the correct position too, then this weight is 1 from earlier and the other 3 teams would get a weighting of 0.8 this time. This is because now 4 teams were correctly placed in the top 5 somewhere at least. We did this in order to give extra reward to models who predicted both a team in the correct position in the top 5 as well as getting other top 5 teams somewhere in the top 5.
 
 For all other cases we wanted to focus on the distance between the predicted position and the actual position. We believed that the further away the predicted position was from the actual position, the less additional penalisation we should have. Our logic behind this was that for example, getting a team's position wrong by 3 places compared to 2 place is a relativley large decrease in predictive accuracy. However, the difference between getting a ranking incorrect by 10 places and 11 places is less significant. They are both poor rankings.
 
 A function that does this well is the exponential function with a minus sign in front of the $x$ value. As we are penalising the model for incorrect predictions, we decided to make these weights negative too. Since our prediction for the top 5 are significant, we decided to decrease the coefficient of the $x$ for any team outside the top 5 to $0.1$ to make the drop off in weight values less steep.
 
-This meant that the weight function for the top 5 being predicted outside of the top 5 and teams outside of the top 5 (excluding the bottom 3) being incorrectly predicted in the top 5 is $f(x) = -(1-\exp(-x))$. And teams outside of the top 5 (excluding the bottom 3) being predicted an incorrect position outside of the top 5 and the bottom 3 being predicted outside of the bottom 3 to be $f(x) = -(1-\exp(-0.1x))$. 
+This meant that the weight function for the top 5 being predicted outside of the top 5 and teams outside of the top 5 (excluding the bottom 3) being incorrectly predicted in the top 5 is $f(x) = -(1-\exp(-x))$. And teams outside of the top 5 (excluding the bottom 3) being predicted an incorrect position outside of the top 5 and the bottom 3 being predicted outside of the bottom 3 to be $f(x) = -(1-\exp(-0.1x))$.
 
 We sum these weights over our predictions, and then bound this sum by subtracting the lowest possible score and then dividing by the range between the upper bound and lower bound. This forms our prediction score and ensures it is in the range $[0,1]$.
 
 ### Penalisation term
-We define our penalisation term as for model $j$ with $k_j$ features as :  
-$$\text{penalisation term} = e^{-\lambda k_j},$$
-where $\lambda$ is a decay rate to be chosen. We choose $\lambda = 0.01$. This gives meaningful penalisation to models which use a large number of features, but is mild enough on smaller models so as to not dominate the model score. 
+
+We define our penalisation term as for model $j$ with $k_j$ features as :\
+$$\text{penalisation term} = e^{-\lambda k_j},$$ where $\lambda$ is a decay rate to be chosen. We choose $\lambda = 0.01$. This gives meaningful penalisation to models which use a large number of features, but is mild enough on smaller models so as to not dominate the model score.
 
 Note that this lambda rate has a somewhat nice interpretation when viewed through the Bayesian model choice perspective, that is $P(M_j|D) \propto P(D|M_j)P(M_j)$.
 
-Suppose we set our prior belief of model $M_j = e^{-\lambda k_j}$. We can then look to choose $\lambda$ with respect to our prior belief about the probability of the model $M_j$. That is, suppose for each feature which we could have chosen to include in our model, we have a uniform prior belief as to if we will include it $\mathbb{P}($include feature $l$ in mode$) = q_l$. Then we can also have $P(M_j) = e^{-\lambda k_j}\propto (\frac{q}{1-q})^{k_j}$. Thus we can rearange to find lambda in terms of our prior beliefs about any feature being included in our model. We have: $$\lambda = \ln(\frac{1-q}{q}).$$
+Suppose we set our prior belief of model $M_j = e^{-\lambda k_j}$. We can then look to choose $\lambda$ with respect to our prior belief about the probability of the model $M_j$. That is, suppose for each feature which we could have chosen to include in our model, we have a uniform prior belief as to if we will include it $\mathbb{P}($include feature $l$ in mode$) = q_l$. Then we can also have $P(M_j) = e^{-\lambda k_j}\propto (\frac{q}{1-q})^{k_j}$. Thus we can rearrange to find lambda in terms of our prior beliefs about any feature being included in our model. We have: $$\lambda = \ln(\frac{1-q}{q}).$$
 
-Thus, if for each feature $q$, we have the uniform prior belief that it is to be included in our model just below half the time, ie $q = 0.4975$, then we get $\lambda \approx 0.01$. Again, this is a relativley mild penalisation but it is pretty apt for our case since we want to bound our model scores to $[0,1]$.
+Thus, if for each feature $q$, we have the uniform prior belief that it is to be included in our model just below half the time, ie $q = 0.4975$, then we get $\lambda \approx 0.01$. Again, this is a relatively mild penalisation but it is pretty apt for our case since we want to bound our model scores to $[0,1]$.
 
-Explicitly; our prediction score bounding is given by: 
-$$P_m(M_j)=\frac{S_j-S_{\min}}{S_{\max}-S_{\min}},$$
-where $S_j$ is the un-normalised prediction score of model $M_j$.
+Explicitly; our prediction score bounding is given by: $$P_m(M_j)=\frac{S_j-S_{\min}}{S_{\max}-S_{\min}},$$ where $S_j$ is the un-normalised prediction score of model $M_j$.
 
 ### Model score
-The model score is given by the function *pm_adjusted* and is described by the equation:
-$$\text{model score} = \text{Pm}(M_j) e^{-\lambda k_j}.$$
+
+The model score is given by the function `pm_adjusted()` and is described by the equation: $$\text{model score} = \text{Pm}(M_j) e^{-\lambda k_j}.$$
 
 The model score is a relatively natural function which is somewhat similar in flavour to AIC information criterion. Note that if we take the log of our score, we get:
 
-$$\ln(\text{Pm}(M_j)) - \lambda k_j,$$
-whereas AIC is given by:
+$$\ln(\text{Pm}(M_j)) - \lambda k_j,$$ whereas AIC is given by:
 
 $$\text{AIC} = 2k - 2\ln(\hat{\mathcal{L}})$$.
 
 Our model score has many important differences from AIC, for one, a good model is one which obtains a large model score under our system, whereas in AIC, a good model gives a low score. Further, our model score penalises the number of features used by our models, however AIC penalises the number of estimated parameters.
 
-However, both our model score and AIC reward models which have a "good" fit to the data, for their respective ideals of "goodness". Both also look to penalise the complexity of the models with respect to the model size. 
+However, both our model score and AIC reward models which have a "good" fit to the data, for their respective ideals of "goodness". Both also look to penalise the complexity of the models with respect to the model size.
 
-
-```{r} 
+```{r}
 library(readr)
 library(dplyr)
 Mathilde_test <- read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Mathilde/MathildeTestTable.csv")
@@ -180,10 +181,10 @@ pm_adjusted <- function(predicted, actual, number_features, lambda=0.01) {
 }
 ```
 
-
 # Model Output
 
 Mathilde's model:
+
 ```{r}
 Mathilde_test
 a <- (pm(predicted = Mathilde_test$PredictedRank, actual = Mathilde_test$ActualRank)- lower_bound)/(upper_bound - lower_bound)
@@ -193,6 +194,7 @@ print(paste0("Mathilde's adjusted score (taking into account model size) is ", b
 ```
 
 Bobby's model:
+
 ```{r}
 Bobby_test <- Bobby_test %>% # sort for score
   arrange(Actual_Rank)
@@ -206,6 +208,7 @@ print(paste0("Bobby's adjusted score (taking into account model size) is ", b))
 ```
 
 Anna's model:
+
 ```{r}
 Anna_test
 a <- (pm(predicted = Anna_test$Position_Predicted, actual = Anna_test$Position_Actual)- lower_bound)/(upper_bound - lower_bound)
@@ -215,6 +218,7 @@ print(paste0("Anna's adjusted score (taking into account model size) is ", b))
 ```
 
 Jonty's model:
+
 ```{r jontys pm score}
 Jonty_test
 a <- (pm(predicted = Jonty_test$Predicted_Rank,
@@ -227,6 +231,7 @@ print(paste0("Jonty's adjusted score (taking into account model size) is ", b))
 ```
 
 Max's model:
+
 ```{r}
 Max_test
 a <- (pm(predicted = Max_test$Position[match(Mathilde_test$Team, Max_test$Team)], actual=Mathilde_test$ActualRank)- lower_bound)/(upper_bound - lower_bound)
@@ -236,6 +241,3 @@ print(paste0("Max's adjusted score (taking into account model size) is ", b))
 ```
 
 Anna's model has the highest score, so it wins!!!
-
-
-
