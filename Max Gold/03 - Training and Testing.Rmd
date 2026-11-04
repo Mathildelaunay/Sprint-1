@@ -17,7 +17,6 @@ library(randomForest)
 library(lubridate)
 library(corrplot)
 library(readr)
-library(devtools)
 ```
 
 # Training Method
@@ -878,7 +877,7 @@ ranking <- function(matches, home_goals, away_goals) {
 
 ## Testing using Training Features
 
-Here, we partition our data into our historical and future data to prevent any leakage, and run our walk-forward algorithm which updates after each successive match. We input our features, both the home and away models, and we are provided with our predicted end of season table ranking. 
+Here, we partition our data into our historical and future data to prevent any leakage, and run our walk-forward algorithm which updates after each successive match. We input our features, both the home and away models, and we are provided with our predicted end of season table ranking. Due to the random nature of the random forest, some rankings may differ each time but overall the structure should be similar. 
 
 ```{r}
 historical_data <- combined_data |>
@@ -903,6 +902,7 @@ predictions_2025_fast <- recursive_forecast_fast(
 
     day_levels = levels(training_features$DayOfWeek)
   )
+
 
 final_table_fast <- ranking(
   matches = predictions_2025_fast,
