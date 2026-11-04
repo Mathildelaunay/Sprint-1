@@ -159,3 +159,5 @@ This gave me the idea to have TeamRankCategory and OpponentRankCategory. I chang
 I then built the dataset using the seasons of 2014/15 until 2024/25, which was the agreed training season. I also had to download data from 2013/14 to fill in values for the variables in the first year of the training season, but I did not train my model on that season.
 
 # Bobby
+
+The data usage as described in 'Bobby Harwood' \> 'Model Explained.md' takes 5 different features of the data set and then...
