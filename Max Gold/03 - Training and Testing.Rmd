@@ -21,6 +21,8 @@ library(readr)
 
 # Training Method
 
+## Initialisation from Feature Selection
+
 First we must initialise the data from the previous file ` 02---Feature-Engineering-and-Selection` to create our analysis, so this is purely repeated:
 
 ```{r}
@@ -48,7 +50,14 @@ features_2 = read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1
 features_5 = read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/features_5.csv")
 features_10 = read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/features_10.csv")
 
+r_code <- knitr::purl("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/02---Feature-Engineering-and-Selection.Rmd", output = tempfile(), quiet = TRUE)
+
+source(r_code)
+
 ```
+
+
+
 
 
 ```{r}
@@ -66,7 +75,7 @@ testing_data <- combined_data |>
 prediction_data <- combined_data |>
   filter(SeasonStart == 2026)
 
-training_features_5 <- features_5 |>
+training_features<- features_5 |>
   filter(
     SeasonStart >= 2014,
     SeasonStart <= 2024,
@@ -81,72 +90,6 @@ training_features_5 <- features_5 |>
 ```
 
 ```{r}
-
-home_data <- training_features_5 |>
-  select(
-    -Date,
-    -SeasonStart,
-    -HomeTeam,
-    -AwayTeam,
-    -AwayGoals,
-    -Home_Wins,
-    -Away_Wins
-  )
-
-away_data <- training_features_5 |>
-  select(
-    -Date,
-    -SeasonStart,
-    -HomeTeam,
-    -AwayTeam,
-    -HomeGoals, 
-    -Home_Wins,
-    -Away_Wins
-  )
-
-rf_home_initial <- randomForest(
-  HomeGoals ~ .,
-  data = home_data,
-  ntree = 1000,
-  importance = TRUE
-)
-
-importance_scores <- importance(rf_home_initial, type = 1)
-importance_sorted <- sort(importance_scores[, 1], decreasing = TRUE)
-home_features <- names(importance_sorted)[1:10]
-
-
-
-rf_away_initial <- randomForest(
-  AwayGoals ~ .,
-  data = away_data,
-  ntree = 1000,
-  importance = TRUE
-)
-
-
-importance_scores_a <- importance(rf_away_initial, type = 1)
-importance_sorted_a <- sort(importance_scores_a[, 1], decreasing = TRUE)
-away_features <- names(importance_sorted_a)[1:10]
-```
-
-We will use $k=5$ and `ntree=1000` as a baseline to calculate our home and away features to be used in the sensitivity analysis, this keeps the sensitivity experiment controlled compared to the other $k$ values to create a correlation matrix between $k$ values. 
-
-
-```{r}
-
-training_features <- features_5 |>
-  filter(
-    SeasonStart >= 2014,
-    SeasonStart <= 2024,
-    !is.na(HomeGoals),
-    !is.na(AwayGoals)
-  ) |>
-  mutate(
-    DayOfWeek = factor(DayOfWeek)
-    
-  )
-
 
 home_data <- training_features |>
   select(
@@ -194,6 +137,16 @@ rf_away_initial <- randomForest(
 importance_scores_a <- importance(rf_away_initial, type = 1)
 importance_sorted_a <- sort(importance_scores_a[, 1], decreasing = TRUE)
 away_features <- names(importance_sorted_a)[1:10]
+```
+
+
+## Training
+
+As seen above and calculated in the feature engineering section, we have 4 different $k$ valued feature sets. However, we will use $k=5$ and `ntree=1000` as a baseline to calculate our home and away features as $k=5$ is not too large as to dilute recent information and lose any gain we might expect from recent data, but not too small that we don't have enough important history to make informed decisions with. We split training data given the features we chose in training into our home and away datasets, and we fit two random forests for home and away goals respectively. 
+
+
+```{r}
+
 X_home <- training_features |>
   select(all_of(home_features))
 
@@ -220,6 +173,15 @@ rf_away <- randomForest(
 
 ```
 
+
+
+# Testing
+
+## Walk-forward Forecasting
+
+Previously, I had decided to use a recursive forecast which means I would be using forecasted data to predict subsequent data, as would be the case if we had no future data to compare with such as on the 2026/27 data. However, our group decided unanimously to use actual data to improve our models as the season progresses. This is known as walk-forward forecasting, where after the model has predicted the goals of a match using historical data, it saves the predicted goals in the final results prediction but updates the model using what actually happened in the match in preparation for the next match between the teams. Therefore, even though our function is called `recursive_forecast`, it has been adapted to perform walk-forward forecasting. 
+
+In our function, we first prepare the historical data and team composition to initialise the order of the matches within the season. We then create the history and league standings of each team before the season starts, preparing the current season features as an initialised state as previously used to make the features for training. We then create the storage of the future dates and fixtures, and a storage location for the predicted goals to live. We generate the sufficient features for each match and each team, and select the features we intend to use on each random forest respectively. We create a for loop that proceeds through each match and predicts the outcomes using the random forests, allocating the goals predicted to the storage location, rounding the goals to the nearest integer, and then updating each of the feature datasets with the outcome that actually happened. This is made using the `update_state_fast` function used in feature generation but we use the actual match outcome instead of the forecasted result. This removes the uncertainty posed by the recursive forecasting method as the model snaps back from straying too far from the real result like an elastic band by inserting the actual result to improve the models accuracy, instead of increasing variability by using uncertain predicted data in future prediction.  
 
 ```{r}
 recursive_forecast_fast <- function(
@@ -429,7 +391,7 @@ for (j in completed) {
 
 ```
 
-
+Here is Anna's ranking table that we use to create the final ranking - see `Anna Del Pino/` for more info. 
 
 ```{r}
 ranking <- function(matches, home_goals, away_goals) {
@@ -458,38 +420,11 @@ ranking <- function(matches, home_goals, away_goals) {
 
 ```
 
-## TRAINING FEATURES
 
-```{r}
 
-# Remove variables that should not be predictors
-X_home <- training_features |>
-  select(all_of(home_features))
+## Testing using Training Features
 
-X_away <- training_features |>
-  select(all_of(away_features))
-
-set.seed(123)
-
-rf_home <- randomForest(
-  x = X_home,
-  y = training_features$HomeGoals,
-  ntree = 1000,
-  mtry = floor(sqrt(ncol(X_home))),
-  importance = TRUE
-)
-
-rf_away <- randomForest(
-  x = X_away,
-  y = training_features$AwayGoals,
-  ntree = 1000,
-  mtry = floor(sqrt(ncol(X_away))),
-  importance = TRUE
-)
-
-```
-
-## TESTING USING TRAINING FEATURES
+Here, we partition our data into our historical and future data to prevent any leakage, and run our walk-forward algorithm which updates after each successive match. We input our features, both the home and away models, and we are provided with our predicted end of season table ranking. 
 
 ```{r}
 historical_data <- combined_data |>
