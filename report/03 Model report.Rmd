@@ -195,8 +195,7 @@ The initialised history of recently promoted teams from the Championship - the s
 
 Finally, the use of recursive forecasting adds increasing uncertainty the more matches we forecast, as any uncertainty in the first couple of matches propagates throughout the season influentally, and so in situations where there is not enough prior history the model may not accurately predict future observations. 
 
-
-#Mathilde's Model 
+# Mathilde's Model 
 
 I decided to use a Poisson regression model to make predictions as Football scores are counts. I used the training dataset built in `Mathilde` \> `01 Feature Engineering.Rmd` and discussed in `report` \> `02 Feature Engineering.Rmd`.
 Instead of making 2 separate models (one for home and one for away), I wanted to fit a single model. I therefore split every row representing a match into two rows, each row focusing on a different team: Team of interest against Opponent. 
@@ -235,3 +234,39 @@ I therefore reverted to using rounding in the final model since it is parameter-
 The key assumption when using a Poisson regression model is that goals arrive independently at a constant rate given the covariates, with mean equal to variance. This introduces a limitation: the model treats the two rows of a match as independent, when in real life if a team scores, the opponent will get more competitive and may be more likely to score (this is a simplification, but is just to illustrate that this assumption is an important limitating factor).
 As I mentioned in `02 Feature Engineering.Rmd`, I used a predetermined value of alpha which influences the model to a certain degree that is teste-able, but that I did not get around to doing fully. Making a decision based on personal beliefs is a limitation in itself.
 Another limitation is to assume that promoted teams have about the same attack and defence strength as the last three teams of the previous season. In the same sense, modelling the initial attack and defense scores to be the same as it finished on in the previous year for a non promoted team is a strong assumption to make. 
+
+# Jonty's Model
+Similarly to Anna and Mathilde, I implemented a Poisson regression model. I used time weighting and a log link function in this regression, which was performed on historical results data. I looked to obtain coefficients representing teams attack and defence strengths, as well as a baseline for each league, and a home advantage affect. I attempted to make my model more robust by running my regression on historical premier league results and on championship results. I hoped to be able to then find some scalars so that we would be able to have informed ratings for teams promoted to the premier league when it comes to predicting the league rankings. To do this, I centred both the premier league ratings and the championship ratings around their geometric means and then found by expanding rolling window validation said scaling parameters. 
+
+I then attempted to forecast the results of fixtures in the season we were looking to predict by extracting the exact expected goals and points from games under an independent poisson model which I combined with the adjustment for low scorelines introduced in the classic paper by Dixon & Coles (1997). Note, I also got the idea to look at championship data from this paper. 
+
+I used the time weighting function $$w(x) = \begin{cases}
+1 - \left(\frac{x}{c}\right)^p, & 0 \le x < c,\\
+0, & x \ge c,
+\end{cases}$$
+
+where $x,c,\text{ and } p$ are parameters for representing the age of the observation, a specified cutoff, and a rate. We define $x$ relative to the most recent known date ie the date up to which we have perfect information. We use validation to obatin parameters $p$ and $c$ to be $\frac{1}{2}$ and $2555$.
+
+## Feature selection and hyper parameter tuning
+My feature selection procedure was very straightforward, I sought to adapt the framework used by Dixon and Coles for game prediction but to forecast the end of season league table. As such, my modelling process did not involve any indepth feature selection, I used considered the number of goals for the team of interest, the number of goals for their opponent, and if the team of interest were playing at home.
+
+I attempted to tune my models hyper-parameters via expanding rolling window validation. That is, for each validation window I fitted the model using the available historical data and evaluated its predictive performance on the following validation period. I then selected the hyper-parameter values which achieved the best aggregate performance across the validation procedure.
+
+I initially attempted to allow my validation procedure to be flexible and allow partial knowledge of a season to be known, and then to validate my model on the remaining unknown fixtures. I decided not to pursue this however, since I only cared if my model could predict the entire season of fixtures. 
+
+For each season from 2015/16 through to 2023/24, we produce a training and a validation data frame. For example, the final window takes all of the historical data upto the start of the 2023/24 season, we use this data to fit our models, and then validate our models by taking the MAE between the predicted goals and the realised goals scored.
+
+We run this procedure from 2015/16 all the way through to the 2023/24 season, aggregating the MAE for goal predictions under different hyper-parameters. 
+
+I hoped that this procedure would make my model more robust since hyper-parameters are being selected based on their performance on different sets of unseen data. 
+
+## Model limitations
+
+The first major limitation of my modelling procedure. I used regression to estimate the team ratings according to the poisson model for goals. I then modelled games under the dixon-coles model. Now although closely related, they are not the same. If time allowed, I would look to obtain my rating coefficients via the maximisation of a custom likelihood function for the dixon-coles model.
+
+Further; the scaling approach I implemented for converting championship ratings into premier league ratings is completely set once prediction begins. It assumes that all promoted teams will adapt to premier league conditions in the same way, which is not always true. See the real world performances of Sunderland & Burnley in 2025/26 for an example of how promoted teams can adapt very differently. I fear this approach is too uniform, and that an adaptive approach may have been more effective.
+
+Also note that our validation procedure saw us repeatedly refine parameters on only nine different validation seasons. I fear this has lead to overfitting on the validation data, hence causing poor performance on the test data. I also used a different objective in validation, i.e I sought to minimise MAE between predicted and realised goals scored. However, my final model was evaluated using a separate metric designed to measure the accuracy of predicted league positions. These objectives do not necessarily align, minimising goal prediction error does not guarantee the most accurate prediction of the final league table. Ideally, I would select hyper-parameters by directly optimising the same metric used to evaluate the final model. This would ensure that the validation procedure is aligned with the actual objective of the model. However, since I had designed and coded my validation procedure before the finalisation of the test performance metric, this was not something I could do.
+
+
+
