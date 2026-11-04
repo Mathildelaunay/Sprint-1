@@ -83,6 +83,12 @@ Likewise, the same covariates under Away are for the away teams.
 I used two different types of feature selection algorithms to prune parsimoniously to minimise the number of features used in my random forests. Firstly, I tried implementing a feature selection wrapper called Boruta *(Kursa et al, 2010)* which determines which features are relevant enough to include, however of the 21 features it was fed, it determined 18 were relevant to include which seemed excessive, and so I decided instead to use a random forest across the entire training data to extract ranked feature importance *(Gregorutti et al, 2017)*. I then examined the correlation matrix of my features, analysing whether there was any shared correlation between features. After observing the correlation matrix of the training data in `Max Gold/02 - Feature Engineering and Selection`, the features `Home_Wins` and `Away_Wins` share a high correlation with `Home_Points` and `Away_Points`, as the points for a team are determined by $\#\text{Points} = 3\times \#\text{Wins} + \#\text{draws}$, and so wins are contained within points and thus we remove them from feature selection. As shown below, for both the home and away random forests, there appears to be a cutoff after the first 10 features where the majority of mean squared error is explained, and so we preserve these for training.
 
 # Jonty
+I constructed two datasets, consisting of Premier League match data, and Championship match data. I retrieved the data sourced by Anna, as well as sourcing the corresponding data for the Championship. I then ran this data through some filtering steps to obtain only Home team, Away team, Full time home goals, Full time away goals. I then compiled all of these filtered data sets into the following data frame:
+```{r x_all data}
+ech_all <-read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/jonty_heffaran/data/ECH_ALL.csv")
+epl_all <-read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/jonty_heffaran/data/EPL_ALL.csv")
+```
+To prepare the data for the regression models, I transformed each dataset into a team-level format, with the columns Team, Opponent, Home and Goals. This allowed each match to contribute two observations: one for each team's goals scored, with the corresponding opponent and home/away status recorded.
 
 # Mathilde
 This links to the training dataset that I built in `Mathilde` \> `01 Feature Engineering.Rmd`. 
