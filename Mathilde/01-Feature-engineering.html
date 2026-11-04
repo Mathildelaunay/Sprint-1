@@ -11,7 +11,7 @@
 
 <meta name="author" content="Mathilde Launay" />
 
-<meta name="date" content="2026-11-03" />
+<meta name="date" content="2026-11-04" />
 
 <title>My dataset</title>
 
@@ -352,7 +352,7 @@ display: none;
 
 <h1 class="title toc-ignore">My dataset</h1>
 <h4 class="author">Mathilde Launay</h4>
-<h4 class="date">2026-11-03</h4>
+<h4 class="date">2026-11-04</h4>
 
 </div>
 
@@ -753,18 +753,18 @@ build_season_dataset &lt;- function(current_data,
 }</code></pre>
 <p>Then, I build the training set:</p>
 <pre class="r"><code>X13_14 &lt;- read.csv(&quot;Data/13_14.csv&quot;)
-X14_15 &lt;- read.csv(&quot;Premier League match events data/14_15.csv&quot;)
-X15_16 &lt;- read.csv(&quot;Premier League match events data/15_16.csv&quot;)
-X16_17 &lt;- read.csv(&quot;Premier League match events data/16_17.csv&quot;)
-X17_18 &lt;- read.csv(&quot;Premier League match events data/17_18.csv&quot;)
-X18_19 &lt;- read.csv(&quot;Premier League match events data/18_19.csv&quot;)
-X19_20 &lt;- read.csv(&quot;Premier League match events data/19_20.csv&quot;)
-X20_21 &lt;- read.csv(&quot;Premier League match events data/20_21.csv&quot;)
-X21_22 &lt;- read.csv(&quot;Premier League match events data/21_22.csv&quot;)
-X22_23 &lt;- read.csv(&quot;Premier League match events data/22_23.csv&quot;)
-X23_24 &lt;- read.csv(&quot;Premier League match events data/23_24.csv&quot;)
-X24_25 &lt;- read.csv(&quot;Premier League match events data/24_25.csv&quot;)
-X25_26 &lt;- read.csv(&quot;Premier League match events data/25_26.csv&quot;)
+X14_15 &lt;- read.csv(&quot;../Anna Del Pino/Premier League match events data/14_15.csv&quot;)
+X15_16 &lt;- read.csv(&quot;../Anna Del Pino/Premier League match events data/15_16.csv&quot;)
+X16_17 &lt;- read.csv(&quot;../Anna Del Pino/Premier League match events data/16_17.csv&quot;)
+X17_18 &lt;- read.csv(&quot;../Anna Del Pino/Premier League match events data/17_18.csv&quot;)
+X18_19 &lt;- read.csv(&quot;../Anna Del Pino/Premier League match events data/18_19.csv&quot;)
+X19_20 &lt;- read.csv(&quot;../Anna Del Pino/Premier League match events data/19_20.csv&quot;)
+X20_21 &lt;- read.csv(&quot;../Anna Del Pino/Premier League match events data/20_21.csv&quot;)
+X21_22 &lt;- read.csv(&quot;../Anna Del Pino/Premier League match events data/21_22.csv&quot;)
+X22_23 &lt;- read.csv(&quot;../Anna Del Pino/Premier League match events data/22_23.csv&quot;)
+X23_24 &lt;- read.csv(&quot;../Anna Del Pino/Premier League match events data/23_24.csv&quot;)
+X24_25 &lt;- read.csv(&quot;../Anna Del Pino/Premier League match events data/24_25.csv&quot;)
+X25_26 &lt;- read.csv(&quot;../Anna Del Pino/Premier League match events data/25_26.csv&quot;)
 keep_cols &lt;- names(X14_15)[1:23] # don&#39;t need the odds columns
 
 match_data &lt;- c(&quot;X14_15&quot;, &quot;X15_16&quot;, &quot;X16_17&quot;, &quot;X17_18&quot;, &quot;X18_19&quot;,

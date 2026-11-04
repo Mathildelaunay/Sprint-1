@@ -1,0 +1,915 @@
+---
+title: "Training and testing"
+author: "Max Gold"
+date: "2026-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(randomForest)
+library(lubridate)
+library(corrplot)
+library(readr)
+library(devtools)
+```
+
+# Training Method
+
+## Initialisation from Feature Selection
+
+First we must initialise the data from the previous file ` 02---Feature-Engineering-and-Selection` to create our analysis, so this is purely repeated:
+
+```{r}
+combined_data = read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/combined_data.csv")
+
+combined_data <- combined_data |>
+  mutate(
+    Date = dmy(Date),
+    DayOfWeek = weekdays(Date),
+    SeasonStart = if_else(
+      month(Date) >= 8,
+      year(Date),
+      year(Date) - 1
+    ),
+
+    Season = paste0(
+      SeasonStart,
+      "/",
+      substr(SeasonStart + 1, 3, 4)
+    )
+  )
+
+features_1 = read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/features_1.csv")
+features_2 = read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/features_2.csv")
+features_5 = read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/features_5.csv")
+features_10 = read.csv("https://raw.githubusercontent.com/Mathildelaunay/Sprint-1/refs/heads/main/Max%20Gold/features_10.csv")
+
+
+
+
+```
+
+```{r}
+create_features_by_date <- function(data, k, day_levels = NULL) {
+
+  data <- data |>
+    arrange(Date)
+
+  if (nrow(data) == 0) {
+    return(data)
+  }
+
+  if (is.null(day_levels)) {
+    day_levels <- sort(unique(
+      as.character(data$DayOfWeek[!is.na(data$DayOfWeek)])
+    ))
+  }
+
+  # Identify teams in each season
+  season_teams <- lapply(
+    split(data, as.character(data$SeasonStart)),
+    function(x) {
+      unique(c(
+        as.character(x$HomeTeam),
+        as.character(x$AwayTeam)
+      ))
+    }
+  )
+
+  # Initialise all team histories and standings
+  teams <- unique(c(
+    as.character(data$HomeTeam),
+    as.character(data$AwayTeam)
+  ))
+
+  state <- initialise_state(teams)
+
+  dates <- sort(unique(data$Date))
+
+  output <- vector("list", length(dates))
+
+  # Process matches by date
+  for (d in seq_along(dates)) {
+
+    current_date <- dates[d]
+
+    today <- data |>
+      filter(Date == current_date)
+
+    season <- as.character(today$SeasonStart[1])
+
+    # Handle season changes
+    if (
+      is.null(state$current_season) ||
+      state$current_season != season
+    ) {
+
+      state <- start_season_fast(
+        state,
+        season,
+        season_teams[[season]]
+      )
+    }
+
+    # Calculate every fixture's features BEFORE updating results
+    today_features <- create_today_features_fast(
+      today = today,
+      state = state,
+      k = k,
+      day_levels = day_levels
+    )
+
+    output[[d]] <- today_features
+
+    # Only update histories using completed matches
+    completed <- which(
+      !is.na(today$HomeGoals) &
+      !is.na(today$AwayGoals)
+    )
+
+    for (j in completed) {
+
+      state <- update_state_fast(
+        state,
+        as.character(today$HomeTeam[j]),
+        as.character(today$AwayTeam[j]),
+        today$HomeGoals[j],
+        today$AwayGoals[j]
+      )
+    }
+  }
+
+  bind_rows(output)
+}
+
+```
+
+
+
+```{r}
+get_recent_stats_fast <- function(history, k, venue = NULL) {
+
+  if (is.null(venue)) {
+    indices <- seq_along(history$GF)
+  } else {
+    indices <- which(history$Venue == venue)
+  }
+
+  indices <- tail(indices, k)
+
+  if (length(indices) == 0) {
+    return(list(
+      GoalsScored = 0,
+      GoalsConceded = 0,
+      Points = 0,
+      Wins = 0,
+      Draws = 0,
+      Losses = 0,
+      Matches = 0
+    ))
+  }
+
+  list(
+    GoalsScored = mean(history$GF[indices]),
+    GoalsConceded = mean(history$GA[indices]),
+    Points = mean(history$Points[indices]),
+    Wins = sum(history$Points[indices] == 3),
+    Draws = sum(history$Points[indices] == 1),
+    Losses = sum(history$Points[indices] == 0),
+    Matches = length(indices)
+  )
+}
+
+```
+
+
+
+```{r}
+
+initialise_state <- function(teams) {
+
+  empty_history <- function() {
+    list(
+      GF = numeric(),
+      GA = numeric(),
+      Points = numeric(),
+      Venue = character()
+    )
+  }
+
+  list(
+    history = setNames(
+      lapply(teams, function(x) empty_history()),
+      teams
+    ),
+
+    standings = matrix(
+      0,
+      nrow = length(teams),
+      ncol = 3,
+      dimnames = list(
+        teams,
+        c("Points", "GF", "GA")
+      )
+    ),
+
+    current_season = NULL,
+    current_teams = NULL,
+    previous_positions = NULL,
+    starting_positions = NULL
+  )
+}
+
+```
+
+
+```{r}
+start_season_fast <- function(state, season, current_teams) {
+
+  # Calculate previous season's final positions
+  if (!is.null(state$current_season)) {
+
+    previous_table <- data.frame(
+      Team = state$current_teams,
+      Points = state$standings[state$current_teams, "Points"],
+      GF = state$standings[state$current_teams, "GF"],
+      GA = state$standings[state$current_teams, "GA"]
+    )
+
+    previous_table$GD <-
+      previous_table$GF - previous_table$GA
+
+    previous_table <- previous_table[
+      order(
+        -previous_table$Points,
+        -previous_table$GD,
+        -previous_table$GF,
+        previous_table$Team
+      ),
+    ]
+
+    state$previous_positions <- setNames(
+      seq_len(nrow(previous_table)),
+      previous_table$Team
+    )
+  }
+
+  state$current_season <- as.character(season)
+  state$current_teams <- current_teams
+
+  # Initialise previous-season positions
+  state$starting_positions <- NULL
+
+  if (!is.null(state$previous_positions)) {
+
+    starting_positions <-
+      state$previous_positions[current_teams]
+
+    promoted <- is.na(starting_positions)
+
+    # Give all promoted teams the same starting position
+    if (any(promoted)) {
+
+      starting_positions[promoted] <-
+        max(state$previous_positions) + 1
+    }
+
+    state$starting_positions <- starting_positions
+  }
+
+  # Reset current-season standings
+  state$standings[,] <- 0
+
+  state
+}
+
+```
+
+
+```{r}
+
+update_state_fast <- function(state, home, away, hg, ag) {
+
+  hp <- if (hg > ag) {
+    3
+  } else if (hg == ag) {
+    1
+  } else {
+    0
+  }
+
+  ap <- if (ag > hg) {
+    3
+  } else if (ag == hg) {
+    1
+  } else {
+    0
+  }
+
+  # Update home team's match history
+  h <- state$history[[home]]
+
+  h$GF <- c(h$GF, hg)
+  h$GA <- c(h$GA, ag)
+  h$Points <- c(h$Points, hp)
+  h$Venue <- c(h$Venue, "Home")
+
+  state$history[[home]] <- h
+
+  # Update away team's match history
+  a <- state$history[[away]]
+
+  a$GF <- c(a$GF, ag)
+  a$GA <- c(a$GA, hg)
+  a$Points <- c(a$Points, ap)
+  a$Venue <- c(a$Venue, "Away")
+
+  state$history[[away]] <- a
+
+  # Update league standings
+  state$standings[home, "Points"] <-
+    state$standings[home, "Points"] + hp
+
+  state$standings[home, "GF"] <-
+    state$standings[home, "GF"] + hg
+
+  state$standings[home, "GA"] <-
+    state$standings[home, "GA"] + ag
+
+  state$standings[away, "Points"] <-
+    state$standings[away, "Points"] + ap
+
+  state$standings[away, "GF"] <-
+    state$standings[away, "GF"] + ag
+
+  state$standings[away, "GA"] <-
+    state$standings[away, "GA"] + hg
+
+  state
+}
+
+```
+
+
+```{r}
+get_current_table_fast <- function(state) {
+
+  teams <- state$current_teams
+
+  table_now <- data.frame(
+    Team = teams,
+
+    Points = unname(
+      state$standings[teams, "Points"]
+    ),
+
+    GF = unname(
+      state$standings[teams, "GF"]
+    ),
+
+    GA = unname(
+      state$standings[teams, "GA"]
+    )
+  )
+
+  table_now$GD <- table_now$GF - table_now$GA
+
+  if (!is.null(state$starting_positions)) {
+
+    table_now$PreviousPosition <-
+      unname(state$starting_positions[table_now$Team])
+
+  } else {
+
+    table_now$PreviousPosition <- NA_real_
+  }
+
+  table_now <- table_now[
+    order(
+      -table_now$Points,
+      -table_now$GD,
+      -table_now$GF,
+      table_now$PreviousPosition,
+      na.last = TRUE
+    ),
+  ]
+
+  table_now$Position <- seq_len(nrow(table_now))
+
+  table_now
+}
+
+```
+
+
+```{r}
+create_today_features_fast <- function(
+    today,
+    state,
+    k,
+    day_levels
+) {
+
+  # Calculate the league table once for today's fixtures
+  table_now <- get_current_table_fast(state)
+
+  positions <- setNames(
+    table_now$Position,
+    table_now$Team
+  )
+
+  points <- setNames(
+    table_now$Points,
+    table_now$Team
+  )
+
+  goal_difference <- setNames(
+    table_now$GD,
+    table_now$Team
+  )
+
+  # Generate features for each fixture
+  features <- lapply(seq_len(nrow(today)), function(i) {
+
+    home <- as.character(today$HomeTeam[i])
+    away <- as.character(today$AwayTeam[i])
+
+    # Overall recent performance
+    home_stats <- get_recent_stats_fast(
+      state$history[[home]], k
+    )
+
+    away_stats <- get_recent_stats_fast(
+      state$history[[away]], k
+    )
+
+    # Venue-specific recent performance
+    home_venue_stats <- get_recent_stats_fast(
+      state$history[[home]], k, venue = "Home"
+    )
+
+    away_venue_stats <- get_recent_stats_fast(
+      state$history[[away]], k, venue = "Away"
+    )
+
+    data.frame(
+
+      Date = today$Date[i],
+      SeasonStart = today$SeasonStart[i],
+
+      DayOfWeek = factor(
+        as.character(today$DayOfWeek[i]),
+        levels = day_levels
+      ),
+
+      HomeTeam = home,
+      AwayTeam = away,
+
+      # Overall recent performance
+      Home_GS = home_stats$GoalsScored,
+      Home_GC = home_stats$GoalsConceded,
+      Home_Points = home_stats$Points,
+      Home_Wins = home_stats$Wins,
+
+      Away_GS = away_stats$GoalsScored,
+      Away_GC = away_stats$GoalsConceded,
+      Away_Points = away_stats$Points,
+      Away_Wins = away_stats$Wins,
+
+      # Venue-specific recent performance
+      Home_Home_GS = home_venue_stats$GoalsScored,
+      Home_Home_GC = home_venue_stats$GoalsConceded,
+
+      Away_Away_GS = away_venue_stats$GoalsScored,
+      Away_Away_GC = away_venue_stats$GoalsConceded,
+
+      # League standings
+      Home_Position = unname(positions[home]),
+      Away_Position = unname(positions[away]),
+
+      Home_Current_Points = unname(points[home]),
+      Away_Current_Points = unname(points[away]),
+
+      Home_GD = unname(goal_difference[home]),
+      Away_GD = unname(goal_difference[away]),
+
+      # Historical information
+      Home_History = home_stats$Matches,
+      Away_History = away_stats$Matches,
+
+      # Response variables
+      HomeGoals = today$HomeGoals[i],
+      AwayGoals = today$AwayGoals[i]
+
+    )
+  })
+
+  do.call(rbind, features)
+}
+
+```{r}
+training_data <- combined_data |>
+  filter(SeasonStart >= 2014,
+         SeasonStart <= 2024,
+         !is.na(HomeGoals),
+         !is.na(AwayGoals)) |>
+  mutate(
+    DayOfWeek = factor(DayOfWeek))
+
+testing_data <- combined_data |>
+  filter(SeasonStart == 2025)
+
+prediction_data <- combined_data |>
+  filter(SeasonStart == 2026)
+
+training_features<- features_5 |>
+  filter(
+    SeasonStart >= 2014,
+    SeasonStart <= 2024,
+    !is.na(HomeGoals),
+    !is.na(AwayGoals)
+  ) |>
+  mutate(
+    DayOfWeek = factor(DayOfWeek)
+    
+  )
+
+```
+
+```{r}
+
+home_data <- training_features |>
+  select(
+    -Date,
+    -SeasonStart,
+    -HomeTeam,
+    -AwayTeam,
+    -AwayGoals,
+    -Home_Wins,
+    -Away_Wins
+  )
+
+away_data <- training_features |>
+  select(
+    -Date,
+    -SeasonStart,
+    -HomeTeam,
+    -AwayTeam,
+    -HomeGoals, 
+    -Home_Wins,
+    -Away_Wins
+  )
+
+rf_home_initial <- randomForest(
+  HomeGoals ~ .,
+  data = home_data,
+  ntree = 1000,
+  importance = TRUE
+)
+
+importance_scores <- importance(rf_home_initial, type = 1)
+importance_sorted <- sort(importance_scores[, 1], decreasing = TRUE)
+home_features <- names(importance_sorted)[1:10]
+
+
+
+rf_away_initial <- randomForest(
+  AwayGoals ~ .,
+  data = away_data,
+  ntree = 1000,
+  importance = TRUE
+)
+
+
+importance_scores_a <- importance(rf_away_initial, type = 1)
+importance_sorted_a <- sort(importance_scores_a[, 1], decreasing = TRUE)
+away_features <- names(importance_sorted_a)[1:10]
+```
+
+
+## Training
+
+As seen above and calculated in the feature engineering section, we have 4 different $k$ valued feature sets. However, we will use $k=5$ and `ntree=1000` as a baseline to calculate our home and away features as $k=5$ is not too large as to dilute recent information and lose any gain we might expect from recent data, but not too small that we don't have enough important history to make informed decisions with. We split training data given the features we chose in training into our home and away datasets, and we fit two random forests for home and away goals respectively. 
+
+
+```{r}
+
+X_home <- training_features |>
+  select(all_of(home_features))
+
+X_away <- training_features |>
+  select(all_of(away_features))
+
+set.seed(123)
+
+rf_home <- randomForest(
+  x = X_home,
+  y = training_features$HomeGoals,
+  ntree = 1000,
+  mtry = floor(sqrt(ncol(X_home))),
+  importance = TRUE
+)
+
+rf_away <- randomForest(
+  x = X_away,
+  y = training_features$AwayGoals,
+  ntree = 1000,
+  mtry = floor(sqrt(ncol(X_away))),
+  importance = TRUE
+)
+
+```
+
+
+
+# Testing
+
+## Walk-forward Forecasting
+
+Previously, I had decided to use a recursive forecast which means I would be using forecasted data to predict subsequent data, as would be the case if we had no future data to compare with such as on the 2026/27 data. However, our group decided unanimously to use actual data to improve our models as the season progresses. This is known as walk-forward forecasting, where after the model has predicted the goals of a match using historical data, it saves the predicted goals in the final results prediction but updates the model using what actually happened in the match in preparation for the next match between the teams. Therefore, even though our function is called `recursive_forecast`, it has been adapted to perform walk-forward forecasting. 
+
+In our function, we first prepare the historical data and team composition to initialise the order of the matches within the season. We then create the history and league standings of each team before the season starts, preparing the current season features as an initialised state as previously used to make the features for training. We then create the storage of the future dates and fixtures, and a storage location for the predicted goals to live. We generate the sufficient features for each match and each team, and select the features we intend to use on each random forest respectively. We create a for loop that proceeds through each match and predicts the outcomes using the random forests, allocating the goals predicted to the storage location, rounding the goals to the nearest integer, and then updating each of the feature datasets with the outcome that actually happened. This is made using the `update_state_fast` function used in feature generation but we use the actual match outcome instead of the forecasted result. This removes the uncertainty posed by the recursive forecasting method as the model snaps back from straying too far from the real result like an elastic band by inserting the actual result to improve the models accuracy, instead of increasing variability by using uncertain predicted data in future prediction.  
+
+```{r}
+recursive_forecast_fast <- function(
+    historical_data,
+    future_fixtures,
+    model_home,
+    model_away,
+    k,
+    home_predictors,
+    away_predictors,
+    day_levels
+) {
+
+  # Clean and sort historical data
+  historical_data <- historical_data |>
+    filter(
+      !is.na(HomeGoals),
+      !is.na(AwayGoals)
+    ) |>
+    arrange(Date)
+
+  future_fixtures <- future_fixtures |>
+    arrange(Date)
+
+  if (nrow(future_fixtures) == 0) {
+    return(future_fixtures)
+  }
+
+  # Identify every team participating in each season
+  season_rows <- bind_rows(
+    historical_data |>
+      select(SeasonStart, HomeTeam, AwayTeam),
+
+    future_fixtures |>
+      select(SeasonStart, HomeTeam, AwayTeam)
+  )
+
+  season_teams <- lapply(
+    split(
+      season_rows,
+      as.character(season_rows$SeasonStart)
+    ),
+    function(x) {
+      unique(c(
+        as.character(x$HomeTeam),
+        as.character(x$AwayTeam)
+      ))
+    }
+  )
+
+  # Initialise team histories and standings
+  teams <- unique(c(
+    as.character(historical_data$HomeTeam),
+    as.character(historical_data$AwayTeam),
+    as.character(future_fixtures$HomeTeam),
+    as.character(future_fixtures$AwayTeam)
+  ))
+
+  state <- initialise_state(teams)
+
+  # ------------------------------------------
+  # 1. Process historical matches ONCE
+  # ------------------------------------------
+
+  for (i in seq_len(nrow(historical_data))) {
+
+    match <- historical_data[i, ]
+
+    season <- as.character(match$SeasonStart)
+
+    # Check for season changes
+    if (
+      is.null(state$current_season) ||
+      state$current_season != season
+    ) {
+
+      state <- start_season_fast(
+        state,
+        season,
+        season_teams[[season]]
+      )
+    }
+
+    # Update team histories and standings
+    state <- update_state_fast(
+      state,
+      as.character(match$HomeTeam),
+      as.character(match$AwayTeam),
+      match$HomeGoals,
+      match$AwayGoals
+    )
+  }
+
+  # ------------------------------------------
+  # 2. Forecast future matches chronologically
+  # ------------------------------------------
+
+  future_dates <- sort(unique(future_fixtures$Date))
+
+  predictions <- vector(
+    "list",
+    length(future_dates)
+  )
+
+  for (d in seq_along(future_dates)) {
+
+    current_date <- future_dates[d]
+
+    # Extract today's fixtures
+    today <- future_fixtures |>
+      filter(Date == current_date)
+
+    season <- as.character(today$SeasonStart[1])
+
+    # Check whether a new season has started
+    if (
+      is.null(state$current_season) ||
+      state$current_season != season
+    ) {
+
+      state <- start_season_fast(
+        state,
+        season,
+        season_teams[[season]]
+      )
+    }
+
+    # Generate features using the current state
+    today_features <- create_today_features_fast(
+      today = today,
+      state = state,
+      k = k,
+      day_levels = day_levels
+    )
+
+    # Select predictors
+    X_today_home <- today_features[
+      ,
+      home_predictors,
+      drop = FALSE
+    ]
+
+    X_today_away <- today_features[
+      ,
+      away_predictors,
+      drop = FALSE
+    ]
+
+    # Predict home and away goals
+    home_predictions <- predict(
+      model_home,
+      newdata = X_today_home
+    )
+
+    away_predictions <- predict(
+      model_away,
+      newdata = X_today_away
+    )
+
+    # Convert predicted scores into non-negative integers
+    today_predictions <- today
+
+    today_predictions$PredictedHomeRaw <-
+      as.numeric(home_predictions)
+
+    today_predictions$PredictedAwayRaw <-
+      as.numeric(away_predictions)
+
+    today_predictions$PredictedHomeGoals <- pmax(
+      0,
+      round(home_predictions)
+    )
+
+    today_predictions$PredictedAwayGoals <- pmax(
+      0,
+      round(away_predictions)
+    )
+
+    # ------------------------------------------
+    # 3. Update state AFTER all today's predictions
+    # ------------------------------------------
+
+    completed <- which(
+  !is.na(today$HomeGoals) &
+  !is.na(today$AwayGoals)
+)
+
+for (j in completed) {
+
+  state <- update_state_fast(
+    state,
+    as.character(today$HomeTeam[j]),
+    as.character(today$AwayTeam[j]),
+    today$HomeGoals[j],
+    today$AwayGoals[j]
+  )
+}
+
+    # Save today's predictions
+    predictions[[d]] <- today_predictions
+  }
+
+  # Combine all predicted matches once
+  bind_rows(predictions)
+}
+
+
+```
+
+Here is Anna's ranking table that we use to create the final ranking - see `Anna Del Pino/` for more info. 
+
+```{r}
+ranking <- function(matches, home_goals, away_goals) {
+  #home rank
+  home_points <-ifelse(home_goals > away_goals, 3, ifelse(home_goals == away_goals, 1, 0))
+  home_ranking <- data.frame(Team = matches$HomeTeam, Points = home_points, GF = home_goals, GA = away_goals)
+  #away rank
+  away_points <- ifelse(away_goals > home_goals,3, ifelse(away_goals == home_goals, 1, 0))
+  away_ranking <- data.frame(Team = matches$AwayTeam, Points = away_points, GF = away_goals, GA = home_goals)
+
+  all_team_matches <- rbind(home_ranking, away_ranking)
+
+  final_ranking <- aggregate(cbind(Points, GF, GA) ~ Team, data = all_team_matches, sum) #cbind(Points, GF, GA) combines those three columns as the response and ~ Team says to group the rows by Team. sum is the function applied to each column within each team’s group
+
+  final_ranking$GD <- final_ranking$GF - final_ranking$GA #create new goal difference column for each team 
+  
+  #ordering
+  final_ranking <- final_ranking[order(-final_ranking$Points, -final_ranking$GD), ] #order() uses GD to break ties in Points, so teams with the same points are ordered by highest goal difference first
+  final_ranking$Position <- seq_len(nrow(final_ranking)) #adding a column that tells us the position
+
+  final_ranking <- final_ranking[c("Position", "Team", "Points", "GD")]
+  rownames(final_ranking) <- NULL
+
+  final_ranking
+}
+
+```
+
+
+
+## Testing using Training Features
+
+Here, we partition our data into our historical and future data to prevent any leakage, and run our walk-forward algorithm which updates after each successive match. We input our features, both the home and away models, and we are provided with our predicted end of season table ranking. 
+
+```{r}
+historical_data <- combined_data |>
+  filter(SeasonStart >= 2014,
+         SeasonStart <= 2024)
+
+future_fixtures <- combined_data |>
+  filter(SeasonStart == 2025)
+
+predictions_2025_fast <- recursive_forecast_fast(
+
+    historical_data = historical_data,
+    future_fixtures = future_fixtures,
+
+    model_home = rf_home,
+    model_away = rf_away,
+
+    k = 5,
+
+    home_predictors = home_features,
+    away_predictors = away_features,
+
+    day_levels = levels(training_features$DayOfWeek)
+  )
+
+final_table_fast <- ranking(
+  matches = predictions_2025_fast,
+  home_goals = predictions_2025_fast$PredictedHomeGoals,
+  away_goals = predictions_2025_fast$PredictedAwayGoals
+)
+
+final_table_fast
+
+```

@@ -48,10 +48,10 @@ Here is a list of lagged rolling window or one-step-behind features we will be c
 
 - Home_GS, the home team's average goals scored
 - Home_GC, the home team's average goals conceded
-- Home_Points, the home tean's average points per match
+- Home_Points, the home team's average points per match
 - Home_Wins, the home team's number of wins
 - Home_Home_GS, the home team's average goals scored in home matches
-- Home_Home_GS, the home team's average goals conceded in home matches
+- Home_Home_GC, the home team's average goals conceded in home matches
 
 
 Likewise, the same covariates but with Away yield the away team's information.  
