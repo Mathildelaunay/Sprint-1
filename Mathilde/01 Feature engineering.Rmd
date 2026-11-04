@@ -395,19 +395,20 @@ build_season_dataset <- function(current_data,
 
 Then, I build the training set:
 ```{r} 
+
 X13_14 <- read.csv("Data/13_14.csv")
-X14_15 <- read.csv("Premier League match events data/14_15.csv")
-X15_16 <- read.csv("Premier League match events data/15_16.csv")
-X16_17 <- read.csv("Premier League match events data/16_17.csv")
-X17_18 <- read.csv("Premier League match events data/17_18.csv")
-X18_19 <- read.csv("Premier League match events data/18_19.csv")
-X19_20 <- read.csv("Premier League match events data/19_20.csv")
-X20_21 <- read.csv("Premier League match events data/20_21.csv")
-X21_22 <- read.csv("Premier League match events data/21_22.csv")
-X22_23 <- read.csv("Premier League match events data/22_23.csv")
-X23_24 <- read.csv("Premier League match events data/23_24.csv")
-X24_25 <- read.csv("Premier League match events data/24_25.csv")
-X25_26 <- read.csv("Premier League match events data/25_26.csv")
+X14_15 <- read.csv("../Anna Del Pino/Premier League match events data/14_15.csv")
+X15_16 <- read.csv("../Anna Del Pino/Premier League match events data/15_16.csv")
+X16_17 <- read.csv("../Anna Del Pino/Premier League match events data/16_17.csv")
+X17_18 <- read.csv("../Anna Del Pino/Premier League match events data/17_18.csv")
+X18_19 <- read.csv("../Anna Del Pino/Premier League match events data/18_19.csv")
+X19_20 <- read.csv("../Anna Del Pino/Premier League match events data/19_20.csv")
+X20_21 <- read.csv("../Anna Del Pino/Premier League match events data/20_21.csv")
+X21_22 <- read.csv("../Anna Del Pino/Premier League match events data/21_22.csv")
+X22_23 <- read.csv("../Anna Del Pino/Premier League match events data/22_23.csv")
+X23_24 <- read.csv("../Anna Del Pino/Premier League match events data/23_24.csv")
+X24_25 <- read.csv("../Anna Del Pino/Premier League match events data/24_25.csv")
+X25_26 <- read.csv("../Anna Del Pino/Premier League match events data/25_26.csv")
 keep_cols <- names(X14_15)[1:23] # don't need the odds columns
 
 match_data <- c("X14_15", "X15_16", "X16_17", "X17_18", "X18_19",
