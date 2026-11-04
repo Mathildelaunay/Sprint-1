@@ -16,7 +16,12 @@
   - 04-Wrap_Up
 
 ## Preperation
-PLEASE CAN SOMEONE ADD THIS WHEN THEY GET A CHANCE, I DO NOT WANT TO ADD USED PACKAGES NOW AND MISS ANY OUT
+
+Requirements for the Rmd files are given within each script, or can be installed in advance using:
+```{sh}
+Rscript requirementsR.R
+```
+in which the list of packages used is given.
 
 ## Description
 
