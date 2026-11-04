@@ -817,6 +817,52 @@ training_datasets &lt;- lapply(
 training_data &lt;- bind_rows(training_datasets)
 write.csv(training_data, &quot;training_data.csv&quot;) 
 # saves it so that we don&#39;t need to recreate it, can call it later on.</code></pre>
+<pre class="r"><code>#In this chunk, I check that the code is correct 
+# Any NA values?
+sum(is.na(training_data))</code></pre>
+<pre><code>## [1] 0</code></pre>
+<pre class="r"><code>difference_variables &lt;- c(
+  &quot;DWF&quot;, &quot;DLF&quot;, &quot;DDF&quot;,
+  &quot;DRF&quot;, &quot;DYF&quot;, &quot;DFF&quot;,
+  &quot;DCS&quot;, &quot;DSTF&quot;, &quot;DSF&quot;
+)
+
+symmetry_check &lt;- training_data %&gt;%
+  group_by(match_id) %&gt;%
+  summarise(
+    number_of_rows = n(),
+    number_home = sum(HomeAway == &quot;Home&quot;),
+    number_away = sum(HomeAway == &quot;Away&quot;),
+
+    across(
+      all_of(difference_variables),
+      ~ sum(.x, na.rm = TRUE)
+    ),
+
+    .groups = &quot;drop&quot;
+  )
+
+# Every match should have exactly two rows: one home and one away
+all(
+  symmetry_check$number_of_rows == 2 &amp;
+  symmetry_check$number_home == 1 &amp;
+  symmetry_check$number_away == 1
+)</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<pre class="r"><code># All difference variables should sum to zero
+all(
+  abs(as.matrix(
+    symmetry_check[, difference_variables]
+  )) &lt; 1e-10
+)</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<pre class="r"><code># This should give 0 rows:
+training_data %&gt;%
+  count(match_id, Team) %&gt;%
+  filter(n != 1)</code></pre>
+<pre><code>## # A tibble: 0 × 3
+## # ℹ 3 variables: match_id &lt;chr&gt;, Team &lt;chr&gt;, n &lt;int&gt;</code></pre>
+<p>Everything looks good!</p>
 
 
 

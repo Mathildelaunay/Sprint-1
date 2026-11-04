@@ -462,3 +462,50 @@ training_data <- bind_rows(training_datasets)
 write.csv(training_data, "training_data.csv") 
 # saves it so that we don't need to recreate it, can call it later on.
 ```
+
+```{r}
+#In this chunk, I check that the code is correct 
+# Any NA values?
+sum(is.na(training_data))
+
+difference_variables <- c(
+  "DWF", "DLF", "DDF",
+  "DRF", "DYF", "DFF",
+  "DCS", "DSTF", "DSF"
+)
+
+symmetry_check <- training_data %>%
+  group_by(match_id) %>%
+  summarise(
+    number_of_rows = n(),
+    number_home = sum(HomeAway == "Home"),
+    number_away = sum(HomeAway == "Away"),
+
+    across(
+      all_of(difference_variables),
+      ~ sum(.x, na.rm = TRUE)
+    ),
+
+    .groups = "drop"
+  )
+
+# Every match should have exactly two rows: one home and one away
+all(
+  symmetry_check$number_of_rows == 2 &
+  symmetry_check$number_home == 1 &
+  symmetry_check$number_away == 1
+)
+
+# All difference variables should sum to zero
+all(
+  abs(as.matrix(
+    symmetry_check[, difference_variables]
+  )) < 1e-10
+)
+
+# This should give 0 rows:
+training_data %>%
+  count(match_id, Team) %>%
+  filter(n != 1)
+```
+Everything looks good! 
