@@ -95,7 +95,7 @@ create_features_by_date <- function(data, k, day_levels = NULL) {
 
 
 
-```{r}
+
 get_recent_stats_fast <- function(history, k, venue = NULL) {
   
   if (is.null(venue)) {
@@ -129,11 +129,11 @@ get_recent_stats_fast <- function(history, k, venue = NULL) {
   )
 }
 
-```
 
 
 
-```{r}
+
+
 
 initialise_state <- function(teams) {
   
@@ -169,10 +169,10 @@ initialise_state <- function(teams) {
   )
 }
 
-```
 
 
-```{r}
+
+
 start_season_fast <- function(state, season, current_teams) {
   
   # Calculate previous season's final positions
@@ -232,10 +232,10 @@ start_season_fast <- function(state, season, current_teams) {
   state
 }
 
-```
 
 
-```{r}
+
+
 
 update_state_fast <- function(state, home, away, hg, ag) {
   
@@ -297,10 +297,10 @@ update_state_fast <- function(state, home, away, hg, ag) {
   state
 }
 
-```
 
 
-```{r}
+
+
 get_current_table_fast <- function(state) {
   
   teams <- state$current_teams
@@ -348,10 +348,10 @@ get_current_table_fast <- function(state) {
   table_now
 }
 
-```
 
 
-```{r}
+
+
 create_today_features_fast <- function(
     today,
     state,
