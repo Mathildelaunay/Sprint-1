@@ -157,7 +157,6 @@ training data frames below. The following is illustrative since we define
 functions to do same later on.
 
 ```{r Train df creation}
-
 known_date <- as.Date("2025-01-19") # date upto which we have full information
 cut_off <- 730 # a param used in time weighting, obvs this many days from known
                # date will have a weight of zero
@@ -209,8 +208,7 @@ validation df which consists of games after the known date up to the end of some
 validation window.
 
 ```{r Training snapshot func}
-def_training_data <- function(data, known_date_, cut_off_, power_, 
-                              validation_length_) {
+def_training_data <- function(data, known_date_, cut_off_, power_, validation_length_) {
   
   train_data <- data %>% 
     filter(!is.na(Date), Date < known_date_) %>% 
@@ -234,16 +232,11 @@ known_date <- as.Date("2025-01-19")
 cut_off <- 730
 weight_power <- 3
 
-train_ech <- def_training_data(ech_all, known_date_ = known_date,
-                               cut_off_ = cut_off, power_ = weight_power,
-                               validation_length_ = 133)$train
+train_ech <- def_training_data(ech_all, known_date_ = known_date, cut_off_ = cut_off, power_ = weight_power, validation_length_ = 133)$train
 
-validation_ech <- def_training_data(ech_all, known_date_ = known_date,
-                               cut_off_ = cut_off, power_ = weight_power,
-                               validation_length_ = 133)$validation
+validation_ech <- def_training_data(ech_all, known_date_ = known_date, cut_off_=cut_off,power_=weight_power, validation_length_=133)$validation
 
-train_epl <- def_training_data(epl_all, known_date_ = known_date,
-                               cut_off_ = cut_off, power_ = weight_power,
+train_epl <- def_training_data(epl_all, known_date_ = known_date, cut_off_ = cut_off, power_ = weight_power,
                                validation_length_ = 133)$train
 
 validation_epl <- def_training_data(epl_all, known_date_ = known_date,
@@ -270,12 +263,10 @@ validataion data since validation data has no attached weights.
 ```{r Defining home_away split for goal data}
 def_home_away_split_train <- function(data) {
 home_data <- data %>%
-  transmute(Date, Team = HomeTeam, Opponent = AwayTeam, Goals = FTHG, Home = 1,
-            obvs_weight = obvs_weight)
+  transmute(Date, Team = HomeTeam, Opponent = AwayTeam, Goals = FTHG, Home = 1, obvs_weight = obvs_weight)
 
 away_data <- data %>%
-  transmute(Date, Team = AwayTeam, Opponent = HomeTeam, Goals = FTAG, Home = 0,
-            obvs_weight = obvs_weight)
+  transmute(Date, Team = AwayTeam, Opponent = HomeTeam, Goals = FTAG, Home = 0, obvs_weight = obvs_weight)
 
 train_goal_data <- bind_rows(home_data, away_data)
 
@@ -488,7 +479,7 @@ this model proves positive.
 
 ```{r Dixon-Coles adjuster}
 dixon_coles_probs <- function(team_ratings, home_team, away_team, baseline, home_advantage, 
-                              rho = -0.05, max_goals = 10) {
+                              rho = -0.05, max_goals = 7) {
 
   # get team ratings
   home_att <- team_ratings$att_rating[team_ratings$team_names == home_team]
@@ -498,7 +489,8 @@ dixon_coles_probs <- function(team_ratings, home_team, away_team, baseline, home
   away_att <- team_ratings$att_rating[team_ratings$team_names == away_team]
   
   away_def <- team_ratings$def_rating[team_ratings$team_names == away_team]
-
+  
+  
   # Expected goals
   lambda <- exp(baseline + home_advantage) * home_att * away_def
   mu <- exp(baseline) * away_att * home_def
@@ -508,6 +500,22 @@ dixon_coles_probs <- function(team_ratings, home_team, away_team, baseline, home
   # Independent Poisson scoreline probabilities
   probs <- outer(dpois(goals, lambda), dpois(goals, mu))
 
+  # testttttt
+  if (length(lambda) != 1 || length(mu) != 1 ||
+    !is.finite(lambda) || !is.finite(mu) ||
+    lambda <= 0 || mu <= 0) {
+
+  print(list(
+    home_team = home_team,
+    away_team = away_team,
+    home_att = home_att,
+    home_def = home_def,
+    away_att = away_att,
+    away_def = away_def,
+    lambda = lambda,
+    mu = mu
+  ))
+}
   # correction
   probs[1, 1] <- probs[1, 1] * (1 - lambda * mu * rho)
   probs[1, 2] <- probs[1, 2] * (1 + lambda * rho)
@@ -518,10 +526,14 @@ dixon_coles_probs <- function(team_ratings, home_team, away_team, baseline, home
     # for that.
   if (any(!is.finite(probs)) || any(probs < 0) ||
       !is.finite(sum(probs)) || sum(probs) <= 0) {
-    stop("Invalid scoreline probabilities. Check rho and model parameters.")}
+    stop(paste("Invalid scoreline probabilities for:",
+               home_team, "vs", away_team))}
 
   # normalise
   probs <- probs / sum(probs)
+  
+  if (nrow(probs) < 2 || ncol(probs) < 2) {
+    stop("Probability matrix is too small.")}
   
   return(probs)
 }
@@ -543,7 +555,7 @@ are predicting the a league table.
 predict_dc_fixture <- function(home_team, away_team,
                                team_ratings, baseline,
                                home_advantage,
-                               rho = -0.05, max_goals = 10) {
+                               rho = -0.05, max_goals = 7) {
 
   probs <- dixon_coles_probs(
     team_ratings = team_ratings, home_team = home_team,
@@ -633,7 +645,7 @@ final_results <- bind_rows(
 final_results
 ```
 We compare directly Poisson and DC models:
-```{r echo=FALSE}
+```{r Poisson and Dc comparison ,echo=FALSE}
 bind_rows(
   bind_cols(league = "Championship", method = "Poisson",
             evaluate_goals(validation_ech)),
@@ -662,19 +674,17 @@ joint scoreline distribution for scorelines (0,0), (1,0), (1,1), and (0,1).
 ## Rolling window validation
 In our validation tests, we want to consider both our prediction of a complete season, and prediction of a season which has already began. 
 
-We choose a season end date of July 31st and a season start date of the 1st of august. That is, each season runs from 01/08/20(yy) to 31/07/20(yy+1). For each test window, we will create two validation sets: one in which we predict the entire validation period, ie complete season prediction, and another where we predict all games after a cut-off period.
+We choose a season end date of July 27th and a season start date of the 28th of july. That is, each season runs from 01/08/20(yy) to 31/07/20(yy+1). For each test window, we will create two validation sets: one in which we predict the entire validation period, ie complete season prediction, and another where we predict all games after a cut-off period.
 
 Note that we are assuming that if we can accurately model the number of goals that will be scored in a game, then we will be able to predict the table at the end of the season [COULD ADD XG PREDICTED TABLE TO SHOW THIS IS A GOOD IDEA].
 
 First, we build our validation sets from the epl_all and ech_all data.
 
 ```{r rolling window validation window creation}
-# first we define two helper functioms which return
-# our start and end dates.
 
 generate_validation <- function(ech_all, epl_all, year, cutoff) {
-  start_date <- as.Date(paste0(year, "-08-01"))
-  end_date   <- as.Date(paste0(year + 1, "-07-31"))
+  start_date <- as.Date(paste0(year, "-07-28"))
+  end_date   <- as.Date(paste0(year + 1, "-07-27"))
 
   # all data before the season begins
   historical_ech <- ech_all %>%
@@ -690,14 +700,14 @@ generate_validation <- function(ech_all, epl_all, year, cutoff) {
   target_epl <- epl_all %>%
     filter(Date >= start_date, Date <= end_date)
 
-  # complete-season prediction
+  # complete season 
   complete_season <- list(
     ech_train = historical_ech,
     epl_train = historical_epl,
     ech_test  = target_ech,
     epl_test  = target_epl)
 
-  # In-season prediction
+  # in season
   cutoff <- as.Date(cutoff)
 
   in_season <- list(
@@ -734,23 +744,1132 @@ rw_test_run <- generate_validation(ech_all, epl_all, year= 2024, cutoff= as.Date
 #tail(rw_test_run$in_season$ech_train)
 #head(rw_test_run$in_season$ech_test)
 
-tail(rw_test_run$in_season$epl_train)
-head(rw_test_run$in_season$epl_test)
+rw_test_run$
 ```
 
 Okie dokie, this all seems to be behaving. We will now build our rolling validation sets. We're going to dress this up in a wrapper function for better Q.o.L.
 
-```{r building the validation sets}
-generate_rolling_validation <- function(epl_all, ech_all, years, cutoff_date= as.Date("yyyy-mm-dd")) {
-  
+```{r building the validation sets, warning=FALSE, include=FALSE}
+generate_rolling_validation <- function(epl_all, ech_all, years, cutoff_month, cutoff_day) {
+
   rolling_window_sets <- lapply(years, function(year){
+    cutoff <- as.Date(sprintf(  "%d-%02d-%02d",
+      year, cutoff_month, cutoff_day))
+      
     generate_validation(ech_all, epl_all, year, cutoff)
     }) 
   names(rolling_window_sets) <- years
   return(rolling_window_sets)
 }
 
+years <- 2015:2023
+
+rw_validation_sets <- generate_rolling_validation(epl_all, ech_all, years, cutoff_day = 01, cutoff_month=11)
+
+rw_validation_sets$`2015`$complete_season
 
 ```
 
+Lets check the heads and tails of some of these sets to see if they make sense.
+
+```{r}
+head(rw_validation_sets$`2015`$in_season$epl_train)
+```
+Perfect so we have our rolling train and test sets for both whole season prediction and for incomplete season prediction.
+
+The first thing we will do is use these rolling window validation sets to find scalars $\alpha_{p,c}, \alpha_{c,p}, \delta_{p,c}, \delta_{c,p} $. These will act as a linear estimate for scaling attack and defence estimates between leagues. I.e  a promoted team_i attack's rating in first game of new prem season is $\alpha_i \alpha_{c,p}$. 
+
+Also, we will give any team promoted into the championship from league 1 median championship attack and defence ratings. This is a limitation of the model, however, since we are attempting to model premier league table, we hope that we will be able to accurately adjust these ratings over the minimum course of the single championship season which it would take for a team from league one to get to the premier league. Note that any info we had about the team in seasons prior to their stint in league 1 is "forgotten".
+
+We will now extract the promoted and relegated teams:
+
+```{r 1} 
+library(dplyr)
+get_season_teams <- function(data, year) {
+# again note that year is the first year of season ie 2014 gives the 2014/15 season. This is also adjusted to take the goals data or the _all data.
+  start_date <- as.Date(paste0(year, "-07-28"))
+  end_date   <- as.Date(paste0(year + 1, "-07-27"))
+
+  season_data <- data %>%
+    filter(Date >= start_date, Date <= end_date)
+
+  unique(c(
+    as.character(season_data$HomeTeam),
+    as.character(season_data$AwayTeam)))
+}
+```
+We now use this function to adjust the ratings in consecutive seasons as follows:
+
+```{r 2}
+# gives ratings for start of year given ratings from previous year.
+adjust_division_ratings <- function(
+    epl_ratings,
+    ech_ratings,
+    epl_all,
+    ech_all,
+    year,
+    a_p, d_p, a_c, d_c
+) {
+
+  # all teams in season current and season previous
+  current_epl <- get_season_teams(epl_all, year)
+  current_ech <- get_season_teams(ech_all, year)
+
+  previous_epl <- get_season_teams(epl_all, year - 1)
+  previous_ech <- get_season_teams(ech_all, year - 1)
+
+  # promoted and relegated sides
+  promoted_to_epl <- intersect(current_epl, previous_ech)
+
+  relegated_to_ech <- intersect(current_ech, previous_epl)
+
+  # league 1 to champ
+  new_ech_entrants <- setdiff(
+    current_ech, union(previous_ech, previous_epl))
+
+  # retreive ratings func
+  get_rows <- function(teams, ratings) {
+    idx <- match(teams, ratings$team_names)
+    ratings[idx, , drop = FALSE]}
+
+  # prem teams
+  epl_stayers <- setdiff(current_epl, promoted_to_epl)
+
+  epl_adjusted <- get_rows(epl_stayers, epl_ratings)
+
+  # champ to prem teams
+  promoted_ratings <- get_rows(promoted_to_epl, ech_ratings)
+
+  promoted_ratings$att_rating <-
+    promoted_ratings$att_rating * a_p
+
+  promoted_ratings$def_rating <-
+    promoted_ratings$def_rating * d_p
+
+  epl_adjusted <- bind_rows(
+    epl_adjusted, promoted_ratings)
+
+  # champ teams
+  ech_stayers <- setdiff(
+    current_ech,
+    c(relegated_to_ech, new_ech_entrants))
+
+  ech_adjusted <- get_rows(ech_stayers, ech_ratings)
+
+  # relegated to champ transfer
+  relegated_ratings <- get_rows(relegated_to_ech, epl_ratings)
+
+  relegated_ratings$att_rating <-
+    relegated_ratings$att_rating * a_c
+
+  relegated_ratings$def_rating <-
+    relegated_ratings$def_rating * d_c
+
+  ech_adjusted <- bind_rows(
+    ech_adjusted, relegated_ratings)
+
+  # new champ teams
+  if (length(new_ech_entrants) > 0) {
+
+    median_attack <- median(ech_ratings$att_rating)
+    median_defence <- median(ech_ratings$def_rating)
+
+    new_ratings <- data.frame(
+      team_names = new_ech_entrants,
+      att_rating = median_attack, def_rating = median_defence)
+
+    ech_adjusted <- bind_rows(
+      ech_adjusted, new_ratings)}
+
+  # Ensure ratings follow the current season's team order
+  epl_adjusted <- epl_adjusted[
+    match(current_epl, epl_adjusted$team_names),]
+
+  ech_adjusted <- ech_adjusted[
+    match(current_ech, ech_adjusted$team_names),]
+
+  return(list(
+    epl_ratings = epl_adjusted,
+    ech_ratings = ech_adjusted,
+    promoted_to_epl = promoted_to_epl,
+    relegated_to_ech = relegated_to_ech,
+    new_ech_entrants = new_ech_entrants))
+}
+
+
+epl_ratings_adjusted <- adjusted_ratings$epl_ratings
+ech_ratings_adjusted <- adjusted_ratings$ech_ratings
+```
+
+Next we need to add a function so to allow us to prepare our rolling window dfs. We will use our home away split logic and then fit our models on the training data.
+
+```{r 3}
+library(dplyr)
+prepare_training_goals <- function(data, known_date, cut_off, power) {
+
+  train_data <- data %>%
+    filter(Date < known_date) %>%
+    mutate(days_ago = as.numeric(known_date - Date)) %>%
+    filter(days_ago < cut_off) %>%
+    mutate(obvs_weight = weight(days_ago, cut_off, power))
+
+  def_home_away_split_train(train_data)}
+
+
+fit_division_models <- function(epl_train, ech_train,
+    known_date, cut_off, power) {
+
+  # Prepare goal-level training data
+  train_epl_goals <- prepare_training_goals(
+    epl_train, known_date, cut_off, power)
+
+  train_ech_goals <- prepare_training_goals(
+    ech_train, known_date, cut_off, power)
+
+  # Fit separate Poisson GLMs
+  epl_goal_model <- glm(
+    Goals ~ Home + Team + Opponent,
+    family = poisson(link = "log"),
+    data = train_epl_goals,
+    weights = obvs_weight)
+
+  ech_goal_model <- glm(
+    Goals ~ Home + Team + Opponent,
+    family = poisson(link = "log"),
+    data = train_ech_goals,
+    weights = obvs_weight)
+
+  # Extract ratings and model parameters
+  epl_model <- extract_ratings(epl_goal_model)
+  ech_model <- extract_ratings(ech_goal_model)
+
+  return(list(
+    epl_ratings = epl_model$ratings,
+    ech_ratings = ech_model$ratings,
+
+    epl_baseline = epl_model$baseline,
+    epl_home_advantage = epl_model$home_advantage,
+
+    ech_baseline = ech_model$baseline,
+    ech_home_advantage = ech_model$home_advantage,
+    
+     epl_goal_model = epl_goal_model,
+    ech_goal_model = ech_goal_model))}
+```
+
+Testing time
+
+```{r}
+year <- 2020
+
+known_date <- as.Date("2020-08-01")
+
+validation <- rw_validation_sets[[as.character(year)]]$complete_season
+
+fitted_models <- fit_division_models(
+  epl_train = validation$epl_train,
+  ech_train = validation$ech_train,
+  known_date = known_date,
+  cut_off = 730,
+  power = 2)
+
+```
+
+Right, we're getting there now. We will make amendment to the dc evaluation model so it will work on the validation data sets.
+
+```{r}
+evaluate_dc_fixtures <- function(data, team_ratings,
+    baseline, home_advantage, rho = -0.05, max_goals = 10){
+  
+  # Predict expected goals for every fixture
+  predictions <- lapply(seq_len(nrow(data)), function(i) {
+
+    predict_dc_fixture(home_team = data$HomeTeam[i],
+      away_team = data$AwayTeam[i],
+      team_ratings = team_ratings,
+      baseline = baseline,
+      home_advantage = home_advantage,
+      rho = rho,
+      max_goals = max_goals)})
+
+  predictions <- bind_rows(predictions)
+
+  results <- bind_cols(
+    data %>% select(Date, HomeTeam, AwayTeam, FTHG, FTAG),
+    predictions
+  )
+
+  # Combine home and away observations
+  actual <- c(results$FTHG, results$FTAG)
+
+  predicted <- c(
+    results$expected_home_goals,
+    results$expected_away_goals
+  )
+
+  errors <- actual - predicted
+
+  metrics <- data.frame(
+    n_fixtures = nrow(data),
+    n_observations = length(actual),
+    mean_actual = mean(actual),
+    mean_predicted = mean(predicted),
+    MAE = mean(abs(errors)),
+    RMSE = sqrt(mean(errors^2))
+  )
+
+  return(list(
+    metrics = metrics,
+    predictions = results
+  ))
+}
+```
+
+We are going to use a combination over equal equity of MAE and RMSE as our optimisation objective. Reiterating again that we are going to assume that an increase in the accuracy of our goal predictions will cause an increase in the accuracy of our league table by the end of the season.
+
+We will first tune the league adjustment scalars. We will run procedure over complete season data, then again for in season data. We will aggregate the MSE and RMSE and choose the the set of scalars which result in the minimal realised values of these. 
+
+```{r WE GOT TO HERE}
+validation_mode <- "complete_season"
+
+years <- 2015:2023
+
+# time weight params (to be tuned seperatley later)
+power <- 3
+cut_off <- 730
+
+# dc params (rho also to be tuned)
+rho <- -0.05
+max_goals <- 7
+
+# we will also get the known date (note this needs to be changed if we change the season start or the in_season_cut date)
+
+get_known_date <- function(year, mode) {
+
+  if (mode == "complete_season") {
+    return(as.Date(sprintf("%d-07-27", year)))}
+  if (mode == "in_season") {
+    return(as.Date(sprintf("%d-11-01", year)))}}
+
+# also we will prefit the glm model to the data
+prepare_rolling_models <- function(
+    rw_validation_sets,
+    years,
+    mode,
+    cut_off,
+    power
+) {
+
+  results <- lapply(years, function(year) {
+
+    validation <-rw_validation_sets[[as.character(year)]][[mode]]
+
+    # Use the start of the target season as the information date
+    known_date <- as.Date(paste0(year, "-07-28"))
+
+    fitted_models <- fit_division_models(
+      epl_train = validation$epl_train,
+      ech_train = validation$ech_train,
+      known_date = known_date,
+      cut_off = cut_off,
+      power = power
+    )
+
+    list(
+      year = year,
+      known_date = known_date,
+      fitted_models = fitted_models,
+      epl_test = validation$epl_test,
+      ech_test = validation$ech_test
+    )
+  })
+
+  names(results) <- as.character(years)
+
+  return(results)
+}
+
+
+rolling_models <- prepare_rolling_models(
+  rw_validation_sets = rw_validation_sets,
+  years = years,
+  mode = validation_mode,
+  cut_off = cut_off,
+  power = power)
+```
+Note: we can prefit the model to the data so that we don't have to run through this step for every scalar change. This is fine since the scalar change does not affect the regression coeffs.
+
+We now make our scoring function for the dc_game model.
+```{r}
+score_dc_fixtures <- function(
+    data,
+    team_ratings,
+    baseline,
+    home_advantage,
+    rho = -0.05,
+    max_goals = 7
+) {
+
+  predictions <- lapply(seq_len(nrow(data)), function(i) {
+
+  if (!(data$HomeTeam[i] %in% team_ratings$team_names) ||
+      !(data$AwayTeam[i] %in% team_ratings$team_names)) {
+
+    print(list(
+      fixture = i,
+      home_team = data$HomeTeam[i],
+      away_team = data$AwayTeam[i],
+      missing_home = !(data$HomeTeam[i] %in% team_ratings$team_names),
+      missing_away = !(data$AwayTeam[i] %in% team_ratings$team_names)
+    ))
+  }
+
+  predict_dc_fixture(
+    home_team = data$HomeTeam[i],
+    away_team = data$AwayTeam[i],
+    team_ratings = team_ratings,
+    baseline = baseline,
+    home_advantage = home_advantage,
+    rho = rho,
+    max_goals = max_goals
+  )
+})
+
+  predictions <- bind_rows(predictions)
+
+  actual <- c(data$FTHG, data$FTAG)
+
+  predicted <- c(
+    predictions$expected_home_goals,
+    predictions$expected_away_goals
+  )
+
+  errors <- actual - predicted
+
+  return(list(
+    n = length(errors),
+    absolute_error_sum = sum(abs(errors)),
+    squared_error_sum = sum(errors^2),
+    MAE = mean(abs(errors)),
+    RMSE = sqrt(mean(errors^2))
+  ))
+}
+```
+## Tuning the league transition scalars (CODE to not be ran as takes years)
+(NOTE: due to the unoptimised code, this section takes years to compile. As such i will leave the code in without running it and just publish the tables.)
+
+Okay, now we need to design a function which evaluates a set of parameter values. We will then be able to make an array of param values which we can test, choosing the best one.
+
+```{r}
+evaluate_transition_parameters <- function(
+    a_p, d_p, a_c, d_c,
+    rolling_models,
+    epl_all,
+    ech_all,
+    rho = -0.05,
+    max_goals = 5
+) {
+
+  yearly_results <- lapply(rolling_models, function(validation) {
+
+    year <- validation$year
+    fitted <- validation$fitted_models
+
+    # Apply promotion/relegation adjustments
+    adjusted <- adjust_division_ratings(
+      epl_ratings = fitted$epl_ratings,
+      ech_ratings = fitted$ech_ratings,
+      epl_all = epl_all,
+      ech_all = ech_all,
+      year = year,
+      a_p = a_p,
+      d_p = d_p,
+      a_c = a_c,
+      d_c = d_c
+    )
+
+    # Evaluate EPL predictions
+    epl_score <- score_dc_fixtures(
+      data = validation$epl_test,
+      team_ratings = adjusted$epl_ratings,
+      baseline = fitted$epl_baseline,
+      home_advantage = fitted$epl_home_advantage,
+      rho = rho,
+      max_goals = max_goals
+    )
+
+    # Evaluate Championship predictions
+    ech_score <- score_dc_fixtures(
+      data = validation$ech_test,
+      team_ratings = adjusted$ech_ratings,
+      baseline = fitted$ech_baseline,
+      home_advantage = fitted$ech_home_advantage,
+      rho = rho,
+      max_goals = max_goals
+    )
+
+    # Combine the two divisions
+    total_n <- epl_score$n + ech_score$n
+
+    total_abs <- epl_score$absolute_error_sum +
+      ech_score$absolute_error_sum
+
+    total_sq <- epl_score$squared_error_sum +
+      ech_score$squared_error_sum
+
+    data.frame(
+      year = year,
+      EPL_MAE = epl_score$MAE,
+      EPL_RMSE = epl_score$RMSE,
+      ECH_MAE = ech_score$MAE,
+      ECH_RMSE = ech_score$RMSE,
+      Combined_MAE = total_abs / total_n,
+      Combined_RMSE = sqrt(total_sq / total_n),
+      n_observations = total_n,
+      absolute_error_sum = total_abs,
+      squared_error_sum = total_sq
+    )
+  })
+
+  yearly_results <- bind_rows(yearly_results)
+
+  # Overall results
+  total_n <- sum(yearly_results$n_observations)
+  total_abs <- sum(yearly_results$absolute_error_sum)
+  total_sq <- sum(yearly_results$squared_error_sum)
+
+  summary <- data.frame(
+    a_p = a_p,
+    d_p = d_p,
+    a_c = a_c,
+    d_c = d_c,
+
+    Mean_EPL_MAE = mean(yearly_results$EPL_MAE),
+    Mean_ECH_MAE = mean(yearly_results$ECH_MAE),
+
+    Mean_Combined_MAE = mean(yearly_results$Combined_MAE),
+
+    Pooled_Combined_MAE = total_abs / total_n,
+    Pooled_Combined_RMSE = sqrt(total_sq / total_n),
+
+    SD_Combined_MAE = sd(yearly_results$Combined_MAE)
+  )
+
+  return(list(
+    summary = summary,
+    yearly_results = yearly_results
+  ))
+}
+```
+
+Our parameter grid below:
+(note this grid is very coarse. we may be able to refine this later given a ball park) Also since this is computationally murderous in the current setup (apologies), im going to impose that champ team ratings can only get worse going to prem. I will make no restriction on prem to champ since back to back relegations are not unheard of haowever back to back top finishes over leagues is uncommon.
+
+```{r}
+parameter_grid <- expand.grid(
+  a_p = c(0.8,0.9,1.0),
+  d_p = c(1.0, 1.1, 1.2),
+  a_c = c(0.8,1.0,1.2),
+  d_c = c(0.8, 1.0,1.2))
+```
+
+Now we run the experiment.
+
+```{r}
+tuning_results <- lapply(seq_len(nrow(parameter_grid)), function(i) {
+
+  params <- parameter_grid[i, ]
+
+  result <- evaluate_transition_parameters(
+    a_p = params$a_p,
+    d_p = params$d_p,
+    a_c = params$a_c,
+    d_c = params$d_c,
+
+    rolling_models = rolling_models,
+
+    epl_all = epl_all,
+    ech_all = ech_all,
+
+    rho = rho,
+    max_goals = max_goals
+  )
+
+  result$summary
+})
+
+tuning_results <- bind_rows(tuning_results) %>%
+  arrange(Mean_Combined_MAE) %>%
+  mutate(Rank = row_number())
+```
+
+We have the following results for initial tuning of scalar params:
+
+```{r}
+top_10_results <- bind_rows(tuning_results) %>%
+  arrange(Mean_Combined_MAE) %>%
+  slice_head(n = 10) %>%
+  mutate(Rank = row_number()) %>%
+  select(
+    Rank,
+    a_p, d_p, a_c, d_c,
+    Mean_EPL_MAE,
+    Mean_ECH_MAE,
+    Mean_Combined_MAE,
+    Pooled_Combined_RMSE
+  ) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 4)))
+
+kable(
+  top_10_results,
+  format = "pipe",
+  caption = "Top 10 Transition Parameter Combinations",
+  col.names = c(
+    "Rank", "a_p", "d_p", "a_c", "d_c",
+    "EPL MAE", "ECH MAE", "Combined MAE", "Combined RMSE"),
+  align = "c"
+)
+top_10_results
+```
+The initial tune suggests that 0.8,1.2,1.2,0.8 result in smallest mean combined MAE. We will now tune the championship to prem params keeping prem ones fixed:
+
+```{r ch to prem grid}
+parameter_grid <- expand.grid(
+  a_p = c(0.7,0.8,0.9),
+  d_p = c(1.1, 1.2, 1,3),
+  a_c = c(1.2),
+  d_c = c(0.8))
+```
+
+
+
+```{r ch to prem tune}
+tuning_results_ch_to_prem <- lapply(seq_len(nrow(parameter_grid)), function(i) {
+
+  params <- parameter_grid[i, ]
+
+  result <- evaluate_transition_parameters(
+    a_p = params$a_p,
+    d_p = params$d_p,
+    a_c = params$a_c,
+    d_c = params$d_c,
+
+    rolling_models = rolling_models,
+
+    epl_all = epl_all,
+    ech_all = ech_all,
+
+    rho = rho,
+    max_goals = max_goals
+  )
+
+  result$summary
+})
+
+tuning_results_ch_to_prem <- bind_rows(tuning_results_ch_to_prem) %>%
+  arrange(Mean_Combined_MAE) %>%
+  mutate(Rank = row_number())
+```
+
+The results of this are:
+
+```{r}
+tuning_results_ch_to_prem
+```
+This gives lowest combined MSE at 0.7,1.2,1.2,0.8. We will now run same procedure fixing the Championship parameters:
+
+```{r}
+parameter_grid <- expand.grid(
+  a_p = c(0.7),
+  d_p = c(1.2),
+  a_c = c(1.1, 1.2, 1.3),
+  d_c = c(0.8, 0.7, 0.9))
+```
+
+and lets rerun experiment:
+
+```{r}
+tuning_results_prem_to_ch <- lapply(seq_len(nrow(parameter_grid)), function(i) {
+
+  params <- parameter_grid[i, ]
+
+  result <- evaluate_transition_parameters(
+    a_p = params$a_p,
+    d_p = params$d_p,
+    a_c = params$a_c,
+    d_c = params$d_c,
+
+    rolling_models = rolling_models,
+
+    epl_all = epl_all,
+    ech_all = ech_all,
+
+    rho = rho,
+    max_goals = max_goals
+  )
+
+  result$summary
+})
+
+tuning_results_prem_to_ch <- bind_rows(tuning_results_prem_to_ch) %>%arrange(Mean_Combined_MAE) %>%mutate(Rank = row_number())
+
+
+```
+
+Lets see results:
+```{r}
+tuning_results_prem_to_ch
+```
+Okay, the best results are given by .7, 1.2, 1.3, .7. Now these are the extreme values of grid so we will rerun the test to see if we can improve these results.
+
+```{r}
+parameter_grid <- expand.grid(
+  a_p = c(0.7),
+  d_p = c(1.2),
+  a_c = c(1.3, 1.4, 1.5),
+  d_c = c(0.7, 0.6, 0.5))
+```
+
+```{r}
+tuning_results_prem_to_ch_2 <- lapply(seq_len(nrow(parameter_grid)), function(i) {
+
+  params <- parameter_grid[i, ]
+
+  result <- evaluate_transition_parameters(
+    a_p = params$a_p,
+    d_p = params$d_p,
+    a_c = params$a_c,
+    d_c = params$d_c,
+
+    rolling_models = rolling_models,
+
+    epl_all = epl_all,
+    ech_all = ech_all,
+
+    rho = rho,
+    max_goals = max_goals
+  )
+
+  result$summary
+})
+
+tuning_results_prem_to_ch_2 <- bind_rows(tuning_results_prem_to_ch_2) %>%
+  arrange(Mean_Combined_MAE) %>%
+  mutate(Rank = row_number())
+```
+
+Gives results 
+
+```{r}
+tuning_results_prem_to_ch_2
+```
+Okay, best results ar .7, 1.2, 1.4, .6. Neither of these are extreme points so we are happy this is the optimal set of parameters given our level of granularity.
+
+This gives us our optimal parameters for ap,dp,ac,dc = .7, 1.2, 1.4, .6. We can now fix these and tune our cut_off date and rho value.
+
+Before moving on I will save the tuning results so I dont have to go through arduous tuning process again.
+
+```{r}
+
+folder <- getwd()
+
+saveRDS(top_10_results,
+        file.path(folder, "top_10_transition_results.rds"))
+
+saveRDS(tuning_results_ch_to_prem,
+        file.path(folder, "ch_to_prem_tune.rds"))
+
+saveRDS(tuning_results_prem_to_ch,
+        file.path(folder, "prem_to_ch_first_tune.rds"))
+
+saveRDS(tuning_results_prem_to_ch_2,
+        file.path(folder, "prem_to_ch_second_tune.rds"))
+```
+
+We access all of the tuning tables as follows:
+```{r}
+files <- file.path(folder, c(
+  "top_10_transition_results.rds",
+  "ch_to_prem_tune.rds",
+  "prem_to_ch_first_tune.rds",
+  "prem_to_ch_second_tune.rds"
+))
+
+file.exists(files)
+folder
+
+```
+
+# Tuning power and cut_off
+
+For ease we will use a rho value of -0.13 as found in the blog https://opisthokonta.net/?p=890. We may look to find our own parameter value if the time constraints allow, but for now this will suffice. We do, however, need to tune the power and cut_off parameters for our time weighting functions. We will use a coarse grid initially for this which we may refine if time allows.
+
+```{r power_cutoff grid}
+power_grid <- c(0.5, 1, 1.5, 2, 2.5, 3, 4)
+
+cut_off_grid <- c(365, 730, 1095, 1460,1825, 2190, 2555)
+
+weighting_grid <- expand.grid(power= power_grid, cutoff = cut_off_grid)
+```
+Now we rerun our tuning experiment with other parameters fixed.
+
+```{r weight tuner}
+weighting_results <- vector("list", nrow(weighting_grid))
+
+for (i in seq_len(nrow(weighting_grid))) {
+
+  current_power <- weighting_grid$power[i]
+  current_cut_off <- weighting_grid$cut_off[i]
+
+  cat(
+    "\nCombination", i, "of", nrow(weighting_grid),
+    "| Power:", current_power,
+    "| Cut-off:", current_cut_off, "days\n"
+  )
+
+  rolling_models <- prepare_rolling_models(
+    rw_validation_sets = rw_validation_sets,
+    years = years,
+    mode = "complete_season",
+    cut_off = current_cut_off,
+    power = current_power
+  )
+
+  result <- evaluate_transition_parameters(
+    a_p = 0.7,
+    d_p = 1.2,
+    a_c = 1.4,
+    d_c = 0.6,
+    rolling_models = rolling_models,
+    epl_all = epl_all,
+    ech_all = ech_all,
+    rho = -0.13,
+    max_goals = 7
+  )
+
+  weighting_results[[i]] <- result
+
+  cat("Combined MAE:",
+    round(result$summary$Pooled_Combined_MAE, 5),"\n")
+}
+
+weighting_summary <- dplyr::bind_rows(
+  lapply(seq_along(weighting_results), function(i) {
+
+    cbind(
+      power = weighting_grid$power[i],
+      cut_off = weighting_grid$cut_off[i],
+      weighting_results[[i]]$summary
+    )
+
+  })
+) %>%
+  dplyr::arrange(Pooled_Combined_MAE) %>%
+  dplyr::mutate(Rank = dplyr::row_number()) %>%
+  dplyr::select(
+    Rank,
+    power,
+    cut_off,
+    Mean_EPL_MAE,
+    Mean_ECH_MAE,
+    Pooled_Combined_MAE,
+    Pooled_Combined_RMSE,
+    SD_Combined_MAE
+  )
+
+head(weighting_summary)
+```
+
+Our lowest combined MAE is given when we use power = 0.5 and cut_off = 2555. If we plot this weighting curve it gives:
+
+```{r}
+power <- 0.5
+cut_off <- 2555
+
+weighting_data <- data.frame(
+  days_ago = seq(0, cut_off, length.out = 1000)
+) %>%
+  mutate(
+    weight = ifelse(
+      days_ago >= cut_off,
+      0,
+      1 - (days_ago / cut_off)^power
+    )
+  )
+
+ggplot(weighting_data, aes(x = days_ago, y = weight)) +
+  geom_line(linewidth = 1.2) +
+  labs(
+    title = "Historical Observation Weighting Function",
+    subtitle = "Power = 0.5 | Cut-off = 2555 days",
+    x = "Age of observation (days)",
+    y = "Observation weight"
+  ) +
+  scale_y_continuous(limits = c(0, 1)) +
+  theme_classic()
+```
+
+This is contrary to my prior that the best weighting curve would be concave. We will use these parameters in our final model.
+
+## Final model:
+
+We will now form our final model, we will run it on the validation windows and have a look at its performance this will give us an optimistic impression of how it might perform on the unseen test data. 
+
+We fix our model parameters and then fit our model given these.
+
+```{r final model fit}
+known_date <- as.Date("2025-07-28")
+
+final_models <- fit_division_models(
+  epl_train = epl_all,
+  ech_train = ech_all,
+  known_date = known_date,
+  cut_off = 2555,
+  power = 0.5)
+
+
+
+final_ratings <- adjust_division_ratings(
+  epl_ratings = final_models$epl_ratings,
+  ech_ratings = final_models$ech_ratings,
+  epl_all = epl_all,
+  ech_all = ech_all,
+  year = 2025,
+  a_p = 0.7,
+  d_p = 1.2,
+  a_c = 1.4,
+  d_c = 0.6)
+
+
+
+head(summary(final_models$epl_goal_model))
+head(summary(final_models$ech_goal_model))
+```
+
+
+Lets load and test the test data from 2526.
+
+```{r}
+epl_test <- read.csv(
+  "C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/2526_test_pl.csv",stringsAsFactors = FALSE) %>% select(Date, HomeTeam, AwayTeam, FTHG, FTAG) 
+
+ech_test <- read.csv(
+  "C:/Users/jonty/OneDrive - University of Bristol/Year 4 2026-2027/Toolbox/Sprint-1/jonty_heffaran/data/2526_test_ch.csv",stringsAsFactors = FALSE) %>% select(Date, HomeTeam, AwayTeam, FTHG, FTAG) 
+
+epl_test$Date <- as.Date(epl_test$Date, format = "%d/%m/%Y")
+ech_test$Date <- as.Date(ech_test$Date, format = "%d/%m/%Y")
+
+head(epl_test)
+head(ech_test)
+
+
+```
+
+```{r predicting table function}
+predict_fixtures <- function(
+    fixtures,
+    team_ratings,
+    baseline,
+    home_advantage,
+    rho = -0.13,
+    max_goals = 7) {
+
+  results <- lapply(seq_len(nrow(fixtures)), function(i) {
+
+    home <- fixtures$HomeTeam[i]
+    away <- fixtures$AwayTeam[i]
+
+    probs <- dixon_coles_probs(
+      team_ratings = team_ratings,
+      home_team = home,
+      away_team = away,
+      baseline = baseline,
+      home_advantage = home_advantage,
+      rho = rho,
+      max_goals = max_goals)
+
+    goals <- 0:max_goals
+
+    expected_home <- sum(probs * matrix(
+      goals,
+      nrow = length(goals),
+      ncol = length(goals)))
+
+    expected_away <- sum(probs * matrix(
+      goals,
+      nrow = length(goals),
+      ncol = length(goals),
+      byrow = TRUE))
+
+    home_win <- sum(probs[row(probs) > col(probs)])
+    draw <- sum(diag(probs))
+    away_win <- sum(probs[row(probs) < col(probs)])
+
+    most_likely <- which(
+      probs == max(probs), arr.ind = TRUE)[1, ]
+
+    data.frame(
+      Date = fixtures$Date[i],
+      HomeTeam = home,
+      AwayTeam = away,
+      Expected_Home_Goals = expected_home,
+      Expected_Away_Goals = expected_away,
+      Predicted_Score = paste0(
+        most_likely[1] - 1, "-",
+        most_likely[2] - 1),
+      Home_Win_Prob = home_win,
+      Draw_Prob = draw,
+      Away_Win_Prob = away_win,
+      Expected_Home_Points = 3 * home_win + draw,
+      Expected_Away_Points = 3 * away_win + draw)})
+
+  dplyr::bind_rows(results)
+}
+```
+
+
+```{r making predictions}
+epl_predictions <- predict_fixtures(
+  epl_test,
+  final_ratings$epl_ratings,
+  final_models$epl_baseline,
+  final_models$epl_home_advantage)
+
+ech_predictions <- predict_fixtures(
+  ech_test,
+  final_ratings$ech_ratings,
+  final_models$ech_baseline,
+  final_models$ech_home_advantage)
+```
+
+```{r building function to create league table}
+compare_league_tables <- function(fixtures, predictions) {
+
+  # Predicted home-team contributions
+  predicted_home <- data.frame(
+    Team = predictions$HomeTeam,
+    P = 1,
+    Expected_Pts = predictions$Expected_Home_Points,
+    Expected_GF = predictions$Expected_Home_Goals,
+    Expected_GA = predictions$Expected_Away_Goals)
+
+  # Predicted away-team contributions
+  predicted_away <- data.frame(
+    Team = predictions$AwayTeam,
+    P = 1,
+    Expected_Pts = predictions$Expected_Away_Points,
+    Expected_GF = predictions$Expected_Away_Goals,
+    Expected_GA = predictions$Expected_Home_Goals)
+
+  predicted_table <- dplyr::bind_rows(
+    predicted_home, predicted_away) %>%
+    dplyr::group_by(Team) %>%
+    dplyr::summarise(
+      P = sum(P),
+      Expected_Pts = sum(Expected_Pts),
+      Expected_GF = sum(Expected_GF),
+      Expected_GA = sum(Expected_GA),
+      Expected_GD = Expected_GF - Expected_GA,
+      .groups = "drop") %>%
+    dplyr::arrange(
+      dplyr::desc(Expected_Pts),
+      dplyr::desc(Expected_GD),
+      dplyr::desc(Expected_GF)
+    ) %>%
+    dplyr::mutate(Predicted_Rank = dplyr::row_number())
+
+  # Actual results: exclude any fixtures without a final score
+  completed <- fixtures %>%
+    dplyr::filter(!is.na(FTHG), !is.na(FTAG))
+
+  actual_home <- data.frame(
+    Team = completed$HomeTeam,
+    GF = completed$FTHG,
+    GA = completed$FTAG
+  )
+
+  actual_away <- data.frame(
+    Team = completed$AwayTeam,
+    GF = completed$FTAG,
+    GA = completed$FTHG
+  )
+
+  actual_results <- dplyr::bind_rows(
+    actual_home, actual_away
+  ) %>%
+    dplyr::mutate(
+      W = as.integer(GF > GA),
+      D = as.integer(GF == GA),
+      L = as.integer(GF < GA),
+      Pts = 3 * W + D
+    )
+
+  actual_table <- actual_results %>%
+    dplyr::group_by(Team) %>%
+    dplyr::summarise(
+      P = dplyr::n(),
+      W = sum(W),
+      D = sum(D),
+      L = sum(L),
+      GF = sum(GF),
+      GA = sum(GA),
+      GD = GF - GA,
+      Pts = sum(Pts),
+      .groups = "drop"
+    ) %>%
+    dplyr::arrange(
+      dplyr::desc(Pts),
+      dplyr::desc(GD),
+      dplyr::desc(GF)
+    ) %>%
+    dplyr::mutate(Actual_Rank = dplyr::row_number())
+
+  # Join predicted and actual positions
+  comparison <- dplyr::full_join(
+    predicted_table,
+    actual_table,
+    by = "Team",
+    suffix = c("_Predicted", "_Actual")
+  ) %>%
+    dplyr::mutate(
+      Rank_Difference = Predicted_Rank - Actual_Rank
+    ) %>%
+    dplyr::arrange(Actual_Rank)
+
+  return(list(comparison = comparison))
+}
+```
+
+```{r creating league table}
+epl_tables <- compare_league_tables(
+  fixtures = epl_test,
+  predictions = epl_predictions
+)
+
+ech_tables <- compare_league_tables(
+  fixtures = ech_test,
+  predictions = ech_predictions
+)
+```
+
+```{r creating final prediction output df}
+
+epl_prediction <- epl_tables$comparison%>%
+  select(Team, Actual_Rank, Predicted_Rank, Rank_Difference,
+         Expected_Pts, Pts)
+  
+epl_prediction
+
+ech_prediction <- ech_tables$comparison%>%
+  select(Team, Actual_Rank, Predicted_Rank, Rank_Difference,
+         Expected_Pts, Pts)
+  
+ech_prediction
+
+```
+
+Okie dokie we have our predicted tables for the 25-26 seasons. As we can see, they are moderately unsuccessful. I think a big issue is that we are assuming that past performance is indicative of future results which is not always the case.
+
+## Test against performance metric
+Here we are folks, the moment we've all been waiting for
 
